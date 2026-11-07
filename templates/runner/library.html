@@ -31,7 +31,7 @@
       <span class="badge badge-cat">{{ s.category }}</span>
       <span class="badge badge-interp">{{ s.interpreter }}</span>
     </div>
-    <h2>{{ s.name }}</h2>
+    <h2><a class="plain" href="{% url 'script_detail' s.id %}">{{ s.name }}</a></h2>
     <p class="desc">{% if s.description %}{{ s.description }}{% else %}<span class="muted">No description.</span>{% endif %}</p>
     {% if s.meta_error %}<p class="error-text">⚠ {{ s.meta_error }}</p>{% endif %}
     <dl class="facts">
@@ -41,10 +41,14 @@
     </dl>
     <div class="card-foot">
       <span class="state {% if s.enabled %}state-on{% else %}state-off{% endif %}">{% if s.enabled %}Enabled{% else %}Disabled{% endif %}</span>
-      <form method="post" action="{% url 'script_toggle' s.id %}">{% csrf_token %}
-        <input type="hidden" name="enabled" value="{% if s.enabled %}0{% else %}1{% endif %}">
-        <button class="btn btn-ghost btn-sm" type="submit">{% if s.enabled %}Disable{% else %}Enable{% endif %}</button>
-      </form>
+      <div class="btn-row">
+        {% if s.enabled and s.meta_valid %}<a class="btn btn-primary btn-sm" href="{% url 'script_run' s.id %}">▶ Run</a>{% endif %}
+        <a class="btn btn-ghost btn-sm" href="{% url 'script_configure' s.id %}">Configure</a>
+        <form method="post" action="{% url 'script_toggle' s.id %}">{% csrf_token %}
+          <input type="hidden" name="enabled" value="{% if s.enabled %}0{% else %}1{% endif %}">
+          <button class="btn btn-ghost btn-sm" type="submit">{% if s.enabled %}Disable{% else %}Enable{% endif %}</button>
+        </form>
+      </div>
     </div>
   </article>
   {% endfor %}

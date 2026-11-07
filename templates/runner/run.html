@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Run {{ script.name }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <a class="back" href="{% url 'script_detail' script.id %}">← {{ script.name }}</a>
+    <h1>Run: {{ script.name }}</h1>
+    <p class="muted">{{ script.description }}</p>
+  </div>
+</div>
+
+{% if blocked %}
+<div class="flash flash-error"><span>{{ blocked }}</span></div>
+<a class="btn btn-ghost" href="{% url 'library' %}">Back to library</a>
+{% else %}
+{% if has_errors %}<div class="flash flash-error"><span>Please correct the highlighted fields.</span></div>{% endif %}
+<form method="post" class="card form-card" novalidate>{% csrf_token %}
+  {% for f in fields %}{% include "runner/_field.html" %}
+  {% empty %}<p class="muted">This script takes no parameters.</p>{% endfor %}
+  <div class="form-actions">
+    <button class="btn btn-primary" type="submit">Review &amp; confirm →</button>
+    <a class="btn btn-ghost" href="{% url 'script_run' script.id %}">Reset to defaults</a>
+    <a class="btn btn-ghost" href="{% url 'script_configure' script.id %}">Edit parameters</a>
+  </div>
+</form>
+{% endif %}
+{% endblock %}

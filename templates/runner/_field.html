@@ -1,0 +1,38 @@
+<div class="field{% if f.error %} has-error{% endif %}{% if f.input == 'checkbox' %} field-check{% endif %}">
+  {% if f.input == 'checkbox' %}
+    <label class="check">
+      <input type="checkbox" name="{{ f.input_name }}" id="id_{{ f.name }}" {% if f.value %}checked{% endif %} {% if f.locked %}disabled{% endif %}>
+      <span>{{ f.p.label }}</span>
+    </label>
+  {% else %}
+    <label class="field-label" for="id_{{ f.name }}">{{ f.p.label }}{% if f.p.required %}<span class="req" title="Required">*</span>{% endif %}</label>
+    {% if f.input == 'textarea' %}
+      <textarea class="input" rows="4" name="{{ f.input_name }}" id="id_{{ f.name }}" placeholder="{{ f.p.placeholder|default:'' }}" {% if f.locked %}disabled{% endif %}>{{ f.value }}</textarea>
+    {% elif f.input == 'select' %}
+      <select class="input" name="{{ f.input_name }}" id="id_{{ f.name }}" {% if f.locked %}disabled{% endif %}>
+        {% if not f.p.required %}<option value="">— none —</option>{% endif %}
+        {% for c in f.choices %}<option value="{{ c.value }}" {% if c.value == f.value %}selected{% endif %}>{{ c.label }}</option>{% endfor %}
+      </select>
+    {% elif f.input == 'multiselect' %}
+      <div class="check-list" id="id_{{ f.name }}">
+        {% for c in f.choices %}
+        <label class="check"><input type="checkbox" name="{{ f.input_name }}" value="{{ c.value }}" {% if c.value in f.selected %}checked{% endif %} {% if f.locked %}disabled{% endif %}><span>{{ c.label }}</span></label>
+        {% endfor %}
+      </div>
+    {% elif f.input == 'number' %}
+      <input class="input" type="number" step="1" name="{{ f.input_name }}" id="id_{{ f.name }}" value="{{ f.value }}"
+             {% if f.p.min != None %}min="{{ f.p.min }}"{% endif %} {% if f.p.max != None %}max="{{ f.p.max }}"{% endif %}
+             placeholder="{{ f.p.placeholder|default:'' }}" {% if f.locked %}disabled{% endif %}>
+    {% elif f.input == 'decimal' %}
+      <input class="input" type="text" inputmode="decimal" name="{{ f.input_name }}" id="id_{{ f.name }}" value="{{ f.value }}"
+             placeholder="{{ f.p.placeholder|default:'' }}" {% if f.locked %}disabled{% endif %}>
+    {% else %}
+      <input class="input" type="{{ f.input }}" name="{{ f.input_name }}" id="id_{{ f.name }}" value="{{ f.value }}"
+             placeholder="{{ f.p.placeholder|default:'' }}" autocomplete="off" {% if f.locked %}disabled{% endif %}>
+    {% endif %}
+  {% endif %}
+  {% if f.p.help %}<div class="help">{{ f.p.help }}</div>{% endif %}
+  {% if f.p.min != None or f.p.max != None %}{% if f.input == 'number' or f.input == 'decimal' %}<div class="help">Allowed range: {{ f.p.min|default_if_none:"…" }} to {{ f.p.max|default_if_none:"…" }}</div>{% endif %}{% endif %}
+  {% if f.locked %}<div class="help">Fixed — not editable at run time.</div>{% endif %}
+  {% if f.error %}<div class="field-error">{{ f.error }}</div>{% endif %}
+</div>

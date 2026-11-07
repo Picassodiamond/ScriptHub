@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}{{ script.name }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <a class="back" href="{% url 'library' %}">← Script Library</a>
+    <h1>{{ script.name }}</h1>
+    <p class="muted">{{ script.description|default:"No description." }}</p>
+  </div>
+  <div class="btn-row">
+    {% if script.enabled and script.meta_valid %}<a class="btn btn-primary" href="{% url 'script_run' script.id %}">▶ Run</a>{% endif %}
+    <a class="btn btn-ghost" href="{% url 'script_configure' script.id %}">Configure</a>
+  </div>
+</div>
+
+{% if script.meta_error %}<div class="flash flash-error"><span>{{ script.meta_error }}</span></div>{% endif %}
+
+<section class="card">
+  <h2>Script information</h2>
+  <dl class="facts facts-wide">
+    <div><dt>Category</dt><dd>{{ script.category }}</dd></div>
+    <div><dt>Interpreter</dt><dd class="mono">{{ script.interpreter }}</dd></div>
+    <div><dt>Status</dt><dd>{% if script.enabled %}Enabled{% else %}Disabled{% endif %}</dd></div>
+    <div><dt>Path</dt><dd class="mono wrap-anywhere">{{ script.path }}</dd></div>
+    <div><dt>Metadata</dt><dd class="mono wrap-anywhere">{% if script.meta_source %}{{ script.meta_source }}{% else %}none (defaults){% endif %}</dd></div>
+    <div><dt>Timeout</dt><dd>{% if script.meta.timeout %}{{ script.meta.timeout }} s{% else %}application default{% endif %}</dd></div>
+    <div><dt>Concurrent runs</dt><dd>{% if script.meta.allow_concurrent %}Allowed{% else %}One at a time{% endif %}</dd></div>
+  </dl>
+</section>
+
+<section class="card">
+  <h2>Parameters ({{ rows|length }})</h2>
+  {% if rows %}
+  <div class="table-scroll">
+  <table class="table">
+    <thead><tr><th>Label</th><th>Name</th><th>Type</th><th>Default</th><th>Required</th><th>Runtime</th><th>Passed as</th></tr></thead>
+    <tbody>
+      {% for r in rows %}
+      <tr>
+        <td>{{ r.p.label }}</td>
+        <td class="mono">{{ r.p.name }}</td>
+        <td>{{ r.p.type }}</td>
+        <td class="mono">{{ r.default|default:"—" }}</td>
+        <td>{% if r.p.required %}Yes{% else %}No{% endif %}</td>
+        <td>{% if r.p.editable_at_runtime %}Editable{% else %}Fixed{% endif %}</td>
+        <td class="mono">{% if r.p.pass_as == 'flag' %}{{ r.p.arg|default:"--…" }}{% elif r.p.pass_as == 'env' %}env {{ r.p.env_name }}{% else %}positional {{ r.p.position|default:"" }}{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+  <p class="muted">This script has no parameters. <a href="{% url 'script_configure' script.id %}">Add some</a>.</p>
+  {% endif %}
+</section>
+{% endblock %}

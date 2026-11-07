@@ -32,6 +32,16 @@ def load_raw(script_path: Path, script_id: str):
     return {}, None, None
 
 
+def _backup_if_valid(path: Path) -> None:
+    """Keep the previous *valid* file as .bak (never overwrite a good backup
+    with a broken file)."""
+    try:
+        read_json(path)
+    except (OSError, ValueError):
+        return
+    path.with_suffix(".json.bak").write_bytes(path.read_bytes())
+
+
 def save_raw(script_path: Path, script_id: str, data: dict) -> Path:
     """Atomically save metadata, keeping a .bak of the previous valid file.
 
@@ -47,8 +57,7 @@ def save_raw(script_path: Path, script_id: str, data: dict) -> Path:
     for attempt in (target, ov):
         try:
             if attempt.is_file():
-                backup = attempt.with_suffix(".json.bak")
-                backup.write_bytes(attempt.read_bytes())
+                _backup_if_valid(attempt)
             atomic_write_json(attempt, data)
             return attempt
         except OSError:

@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Confirm {{ script.name }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <a class="back" href="{% url 'script_detail' script.id %}">← {{ script.name }}</a>
+    <h1>Confirm: {{ script.name }}</h1>
+    <p class="muted">Review the values below. Passwords are masked.</p>
+  </div>
+</div>
+
+<section class="card">
+  <h2>Parameters</h2>
+  <table class="table">
+    <tbody>
+      {% for r in rows %}<tr><th class="th-row">{{ r.label }}</th><td>{{ r.value }}{% if r.locked %} <span class="muted small">(fixed)</span>{% endif %}</td></tr>
+      {% empty %}<tr><td class="muted">No parameters.</td></tr>{% endfor %}
+    </tbody>
+  </table>
+</section>
+
+<section class="card">
+  <h2>Command preview</h2>
+  <p class="muted small">Passed as an argument list — never through a shell.</p>
+  <pre class="codebox">{{ command }}</pre>
+  {% if env_rows %}
+  <p class="muted small">Environment variables set for this run:</p>
+  <pre class="codebox">{% for k, v in env_rows %}{{ k }}={{ v }}
+{% endfor %}</pre>
+  {% endif %}
+</section>
+
+<form method="post" action="{% url 'script_run' script.id %}">{% csrf_token %}
+  <input type="hidden" name="edit" value="1">
+  {% for name, value in hidden %}<input type="hidden" name="{{ name }}" value="{{ value }}">{% endfor %}
+  <button class="btn btn-ghost" type="submit">← Back to edit</button>
+</form>
+{% endblock %}

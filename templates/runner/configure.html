@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}Configure {{ script.name }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <a class="back" href="{% url 'script_detail' script.id %}">← {{ script.name }}</a>
+    <h1>Configure: {{ script.name }}</h1>
+    <p class="muted mono wrap-anywhere">{{ script.path }}</p>
+  </div>
+</div>
+
+{% if errors %}
+<div class="flash flash-error"><div><strong>Not saved.</strong><ul class="err-list">{% for e in errors %}<li>{{ e }}</li>{% endfor %}</ul></div></div>
+{% endif %}
+
+<form method="post" id="configure-form" novalidate>{% csrf_token %}
+  <section class="card">
+    <h2>Script information</h2>
+    <div class="form-grid">
+      <div class="field"><label class="field-label" for="f_name">Name</label>
+        <input class="input" id="f_name" name="name" value="{{ form.name }}" maxlength="120" placeholder="Shown in the library"></div>
+      <div class="field"><label class="field-label" for="f_category">Category</label>
+        <input class="input" id="f_category" name="category" value="{{ form.category }}" maxlength="60" placeholder="Defaults to the folder name"></div>
+      <div class="field field-wide"><label class="field-label" for="f_description">Description</label>
+        <textarea class="input" id="f_description" name="description" rows="2" maxlength="2000">{{ form.description }}</textarea></div>
+      <div class="field"><label class="field-label" for="f_interpreter">Interpreter</label>
+        <input class="input" id="f_interpreter" name="interpreter" value="{{ form.interpreter }}" placeholder="Blank = default for the file type ({{ script.extension }})">
+        <div class="help">Command or full path, e.g. <span class="mono">python3</span> or <span class="mono">/usr/bin/bash</span>.</div></div>
+      <div class="field"><label class="field-label" for="f_timeout">Timeout (seconds)</label>
+        <input class="input" id="f_timeout" name="timeout" value="{{ form.timeout }}" inputmode="numeric" placeholder="Blank = application default">
+      </div>
+      <div class="field field-check"><label class="check"><input type="checkbox" name="allow_concurrent" {% if form.allow_concurrent %}checked{% endif %}><span>Allow concurrent runs of this script</span></label></div>
+      <div class="field field-check"><label class="check"><input type="checkbox" name="enabled" {% if form.enabled %}checked{% endif %}><span>Enabled</span></label></div>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="section-head">
+      <div>
+        <h2>Parameters</h2>
+        <p class="muted small">Changes are saved to the script's JSON metadata; no restart needed. The previous valid version is kept as a <code>.bak</code> file.</p>
+      </div>
+      <button type="button" class="btn btn-ghost" id="add-param">+ Add parameter</button>
+    </div>
+    <div id="param-list" class="param-list"></div>
+    <p id="param-empty" class="muted" hidden>No parameters yet. Click “Add parameter”.</p>
+    <input type="hidden" name="parameters_json" id="parameters_json" value="[]">
+  </section>
+
+  <div class="form-actions sticky-actions">
+    <button class="btn btn-primary" type="submit">Save configuration</button>
+    <a class="btn btn-ghost" href="{% url 'script_detail' script.id %}">Cancel</a>
+  </div>
+</form>
+
+<section class="card">
+  <h2>Raw JSON</h2>
+  <p class="muted small">Advanced: edit the whole metadata document. It is validated before saving. Use this to repair a file with invalid JSON.</p>
+  {% if raw_errors %}
+  <div class="flash flash-error"><div><strong>Not saved.</strong><ul class="err-list">{% for e in raw_errors %}<li>{{ e }}</li>{% endfor %}</ul></div></div>
+  {% endif %}
+  <form method="post" action="{% url 'script_configure_raw' script.id %}">{% csrf_token %}
+    <textarea class="input mono raw-json" name="raw_json" rows="16" spellcheck="false">{{ raw_text }}</textarea>
+    <div class="form-actions"><button class="btn btn-ghost" type="submit">Validate &amp; save raw JSON</button></div>
+  </form>
+</section>
+
+{{ params|json_script:"params-data" }}
+{{ type_info|json_script:"type-info" }}
+{% endblock %}
+
+{% block scripts %}
+{% load static %}
+<script src="{% static 'js/param_editor.js' %}"></script>
+{% endblock %}

@@ -12,6 +12,8 @@ from pathlib import Path
 
 import config
 from . import metadata
+from .parameter_service import validate_metadata
+from .validators import ValidationError
 
 SKIP_DIRS = {"__pycache__", "node_modules", "venv", ".venv", "site-packages", "env"}
 CACHE_TTL = 2.0  # seconds; new scripts appear without a restart
@@ -34,6 +36,8 @@ class Script:
     meta_source: Path | None = None
     meta_error: str | None = None
     parameter_count: int = 0
+    meta: dict = field(default_factory=dict)
+    meta_valid: bool = True
 
     @property
     def relative(self) -> str:
@@ -71,6 +75,14 @@ def _build(path: Path, root: Path, interpreters: dict) -> Script:
     interp = data.get("interpreter")
     if not isinstance(interp, str) or not interp.strip():
         interp = interpreters.get(ext, "")
+    meta_valid = True
+    if not err and source is not None:
+        try:
+            data = validate_metadata(data)
+        except ValidationError as exc:
+            meta_valid, err = False, "Invalid metadata: " + "; ".join(exc.errors)
+    elif err:
+        meta_valid = False
     params = data.get("parameters")
     return Script(
         id=sid,
@@ -85,6 +97,8 @@ def _build(path: Path, root: Path, interpreters: dict) -> Script:
         meta_source=source,
         meta_error=err,
         parameter_count=len(params) if isinstance(params, list) else 0,
+        meta=data,
+        meta_valid=meta_valid,
     )
 
 
