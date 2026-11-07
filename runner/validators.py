@@ -92,6 +92,10 @@ def validate_config(data: dict) -> dict:
                 env_out[k] = v
         clean["environment"] = env_out
 
+    for key in ("enable_adhoc", "enable_script_editing"):
+        if not isinstance(data.get(key), bool):
+            errors.append(f"{key} must be true or false.")
+
     for key, lo, hi, label in (
         ("max_concurrent_executions", 1, 64, "Max concurrent executions"),
         ("max_concurrent_per_host", 1, 64, "Max concurrent executions per host"),

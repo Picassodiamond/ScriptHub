@@ -71,7 +71,11 @@ class ExecutionManager:
             self._tokens = {t: v for t, v in self._tokens.items() if now - v[1] < TOKEN_TTL}
             if spec.token and spec.token in self._tokens:
                 return self._tokens[spec.token][0]  # duplicate submission
-            run_id, _dir = history.allocate_run_dir()
+            run_id, run_dir = history.allocate_run_dir()
+            if spec.inline_source is not None:
+                source_file = run_dir / f"adhoc{spec.extension}"
+                source_file.write_bytes(spec.inline_source)
+                spec.script_path = str(source_file)
             history.write_meta(run_id, {
                 "id": run_id,
                 "script_id": spec.script_id,
@@ -91,6 +95,7 @@ class ExecutionManager:
                 "remote_pid": None,
                 "timeout": spec.timeout,
                 "initiator": initiator,
+                "adhoc": spec.adhoc,
                 "owner_pid": os.getpid(),
                 "error": None,
             })

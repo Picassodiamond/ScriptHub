@@ -41,6 +41,15 @@
 {% endif %}
 
 <form method="post" action="{% url 'settings_save' %}" novalidate>{% csrf_token %}
+  <section class="card" id="features">
+    <h2>Features</h2>
+    <p class="muted small">This application has no login. Anyone who can open it can use every feature that is switched on here. Turn off what other people should not have.</p>
+    <div class="check-row">
+      <label class="check"><input type="checkbox" name="enable_adhoc" {% if form.enable_adhoc %}checked{% endif %}><span>Ad-hoc scripts <span class="muted small">(type code and run it once)</span></span></label>
+      <label class="check"><input type="checkbox" name="enable_script_editing" {% if form.enable_script_editing %}checked{% endif %}><span>Edit scripts in the browser</span></label>
+    </div>
+  </section>
+
   <section class="card" id="execution">
     <h2>Execution</h2>
     <div class="form-grid form-grid-3">

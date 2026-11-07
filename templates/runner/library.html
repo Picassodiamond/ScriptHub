@@ -65,7 +65,8 @@
       </div>
       <div class="card-foot">
         <div class="btn-row">
-          <a class="btn btn-ghost btn-sm" href="{% url 'script_source' s.id %}" title="View source"><svg class="i"><use href="#i-eye"/></svg> View</a>
+          <a class="btn btn-ghost btn-sm" href="{% url 'script_source' s.id %}" title="View source" aria-label="View source"><svg class="i"><use href="#i-eye"/></svg></a>
+          {% if editing_enabled %}<a class="btn btn-ghost btn-sm" href="{% url 'script_edit' s.id %}" title="Edit the script" aria-label="Edit the script"><svg class="i"><use href="#i-edit"/></svg></a>{% endif %}
           <a class="btn btn-ghost btn-sm" href="{% url 'script_configure' s.id %}" title="Metadata and parameters"><svg class="i"><use href="#i-sliders"/></svg> Configure</a>
         </div>
         {% if s.enabled and s.meta_valid %}<a class="btn btn-primary btn-sm" href="{% url 'script_run' s.id %}"><svg class="i"><use href="#i-play"/></svg> Run</a>
@@ -101,6 +102,7 @@
           <td class="pe-actions">
             <div class="btn-row">
               <a class="btn btn-ghost btn-sm" href="{% url 'script_source' s.id %}" title="View source"><svg class="i"><use href="#i-eye"/></svg></a>
+              {% if editing_enabled %}<a class="btn btn-ghost btn-sm" href="{% url 'script_edit' s.id %}" title="Edit the script"><svg class="i"><use href="#i-edit"/></svg></a>{% endif %}
               <a class="btn btn-ghost btn-sm" href="{% url 'script_configure' s.id %}" title="Configure"><svg class="i"><use href="#i-sliders"/></svg></a>
               {% if s.enabled and s.meta_valid %}<a class="btn btn-primary btn-sm" href="{% url 'script_run' s.id %}"><svg class="i"><use href="#i-play"/></svg> Run</a>{% endif %}
             </div>

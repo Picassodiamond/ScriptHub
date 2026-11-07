@@ -1,0 +1,15 @@
+{# Code editor widget: syntax-highlighted textarea. Needs js/highlight.js and js/editor.js #}
+<div class="editor" id="{{ editor_id|default:'editor' }}" data-lang="{{ editor_lang }}"{% if warn_unsaved %} data-warn-unsaved="1"{% endif %}>
+  <pre class="ed-gutter" aria-hidden="true"></pre>
+  <div class="ed-main">
+    <pre class="ed-hl" aria-hidden="true"><code></code></pre>
+    <textarea class="ed-input" name="{{ editor_name|default:'content' }}" spellcheck="false" wrap="off"
+              autocapitalize="off" autocomplete="off" aria-label="Script source">{{ editor_text }}</textarea>
+  </div>
+</div>
+<div class="ed-status" data-editor-status="{{ editor_id|default:'editor' }}">
+  <span class="ed-pos">Ln 1, Col 1</span>
+  <span class="ed-count"></span>
+  <span class="ed-dirty"></span>
+  <span class="ed-hint">Tab indents · Ctrl+S saves</span>
+</div>

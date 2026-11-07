@@ -48,6 +48,10 @@ class ExecutionSpec:
     parameters: dict = field(default_factory=dict)   # redacted copy for history
     display_command: str = ""
     token: str | None = None
+    # Ad-hoc scripts: the code to run. The manager writes it into the run's own
+    # folder (so history keeps exactly what ran) and points script_path at it.
+    inline_source: bytes | None = None
+    adhoc: dict | None = None
 
 
 @dataclass

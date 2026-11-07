@@ -18,6 +18,7 @@
   <div class="btn-row">
     {% if script.enabled and script.meta_valid %}<a class="btn btn-primary" href="{% url 'script_run' script.id %}"><svg class="i"><use href="#i-play"/></svg> Run</a>{% endif %}
     <a class="btn btn-ghost" href="{% url 'script_source' script.id %}"><svg class="i"><use href="#i-eye"/></svg> View script</a>
+    {% if editing_enabled %}<a class="btn btn-ghost" href="{% url 'script_edit' script.id %}"><svg class="i"><use href="#i-edit"/></svg> Edit script</a>{% endif %}
     <a class="btn btn-ghost" href="{% url 'script_configure' script.id %}"><svg class="i"><use href="#i-sliders"/></svg> Configure</a>
   </div>
 </div>

@@ -16,6 +16,12 @@ from .executor import ExecutionError, ExecutionSpec
 from .process_manager import manager
 
 
+def client_address(request) -> str:
+    """Who started a run (the connecting address; there is no login).
+    X-Forwarded-For is deliberately not trusted: any client can forge it."""
+    return request.META.get("REMOTE_ADDR") or "unknown"
+
+
 def _get_script_or_404(script_id):
     script = discovery.get_script(script_id)
     if script is None:
@@ -170,7 +176,7 @@ def script_start(request, script_id):
     if spec is None:
         ctx = _form_context(script, params, raw, errors, hosts, host, host_error)
         return render(request, "runner/run.html", ctx, status=400)
-    run_id = manager.submit(spec, initiator="local")
+    run_id = manager.submit(spec, initiator=client_address(request))
     return redirect("execution_console", run_id=run_id)
 
 
@@ -192,8 +198,17 @@ def _is_active(meta):
 def execution_console(request, run_id):
     meta = _get_meta_or_404(run_id)
     params = meta.get("parameters") or {}
+    adhoc_source = None
+    if meta.get("adhoc"):                      # show exactly the code that ran
+        try:
+            with open(meta.get("script_path", ""), "rb") as fh:
+                adhoc_source = fh.read(200 * 1024).decode("utf-8", errors="replace")
+        except OSError:
+            adhoc_source = None
     return render(request, "runner/console.html", {
         "run": meta,
+        "adhoc_source": adhoc_source,
+        "adhoc_args": (meta.get("adhoc") or {}).get("arguments") or [],
         "status_label": history.STATUS_LABELS.get(meta.get("status"), meta.get("status")),
         "param_rows": [(k, "—" if v in (None, "", []) else (", ".join(v) if isinstance(v, list) else v))
                        for k, v in params.items()],

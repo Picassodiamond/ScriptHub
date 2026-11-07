@@ -1,6 +1,6 @@
 from django.urls import path
 
-from . import execution_views, history_views, preset_views, script_views, views
+from . import adhoc_views, edit_views, execution_views, history_views, preset_views, script_views, views
 
 urlpatterns = [
     path("", views.dashboard, name="dashboard"),
@@ -13,6 +13,10 @@ urlpatterns = [
     path("scripts/<str:script_id>/source/", script_views.script_source, name="script_source"),
     path("scripts/<str:script_id>/run/", execution_views.script_run, name="script_run"),
     path("scripts/<str:script_id>/start/", execution_views.script_start, name="script_start"),
+    path("scripts/<str:script_id>/edit/", edit_views.script_edit, name="script_edit"),
+    path("scripts/<str:script_id>/edit/restore/", edit_views.script_restore, name="script_restore"),
+    path("adhoc/", adhoc_views.adhoc, name="adhoc"),
+    path("adhoc/save/", adhoc_views.adhoc_save, name="adhoc_save"),
     path("scripts/<str:script_id>/presets/save/", preset_views.preset_save, name="preset_save"),
     path("scripts/<str:script_id>/presets/rename/", preset_views.preset_rename, name="preset_rename"),
     path("scripts/<str:script_id>/presets/delete/", preset_views.preset_delete, name="preset_delete"),

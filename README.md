@@ -24,17 +24,18 @@ configuration, presets, history and logs are plain JSON and text files.
 6. [Metadata JSON reference](#metadata-json-reference)
 7. [Defining parameters](#defining-parameters)
 8. [Running a script, hosts and presets](#running-a-script-hosts-and-presets)
-9. [Execution lifecycle](#execution-lifecycle)
-10. [Logging, history and retention](#logging-history-and-retention)
-11. [Running on Linux servers over SSH](#running-on-linux-servers-over-ssh)
-12. [Bundled scripts](#bundled-scripts)
-13. [Offline installation of pip packages (walkthrough)](#offline-installation-of-pip-packages-walkthrough)
-14. [Security](#security)
-15. [Production deployment](#production-deployment)
-16. [Limitations of long-lived subprocesses](#limitations-of-long-lived-subprocesses)
-17. [Testing](#testing)
-18. [Project layout](#project-layout)
-19. [Troubleshooting](#troubleshooting)
+9. [Editing scripts and ad-hoc scripts](#editing-scripts-and-ad-hoc-scripts)
+10. [Execution lifecycle](#execution-lifecycle)
+11. [Logging, history and retention](#logging-history-and-retention)
+12. [Running on Linux servers over SSH](#running-on-linux-servers-over-ssh)
+13. [Bundled scripts](#bundled-scripts)
+14. [Offline installation of pip packages (walkthrough)](#offline-installation-of-pip-packages-walkthrough)
+15. [Security](#security)
+16. [Production deployment](#production-deployment)
+17. [Limitations of long-lived subprocesses](#limitations-of-long-lived-subprocesses)
+18. [Testing](#testing)
+19. [Project layout](#project-layout)
+20. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -73,6 +74,8 @@ For SSH hosts, `ssh` must already work for you from a terminal (see
 | **Script Library** (`/scripts/`) | Every approved script as cards or a compact table. Search (`/` focuses it), filter by **category, platform and language**, enable/disable with a switch. It always fits the window with no scrollbars; a pager shows as many items as fit (←/→ change page). |
 | **Script details** | Metadata, parameter table, the script's recent executions. |
 | **View script** | Read-only source with syntax highlighting (Python, Bash, Batch, JSON), line numbers, wrap, copy and download. Only catalogued scripts can be opened. |
+| **Edit script** | A code editor (syntax colours, line numbers, auto-indent, Tab, **Ctrl+S**) to change a catalogued script and save it. See [Editing scripts and ad-hoc scripts](#editing-scripts-and-ad-hoc-scripts). |
+| **Ad-hoc** (`/adhoc/`) | Type or paste a script and run it once, on this computer or over SSH; optionally save it to the library. |
 | **Configure** | Name, category, interpreter, timeout, concurrency, default host, working directory, environment, platforms, and the **parameter editor** (table with add / edit / reorder / delete). A **Raw JSON** editor can repair a broken metadata file. |
 | **Run** | A form generated from the metadata, a *Run on* host selector and the **Presets** panel. |
 | **Confirm** | Review parameters and the exact command (passwords masked), then **Run now**. |
@@ -98,6 +101,8 @@ restart.
   "ssh_executable": "ssh",
   "ssh_connect_timeout": 10,
   "environment": {},
+  "enable_adhoc": true,
+  "enable_script_editing": true,
   "max_concurrent_executions": 3,
   "max_concurrent_per_host": 3,
   "default_timeout": 3600,
@@ -115,6 +120,8 @@ restart.
 | `ssh_executable` | The SSH command (a path or command line). Uses your own `~/.ssh/config`. |
 | `ssh_connect_timeout` | Seconds before an SSH connection attempt gives up. |
 | `environment` | Extra environment variables for every run (a script's own settings and parameters override them). |
+| `enable_adhoc` | Show the Ad-hoc screen (`false` blocks it completely). |
+| `enable_script_editing` | Allow editing script files from the browser (`false` blocks editing and restoring). |
 | `max_concurrent_executions` | Runs beyond this wait in the queue. |
 | `max_concurrent_per_host` | Same limit, applied to this computer and to each SSH host separately. |
 | `default_timeout` | Seconds, for scripts that set no timeout of their own. |
@@ -342,6 +349,65 @@ Presets are named sets of values for one script, stored as
 
 ---
 
+## Editing scripts and ad-hoc scripts
+
+### Editing a catalogued script
+
+**Edit** (on a library card, the script's page or the source viewer) opens the
+script in a code editor with syntax colours, line numbers, auto-indent, **Tab** /
+**Shift+Tab** to indent and dedent, and **Ctrl+S** to save. **Save & run** saves
+and goes straight to the run form.
+
+Saving is designed not to lose work or break scripts:
+
+* **A backup is always kept** as `<file>.bak`. **Restore previous** swaps the file
+  with it (and restoring is itself undoable).
+* **Conflicts are detected.** If the file changed on disk after you opened it, the
+  save is refused and your text stays in the editor; you can reload, or choose
+  *Overwrite the file with my version*.
+* **Line endings stay right.** `.sh` files are always saved with LF (a CRLF shell
+  script fails on Linux), `.bat` with CRLF, other files keep the style they had.
+* A quick **syntax check** (Python `compile`, `bash -n`; the script is never run)
+  shows a warning after saving. It does not block the save.
+* Only catalogued files inside a configured script directory can be edited; the
+  editor never accepts a path from the browser. Files must be UTF-8 text up to
+  512 KB; read-only files are refused.
+
+### Ad-hoc scripts
+
+**Ad-hoc** is for one-off jobs: pick a language, type or paste the code, choose
+*Run on* (this computer or an SSH host), optionally add **arguments** (one per
+line, passed exactly as written), a working directory and a timeout, then **Run now**.
+
+* The code runs exactly as written, started the same safe way as any other script
+  (argument list, no shell; batch arguments filtered; SSH streaming over stdin).
+* **The code that ran is kept inside that execution's History folder**, together
+  with its arguments and who started it, so you can always see what was run.
+  **Edit & run again** on the console (or *Recent ad-hoc runs*) reloads it.
+* The default working directory is your home folder (never the run folder).
+* **Save to the library…** stores the script (and a small metadata file) in a
+  script directory you choose so it becomes a normal library entry. It never
+  overwrites an existing file, and only accepts simple folder and file names.
+* Starter scripts are offered for Python, Shell and Batch; switching language
+  swaps the starter only if you have not typed anything yet.
+
+### Sharing with other people
+
+If other people will submit scripts, remember that **Ad-hoc and editing mean
+arbitrary code execution** with this application's permissions (and the SSH
+accounts' on remote hosts). The application has no login, so:
+
+* put your own authentication in front of it (reverse proxy, VPN, SSO) and run it
+  under a dedicated, least-privilege account;
+* in **Settings → Features**, switch off **Ad-hoc scripts** and/or **Edit scripts
+  in the browser** if people should only run the catalogue (`enable_adhoc` and
+  `enable_script_editing` in `config.json`);
+* every execution records the **client address** it came from (shown on the
+  console and searchable in History). This is the connecting address; it is only
+  as meaningful as your network setup: behind a reverse proxy it is the proxy's.
+
+---
+
 ## Execution lifecycle
 
 Every run gets an ID like `RUN-20261107-001` and moves through:
@@ -509,6 +575,12 @@ Script Runner starts operating-system processes and has **no authentication**.
   to presets. Output written by scripts is stored as-is.
 * **Anyone who can edit metadata or settings can change what runs** (interpreter,
   arguments, environment). Treat access to the page as access to this account.
+* **Editing and Ad-hoc let anyone with access run any code.** They can be switched
+  off in **Settings → Features**; see [Sharing with other people](#sharing-with-other-people).
+  Saves are atomic with a `.bak`, only catalogued files are writable, and
+  "Save to library" never overwrites or leaves its script directory.
+* Every run records the connecting client address (`X-Forwarded-For` is
+  deliberately not trusted, because any client can forge it).
 * Run the application under a **dedicated, least-privilege operating-system
   account**, and use restricted SSH accounts/keys for remote hosts.
 
@@ -622,8 +694,9 @@ ScriptRunner/
 ├── config.py                 filesystem-backed configuration
 ├── requirements.txt          Django only
 ├── runner/
-│   ├── views.py, script_views.py, execution_views.py,
-│   │   history_views.py, preset_views.py     thin HTTP layer
+│   ├── views.py, script_views.py, execution_views.py, history_views.py,
+│   │   preset_views.py, edit_views.py, adhoc_views.py     thin HTTP layer
+│   ├── script_editor.py      safe saving of script files (backup, conflicts, line endings)
 │   ├── discovery.py          approved-script catalogue
 │   ├── metadata.py           sidecar JSON read/write, backups
 │   ├── parameter_service.py  types, validation, argument building

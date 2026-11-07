@@ -31,7 +31,8 @@ def _haystack(meta) -> str:
     parts = [
         meta.get("id", ""), meta.get("script_name", ""), meta.get("host", ""),
         meta.get("status", ""), history.STATUS_LABELS.get(meta.get("status"), ""),
-        meta.get("command", "") or "", meta.get("error", "") or "",
+        meta.get("command", "") or "", meta.get("error", "") or "", meta.get("initiator", "") or "",
+        "ad-hoc adhoc" if meta.get("adhoc") else "",
         json.dumps(meta.get("parameters") or {}, ensure_ascii=False),
     ]
     return " ".join(str(p) for p in parts).lower()

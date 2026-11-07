@@ -135,6 +135,8 @@ def _text_to_map(text, what):
 def _settings_form(cfg):
     form = {k: cfg[k] for k, _ in INT_SETTINGS}
     form.update(
+        enable_adhoc=cfg["enable_adhoc"],
+        enable_script_editing=cfg["enable_script_editing"],
         ssh_executable=cfg["ssh_executable"],
         environment=_map_to_text(cfg["environment"]),
         interpreters=_map_to_text(cfg["interpreters"]),
@@ -180,7 +182,11 @@ def settings_save(request):
     form["ssh_executable"] = request.POST.get("ssh_executable", "").strip()
     for key in ("environment", "interpreters", "remote_interpreters"):
         form[key] = request.POST.get(key, "")
+    for key in ("enable_adhoc", "enable_script_editing"):      # checkboxes: absent = off
+        form[key] = request.POST.get(key) == "on"
     errors, new = [], dict(cfg)
+    new["enable_adhoc"] = form["enable_adhoc"]
+    new["enable_script_editing"] = form["enable_script_editing"]
 
     for key, label in INT_SETTINGS:
         try:

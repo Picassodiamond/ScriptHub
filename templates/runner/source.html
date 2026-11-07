@@ -14,6 +14,7 @@
     <button type="button" class="btn btn-ghost" id="copy-source"><svg class="i"><use href="#i-copy"/></svg> <span>Copy</span></button>
     <a class="btn btn-ghost" href="{% url 'script_source' script.id %}?download=1"><svg class="i"><use href="#i-download"/></svg> Download</a>
     {% endif %}
+    {% if editing_enabled %}<a class="btn btn-ghost" href="{% url 'script_edit' script.id %}"><svg class="i"><use href="#i-edit"/></svg> Edit</a>{% endif %}
     {% if script.enabled and script.meta_valid %}<a class="btn btn-primary" href="{% url 'script_run' script.id %}"><svg class="i"><use href="#i-play"/></svg> Run</a>{% endif %}
   </div>
 </div>
