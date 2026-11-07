@@ -221,8 +221,9 @@ section.card h2 { margin-bottom: 10px; }
 .stat-sub { display: block; margin-top: 2px; text-transform: none; letter-spacing: 0; font-weight: 500; font-size: .78rem; opacity: .9; }
 .dash-grid { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 20px; align-items: start; }
 .dash-grid > .card, .dash-side > .card { margin-bottom: 0; }
+.dash-grid > *, .dash-side > *, .detail-grid > * { min-width: 0; }   /* let tables scroll inside their card */
 .dash-side { display: grid; gap: 20px; }
-.quick-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.quick-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px; }
 .quick-list li { display: flex; align-items: center; gap: 12px; padding: 8px 4px; border-radius: 10px; }
 .quick-list li:hover { background: var(--surface-2); }
 .quick-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -238,7 +239,12 @@ section.card h2 { margin-bottom: 10px; }
 .lead { margin: -6px 0 20px; max-width: 760px; font-size: 1.02rem; color: #3b4260; }
 .detail-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px; margin-bottom: 20px; }
 .detail-grid > .card { margin-bottom: 0; }
-@media (max-width: 900px) { .dash-grid, .detail-grid { grid-template-columns: 1fr; } }
+@media (max-width: 900px) {
+  /* minmax(0, 1fr): a wide table must scroll inside its card, not widen the page */
+  .dash-grid, .detail-grid { grid-template-columns: minmax(0, 1fr); }
+  .dash-side { min-width: 0; }
+}
+@media (max-width: 640px) { .cleanup-row .inline-form { flex-wrap: wrap; } }
 
 /* ---- execution: status badges, console, lists ---- */
 .st { display: inline-flex; align-items: center; gap: 6px; padding: 3px 11px; border-radius: 999px; font-size: .78rem; font-weight: 700; text-decoration: none; background: #eceff8; color: #4b5270; white-space: nowrap; }

@@ -1,0 +1,15 @@
+{
+  "name": "Django: Health Check",
+  "description": "Run manage.py check --deploy, confirm no migrations are pending, and optionally check the systemd service and an HTTP URL. Prints a pass/fail summary.",
+  "category": "Django",
+  "enabled": true,
+  "timeout": 300,
+  "allow_concurrent": true,
+  "parameters": [
+    {"name": "project_dir", "label": "Project directory", "type": "directory", "required": true, "placeholder": "/srv/myapp"},
+    {"name": "venv", "label": "Virtual environment", "type": "directory", "required": true, "placeholder": "/srv/myapp/venv"},
+    {"name": "settings", "label": "Settings module", "type": "text", "placeholder": "config.settings.production", "pattern": "[A-Za-z0-9_.]+"},
+    {"name": "service", "label": "systemd service", "type": "text", "placeholder": "gunicorn-myapp", "pattern": "[A-Za-z0-9][A-Za-z0-9@._-]*"},
+    {"name": "url", "label": "URL to probe", "type": "text", "placeholder": "https://example.com/health/", "pattern": "https?://\\S+", "help": "Optional. A 2xx or 3xx answer counts as healthy."}
+  ]
+}

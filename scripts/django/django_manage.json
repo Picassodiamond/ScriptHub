@@ -1,0 +1,22 @@
+{
+  "name": "Django: Run Management Command",
+  "description": "Run one of a safe, fixed list of manage.py commands (check, showmigrations, migrate, collectstatic, createcachetable, clearsessions).",
+  "category": "Django",
+  "enabled": true,
+  "timeout": 1800,
+  "allow_concurrent": false,
+  "parameters": [
+    {"name": "project_dir", "label": "Project directory", "type": "directory", "required": true, "placeholder": "/srv/myapp"},
+    {"name": "venv", "label": "Virtual environment", "type": "directory", "required": true, "placeholder": "/srv/myapp/venv"},
+    {"name": "command", "label": "Command", "type": "select", "required": true, "default": "showmigrations", "choices": [
+      {"value": "check", "label": "check - validate the project"},
+      {"value": "showmigrations", "label": "showmigrations - list applied / pending"},
+      {"value": "migrate", "label": "migrate - apply migrations"},
+      {"value": "collectstatic", "label": "collectstatic - gather static files"},
+      {"value": "createcachetable", "label": "createcachetable - database cache table"},
+      {"value": "clearsessions", "label": "clearsessions - remove expired sessions"}
+    ]},
+    {"name": "extra_args", "label": "Extra arguments", "type": "text", "placeholder": "--plan  or  myapp", "pattern": "[A-Za-z0-9_.=,:/ -]*", "arg": "--args", "help": "Optional, separated by spaces. Only simple values are accepted (letters, digits and _ . = , : / -)."},
+    {"name": "settings", "label": "Settings module", "type": "text", "placeholder": "config.settings.production", "pattern": "[A-Za-z0-9_.]+"}
+  ]
+}
