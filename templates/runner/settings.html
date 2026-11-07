@@ -4,13 +4,13 @@
 <div class="page-head">
   <div>
     <h1>Settings</h1>
-    <p class="muted">Configuration is stored in <code>runtime/config.json</code>.</p>
+    <p class="muted">Stored in <code>runtime/config.json</code>. Changes apply to the next execution; no restart needed.</p>
   </div>
 </div>
 
 <section class="card">
   <h2>Script directories</h2>
-  <p class="muted">Scanned recursively. Only files with a configured extension are catalogued; nothing is executed during discovery.</p>
+  <p class="muted">Scanned recursively. Only files whose extension is listed under <a href="#interpreters">Interpreters</a> are catalogued; nothing is executed during discovery.</p>
   <ul class="dir-list">
     {% for d in directories %}
     <li>
@@ -36,20 +36,78 @@
   </form>
 </section>
 
-<section class="card">
-  <h2>Script types</h2>
-  <p class="muted">File extension → interpreter. Only these extensions are treated as scripts.</p>
-  <table class="table">
-    <thead><tr><th>Extension</th><th>Interpreter</th></tr></thead>
-    <tbody>
-      {% for ext, cmd in interpreters.items %}<tr><td class="mono">{{ ext }}</td><td class="mono">{{ cmd }}</td></tr>{% endfor %}
-    </tbody>
-  </table>
-</section>
+{% if errors %}
+<div class="flash flash-error"><div><strong>Not saved.</strong><ul class="err-list">{% for e in errors %}<li>{{ e }}</li>{% endfor %}</ul></div></div>
+{% endif %}
+
+<form method="post" action="{% url 'settings_save' %}" novalidate>{% csrf_token %}
+  <section class="card" id="execution">
+    <h2>Execution</h2>
+    <div class="form-grid form-grid-3">
+      <div class="field"><label class="field-label" for="s_max">Max concurrent executions</label>
+        <input class="input" id="s_max" name="max_concurrent_executions" type="number" min="1" max="64" value="{{ form.max_concurrent_executions }}">
+        <div class="help">More than this are queued.</div></div>
+      <div class="field"><label class="field-label" for="s_host">Max per host</label>
+        <input class="input" id="s_host" name="max_concurrent_per_host" type="number" min="1" max="64" value="{{ form.max_concurrent_per_host }}">
+        <div class="help">Applies to “local” and to each SSH host.</div></div>
+      <div class="field"><label class="field-label" for="s_timeout">Default timeout (seconds)</label>
+        <input class="input" id="s_timeout" name="default_timeout" type="number" min="1" max="604800" value="{{ form.default_timeout }}">
+        <div class="help">Used when a script sets none.</div></div>
+      <div class="field"><label class="field-label" for="s_poll">Console polling (ms)</label>
+        <input class="input" id="s_poll" name="polling_interval" type="number" min="500" max="60000" step="100" value="{{ form.polling_interval }}">
+        <div class="help">How often the live console asks for new output.</div></div>
+    </div>
+  </section>
+
+  <section class="card" id="retention">
+    <h2>Retention</h2>
+    <p class="muted small">Cleanup runs when the app starts and when the History page is opened. Queued and running executions are never removed.</p>
+    <div class="form-grid">
+      <div class="field"><label class="field-label" for="s_hist">Keep executions for (days)</label>
+        <input class="input" id="s_hist" name="history_retention_days" type="number" min="1" max="36500" value="{{ form.history_retention_days }}">
+        <div class="help">Older executions are deleted completely.</div></div>
+      <div class="field"><label class="field-label" for="s_log">Keep logs for (days)</label>
+        <input class="input" id="s_log" name="log_retention_days" type="number" min="1" max="36500" value="{{ form.log_retention_days }}">
+        <div class="help">After this, only the record stays (no stdout/stderr).</div></div>
+    </div>
+  </section>
+
+  <section class="card" id="interpreters">
+    <h2>Interpreters</h2>
+    <p class="muted small">One per line as <span class="mono">extension=command</span>. Only these extensions are treated as scripts.</p>
+    <div class="form-grid">
+      <div class="field"><label class="field-label" for="s_int">On this computer</label>
+        <textarea class="input mono" id="s_int" name="interpreters" rows="5" spellcheck="false">{{ form.interpreters }}</textarea>
+        <div class="help">e.g. <span class="mono">.py=python</span>, <span class="mono">.bat=cmd</span>, <span class="mono">.ps1=powershell</span></div></div>
+      <div class="field"><label class="field-label" for="s_rint">On SSH hosts (Linux)</label>
+        <textarea class="input mono" id="s_rint" name="remote_interpreters" rows="5" spellcheck="false">{{ form.remote_interpreters }}</textarea>
+        <div class="help">e.g. <span class="mono">.py=python3</span>, <span class="mono">.sh=bash</span></div></div>
+    </div>
+  </section>
+
+  <section class="card" id="ssh">
+    <h2>SSH &amp; environment</h2>
+    <div class="form-grid">
+      <div class="field"><label class="field-label" for="s_ssh">SSH command</label>
+        <input class="input mono" id="s_ssh" name="ssh_executable" value="{{ form.ssh_executable }}">
+        <div class="help">Uses your existing <span class="mono">~/.ssh/config</span>. It must log in without a password.</div></div>
+      <div class="field"><label class="field-label" for="s_sct">SSH connect timeout (seconds)</label>
+        <input class="input" id="s_sct" name="ssh_connect_timeout" type="number" min="1" max="300" value="{{ form.ssh_connect_timeout }}"></div>
+      <div class="field field-wide"><label class="field-label" for="s_env">Environment variables for every run</label>
+        <textarea class="input mono" id="s_env" name="environment" rows="3" spellcheck="false" placeholder="NAME=value  (one per line)">{{ form.environment }}</textarea>
+        <div class="help">A script's own environment settings and parameters override these.</div></div>
+    </div>
+  </section>
+
+  <div class="form-actions sticky-actions">
+    <button class="btn btn-primary" type="submit">Save settings</button>
+    <a class="btn btn-ghost" href="{% url 'settings' %}">Discard changes</a>
+  </div>
+</form>
 
 <section class="card">
   <h2>SSH hosts</h2>
-  <p class="muted">Remote Linux hosts come from your <span class="mono">~/.ssh/config</span> (<span class="mono">Host</span> entries without wildcards). SSH itself is configured outside this app; it must log in without a password (key or agent). Scripts are streamed to the remote interpreter, so nothing is installed on the host.</p>
+  <p class="muted">Remote Linux hosts come from <span class="mono">Host</span> entries (without wildcards) in your <span class="mono">~/.ssh/config</span>. Scripts are streamed to the remote interpreter, so nothing is installed on the host.</p>
   {% if ssh_hosts %}
   <ul class="dir-list">
     {% for h in ssh_hosts %}
@@ -65,12 +123,5 @@
   {% else %}
   <p class="muted">No hosts found. Add a <span class="mono">Host</span> entry to <span class="mono">~/.ssh/config</span> and reload this page.</p>
   {% endif %}
-  <table class="table">
-    <thead><tr><th>Remote extension</th><th>Remote interpreter</th></tr></thead>
-    <tbody>
-      {% for ext, cmd in remote_interpreters.items %}<tr><td class="mono">{{ ext }}</td><td class="mono">{{ cmd }}</td></tr>{% endfor %}
-    </tbody>
-  </table>
-  <p class="muted small">SSH command: <span class="mono">{{ ssh_executable }}</span></p>
 </section>
 {% endblock %}

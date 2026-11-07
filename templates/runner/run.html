@@ -2,10 +2,13 @@
 {% block title %}Run {{ script.name }}{% endblock %}
 {% block content %}
 <div class="page-head">
-  <div>
-    <a class="back" href="{% url 'script_detail' script.id %}">← {{ script.name }}</a>
-    <h1>Run: {{ script.name }}</h1>
-    <p class="muted">{{ script.description }}</p>
+  <div class="detail-title">
+    <span class="tile tile-lg lang-{{ script.extension|slice:'1:' }}">{{ script.extension|slice:'1:' }}</span>
+    <div>
+      <a class="back" href="{% url 'script_detail' script.id %}"><svg class="i"><use href="#i-back"/></svg> {{ script.name }}</a>
+      <h1>Run: {{ script.name }}</h1>
+      {% if script.description %}<p class="muted">{{ script.description }}</p>{% endif %}
+    </div>
   </div>
 </div>
 
@@ -14,23 +17,69 @@
 <a class="btn btn-ghost" href="{% url 'library' %}">Back to library</a>
 {% else %}
 {% if has_errors %}<div class="flash flash-error"><span>{% if host_error %}{{ host_error }}{% else %}Please correct the highlighted fields.{% endif %}</span></div>{% endif %}
-<form method="post" class="card form-card" novalidate>{% csrf_token %}
-  <div class="field host-field{% if host_error %} has-error{% endif %}">
-    <label class="field-label" for="id_host">Run on</label>
-    <select class="input" name="host" id="id_host">
-      {% for h in hosts %}<option value="{{ h }}" {% if h == host %}selected{% endif %}>{% if h == 'local' %}This computer (local){% else %}{{ h }} (SSH){% endif %}</option>{% endfor %}
-    </select>
-    {% if hosts|length > 1 %}<div class="help">SSH hosts are read from your <span class="mono">~/.ssh/config</span>. The script is streamed to the remote interpreter.</div>{% endif %}
-    {% if host_error %}<div class="field-error">{{ host_error }}</div>{% endif %}
-  </div>
-  {% for f in fields %}{% include "runner/_field.html" %}
-  {% empty %}<p class="muted">This script takes no parameters.</p>{% endfor %}
-  <div class="form-actions">
-    <button class="btn btn-primary" type="submit">Review &amp; confirm →</button>
-    <a class="btn btn-ghost" href="{% url 'script_run' script.id %}">Reset to defaults</a>
-    <a class="btn btn-ghost" href="{% url 'script_configure' script.id %}">Edit parameters</a>
-    <a class="btn btn-ghost" href="{% url 'script_source' script.id %}" target="_blank" rel="noopener">View script ↗</a>
-  </div>
-</form>
+{% for w in preset_warnings %}<div class="flash flash-warning"><span>{{ w }}</span></div>{% endfor %}
+
+<div class="run-layout">
+  <form method="post" class="card form-card" id="run-form" novalidate>{% csrf_token %}
+    <div class="field host-field{% if host_error %} has-error{% endif %}">
+      <label class="field-label" for="id_host">Run on</label>
+      <select class="input" name="host" id="id_host">
+        {% for h in hosts %}<option value="{{ h }}" {% if h == host %}selected{% endif %}>{% if h == 'local' %}This computer (local){% else %}{{ h }} (SSH){% endif %}</option>{% endfor %}
+      </select>
+      {% if hosts|length > 1 %}<div class="help">SSH hosts are read from your <span class="mono">~/.ssh/config</span>. The script is streamed to the remote interpreter.</div>{% endif %}
+      {% if host_error %}<div class="field-error">{{ host_error }}</div>{% endif %}
+    </div>
+    {% for f in fields %}{% include "runner/_field.html" %}
+    {% empty %}<p class="muted">This script takes no parameters.</p>{% endfor %}
+    <div class="form-actions">
+      <button class="btn btn-primary" type="submit">Review &amp; confirm →</button>
+      <a class="btn btn-ghost" href="{% url 'script_run' script.id %}">Reset to defaults</a>
+      <a class="btn btn-ghost" href="{% url 'script_configure' script.id %}">Edit parameters</a>
+      <a class="btn btn-ghost" href="{% url 'script_source' script.id %}" target="_blank" rel="noopener">View script ↗</a>
+    </div>
+  </form>
+
+  <aside class="card preset-panel">
+    <h2>Presets</h2>
+    <p class="muted small">Named sets of parameter values you can load, change and run.</p>
+
+    <form method="get" class="preset-load">
+      <label class="field-label" for="preset-select">Load preset</label>
+      <div class="inline-form">
+        <select class="input" name="preset" id="preset-select" onchange="this.form.submit()">
+          <option value="">— defaults —</option>
+          {% for p in presets %}<option value="{{ p.slug }}" {% if current_preset and current_preset.slug == p.slug %}selected{% endif %}>{{ p.name }}</option>{% endfor %}
+        </select>
+        <noscript><button class="btn btn-ghost btn-sm" type="submit">Load</button></noscript>
+      </div>
+      {% if not presets %}<div class="help">No presets yet. Fill in the form, then save it below.</div>{% endif %}
+    </form>
+
+    <div class="preset-save">
+      <label class="field-label" for="preset-name">Save current values as</label>
+      <div class="inline-form">
+        <input class="input" type="text" id="preset-name" name="preset_name" form="run-form" maxlength="60"
+               placeholder="e.g. Production backup" value="{% if preset_name_draft %}{{ preset_name_draft }}{% elif current_preset %}{{ current_preset.name }}{% endif %}">
+        <button class="btn btn-ghost" type="submit" form="run-form" formaction="{% url 'preset_save' script.id %}" formnovalidate>Save</button>
+      </div>
+      <div class="help">Using an existing name updates that preset.{% if has_password %} Passwords are never saved; enter them each time.{% endif %}</div>
+    </div>
+
+    {% if current_preset %}
+    <div class="preset-manage">
+      <div class="field-label">“{{ current_preset.name }}”</div>
+      <form method="post" action="{% url 'preset_rename' script.id %}" class="inline-form">{% csrf_token %}
+        <input type="hidden" name="slug" value="{{ current_preset.slug }}">
+        <input class="input" type="text" name="new_name" maxlength="60" value="{{ current_preset.name }}" aria-label="New name">
+        <button class="btn btn-ghost btn-sm" type="submit">Rename</button>
+      </form>
+      <form method="post" action="{% url 'preset_delete' script.id %}" data-confirm="Delete the preset “{{ current_preset.name }}”?">{% csrf_token %}
+        <input type="hidden" name="slug" value="{{ current_preset.slug }}">
+        <button class="btn btn-danger btn-sm" type="submit">Delete preset</button>
+      </form>
+    </div>
+    {% endif %}
+  </aside>
+</div>
 {% endif %}
 {% endblock %}

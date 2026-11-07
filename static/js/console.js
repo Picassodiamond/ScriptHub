@@ -46,6 +46,8 @@
     base = { seconds: d.duration_seconds, at: Date.now(), running: d.status === 'running' };
     durationEl.textContent = d.duration_seconds === null ? '—' : d.duration;
     if (stopForm) stopForm.hidden = !d.active;
+    var delForm = document.getElementById('delete-form');
+    if (delForm) delForm.hidden = d.active;
     if (d.status === 'queued') {
       queueNote.hidden = false;
       queueNote.textContent = 'Queued' + (d.queue_position ? ' (position ' + d.queue_position + ')' : '') +

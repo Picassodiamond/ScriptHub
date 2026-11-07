@@ -14,6 +14,10 @@
       <button class="btn btn-danger" type="submit">■ Stop</button>
     </form>
     {% if run.script_id %}<a class="btn btn-ghost" href="{% url 'script_run' run.script_id %}"><svg class="i"><use href="#i-play"/></svg> Run again</a>{% endif %}
+    <form method="post" action="{% url 'history_delete' run.id %}" id="delete-form" data-confirm="Delete {{ run.id }} and its logs?" {% if active %}hidden{% endif %}>{% csrf_token %}
+      <input type="hidden" name="from" value="console">
+      <button class="btn btn-ghost" type="submit">Delete</button>
+    </form>
   </div>
 </div>
 
@@ -24,6 +28,7 @@
   <div class="cs-item"><div class="cs-label">Started</div><div id="started" class="small">{% if run.started_at %}{{ run.started_at|slice:":10" }} {{ run.started_at|slice:"11:" }}{% else %}—{% endif %}</div></div>
   <div class="cs-item"><div class="cs-label">Completed</div><div id="finished" class="small">{% if run.finished_at %}{{ run.finished_at|slice:":10" }} {{ run.finished_at|slice:"11:" }}{% else %}—{% endif %}</div></div>
 </div>
+{% if run.logs_deleted %}<div class="flash flash-info"><span>The logs of this execution were removed by the retention policy; only its record remains.</span></div>{% endif %}
 <div id="queue-note" class="flash flash-info" hidden></div>
 <div id="error-note" class="flash flash-error" {% if not run.error or run.status == 'success' %}hidden{% endif %}><span id="error-text">{{ run.error|default:"" }}</span></div>
 

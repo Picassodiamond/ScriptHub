@@ -10,7 +10,7 @@ from django.shortcuts import redirect, render
 from django.views.decorators.http import require_POST
 
 import config
-from . import discovery, executor, history, ssh_hosts
+from . import discovery, executor, history, presets, ssh_hosts
 from . import parameter_service as ps
 from .executor import ExecutionError, ExecutionSpec
 from .process_manager import manager
@@ -102,6 +102,7 @@ def script_run(request, script_id):
     default_host = script.meta.get("host", ssh_hosts.LOCAL)
     hosts = ssh_hosts.allowed_hosts([default_host])
     errors, host_error, host = {}, None, default_host
+    current_preset, preset_warnings = None, []
 
     if request.method == "POST":
         host = request.POST.get("host", default_host)
@@ -129,8 +130,20 @@ def script_run(request, script_id):
                     })
     else:
         raw = ps.defaults_raw(params)
+        slug = request.GET.get("preset", "")
+        if slug:
+            preset = presets.get_preset(script.id, slug)
+            if preset is None:
+                preset_warnings.append("That preset was not found; showing the defaults.")
+            else:
+                raw, preset_warnings = presets.apply_preset(params, preset)
+                current_preset = {"slug": slug, "name": preset.get("name", slug)}
+                if preset.get("host") in hosts:
+                    host = preset["host"]
 
     ctx = _form_context(script, params, raw, errors, hosts, host, host_error)
+    ctx.update(presets=presets.list_presets(script.id), current_preset=current_preset,
+               preset_warnings=preset_warnings, has_password=any(p["type"] == "password" for p in params))
     return render(request, "runner/run.html", ctx, status=400 if ctx["has_errors"] else 200)
 
 

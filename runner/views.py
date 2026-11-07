@@ -7,7 +7,7 @@ from django.views.decorators.http import require_POST
 import config
 from . import discovery, history, metadata, ssh_hosts
 from .security import clean_directory_input
-from .validators import ValidationError
+from .validators import ValidationError, validate_config
 
 
 def dashboard(request):
@@ -102,7 +102,48 @@ def script_toggle(request, script_id):
     return redirect("library")
 
 
-def settings_view(request):
+INT_SETTINGS = (
+    ("max_concurrent_executions", "Max concurrent executions"),
+    ("max_concurrent_per_host", "Max concurrent executions per host"),
+    ("default_timeout", "Default timeout"),
+    ("polling_interval", "Polling interval"),
+    ("history_retention_days", "History retention"),
+    ("log_retention_days", "Log retention"),
+    ("ssh_connect_timeout", "SSH connect timeout"),
+)
+
+
+def _map_to_text(mapping) -> str:
+    return "\n".join(f"{k}={v}" for k, v in mapping.items())
+
+
+def _text_to_map(text, what):
+    """'key=value' lines -> (dict, errors)."""
+    out, errors = {}, []
+    for n, line in enumerate(text.splitlines(), start=1):
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        key, sep, value = line.partition("=")
+        if not sep or not key.strip() or not value.strip():
+            errors.append(f"{what}, line {n}: use the form key=value.")
+        else:
+            out[key.strip()] = value.strip()
+    return out, errors
+
+
+def _settings_form(cfg):
+    form = {k: cfg[k] for k, _ in INT_SETTINGS}
+    form.update(
+        ssh_executable=cfg["ssh_executable"],
+        environment=_map_to_text(cfg["environment"]),
+        interpreters=_map_to_text(cfg["interpreters"]),
+        remote_interpreters=_map_to_text(cfg["remote_interpreters"]),
+    )
+    return form
+
+
+def _render_settings(request, form=None, errors=None, status=200):
     cfg = config.load_config()
     dirs = []
     for configured in cfg["script_directories"]:
@@ -116,12 +157,54 @@ def settings_view(request):
         "runner/settings.html",
         {
             "directories": dirs,
-            "interpreters": cfg["interpreters"],
-            "remote_interpreters": cfg["remote_interpreters"],
+            "form": form if form is not None else _settings_form(cfg),
+            "errors": errors or [],
             "ssh_hosts": ssh_hosts.list_hosts(),
-            "ssh_executable": cfg["ssh_executable"],
         },
+        status=status,
     )
+
+
+def settings_view(request):
+    return _render_settings(request)
+
+
+@require_POST
+def settings_save(request):
+    """Validate and save the editable settings (limits, retention, interpreters,
+    SSH, environment). Script directories have their own add/remove forms."""
+    from .script_views import _text_to_env
+
+    cfg = config.load_config()
+    form = {k: request.POST.get(k, "").strip() for k, _ in INT_SETTINGS}
+    form["ssh_executable"] = request.POST.get("ssh_executable", "").strip()
+    for key in ("environment", "interpreters", "remote_interpreters"):
+        form[key] = request.POST.get(key, "")
+    errors, new = [], dict(cfg)
+
+    for key, label in INT_SETTINGS:
+        try:
+            new[key] = int(form[key])
+        except ValueError:
+            errors.append(f"{label} must be a whole number.")   # keep the old value so other checks still run
+    new["ssh_executable"] = form["ssh_executable"]
+    new["environment"], env_errors = _text_to_env(form["environment"])
+    new["interpreters"], i_errors = _text_to_map(form["interpreters"], "Interpreters")
+    new["remote_interpreters"], r_errors = _text_to_map(form["remote_interpreters"], "Remote interpreters")
+    errors += env_errors + i_errors + r_errors
+
+    # Always validate so every problem is reported at once, not one at a time.
+    try:
+        validate_config(new)
+    except ValidationError as exc:
+        errors += exc.errors
+    if not errors:
+        config.save_config(new)
+    if errors:
+        return _render_settings(request, form=form, errors=errors, status=400)
+    discovery.scan(force=True)
+    messages.success(request, "Settings saved. They apply to the next execution.")
+    return redirect("settings")
 
 
 @require_POST

@@ -20,3 +20,8 @@ class RunnerConfig(AppConfig):
                 log.warning("Marked %d interrupted execution(s): %s", len(fixed), ", ".join(fixed))
         except Exception:  # never block startup
             log.exception("Execution recovery failed")
+        try:
+            from . import history_ops
+            history_ops.maybe_apply_retention()
+        except Exception:
+            log.exception("Retention sweep failed")

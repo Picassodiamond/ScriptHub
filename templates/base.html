@@ -25,6 +25,7 @@
     <symbol id="i-check" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></symbol>
     <symbol id="i-plus" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></symbol>
     <symbol id="i-home" viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h5v-6h4v6h5V9.5"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15.5 14"/></symbol>
     <symbol id="i-zap" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></symbol>
     <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></symbol>
   </svg>
@@ -36,6 +37,7 @@
         <a href="{% url 'dashboard' %}" class="{% if nav_active == 'dashboard' %}active{% endif %}"><svg class="i"><use href="#i-home"/></svg> <span class="nav-label">Dashboard</span></a>
         <a href="{% url 'library' %}" class="{% if nav_active == 'library' or nav_active == 'script' %}active{% endif %}"><svg class="i"><use href="#i-grid"/></svg> <span class="nav-label">Script Library</span></a>
         <a href="{% url 'executions' %}" class="{% if nav_active == 'executions' or nav_active == 'execution' %}active{% endif %}"><svg class="i"><use href="#i-play"/></svg> <span class="nav-label">Executions</span>{% if active_runs %}<span class="nav-count" title="Running or queued">{{ active_runs }}</span>{% endif %}</a>
+        <a href="{% url 'history' %}" class="{% if nav_active == 'history' %}active{% endif %}"><svg class="i"><use href="#i-clock"/></svg> <span class="nav-label">History</span></a>
         <a href="{% url 'settings' %}" class="{% if nav_active == 'settings' %}active{% endif %}"><svg class="i"><use href="#i-sliders"/></svg> <span class="nav-label">Settings</span></a>
       </nav>
     </div>

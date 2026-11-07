@@ -1,6 +1,6 @@
 from django.urls import path
 
-from . import execution_views, script_views, views
+from . import execution_views, history_views, preset_views, script_views, views
 
 urlpatterns = [
     path("", views.dashboard, name="dashboard"),
@@ -13,6 +13,14 @@ urlpatterns = [
     path("scripts/<str:script_id>/source/", script_views.script_source, name="script_source"),
     path("scripts/<str:script_id>/run/", execution_views.script_run, name="script_run"),
     path("scripts/<str:script_id>/start/", execution_views.script_start, name="script_start"),
+    path("scripts/<str:script_id>/presets/save/", preset_views.preset_save, name="preset_save"),
+    path("scripts/<str:script_id>/presets/rename/", preset_views.preset_rename, name="preset_rename"),
+    path("scripts/<str:script_id>/presets/delete/", preset_views.preset_delete, name="preset_delete"),
+    path("history/", history_views.history_list, name="history"),
+    path("history/delete-old/", history_views.history_delete_old, name="history_delete_old"),
+    path("history/retention/", history_views.history_apply_retention, name="history_apply_retention"),
+    path("history/<str:run_id>/delete/", history_views.history_delete, name="history_delete"),
+    path("settings/save/", views.settings_save, name="settings_save"),
     path("executions/", execution_views.executions_list, name="executions"),
     path("executions/<str:run_id>/", execution_views.execution_console, name="execution_console"),
     path("executions/<str:run_id>/status/", execution_views.execution_status, name="execution_status"),
