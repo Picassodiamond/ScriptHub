@@ -21,6 +21,7 @@ def library(request):
             "categories": categories,
             "problems": problems,
             "enabled_count": sum(1 for s in scripts if s.enabled),
+            "interpreters": sorted({s.interpreter for s in scripts if s.interpreter}),
         },
     )
 

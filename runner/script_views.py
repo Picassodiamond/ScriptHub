@@ -239,6 +239,7 @@ def script_run(request, script_id):
 
 # ----------------------------------------------------------------- source ---
 MAX_SOURCE_BYTES = 512 * 1024
+LANGUAGES = {".py": "python", ".sh": "bash", ".bash": "bash", ".bat": "batch", ".cmd": "batch", ".json": "json"}
 
 
 def _read_text_limited(path):
@@ -286,6 +287,7 @@ def script_source(request, script_id):
             "error": error,
             "truncated": truncated,
             "size": size,
+            "language": LANGUAGES.get(script.extension, ""),
             "meta_lines": meta_text.splitlines(),
         },
     )

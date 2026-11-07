@@ -299,3 +299,15 @@ class PageTests(SimpleTestCase):
         (self.scripts / "tool.py").write_bytes(b"\x00\x01\x02binary")
         self.assertContains(self.client.get(self.url("source")), "looks binary")
 
+    def test_library_has_cards_table_and_switches(self):
+        r = self.client.get("/scripts/")
+        self.assertContains(r, 'id="view-cards"')
+        self.assertContains(r, 'id="view-table"')
+        self.assertContains(r, 'role="switch"')
+        self.assertContains(r, "lang-py")
+
+    def test_source_page_loads_highlighter_with_language(self):
+        r = self.client.get(self.url("source"))
+        self.assertContains(r, 'data-lang="python"')
+        self.assertContains(r, "js/highlight.js")
+

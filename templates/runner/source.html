@@ -1,18 +1,20 @@
 {% extends "base.html" %}
+{% load static %}
 {% block title %}{{ script.path.name }}{% endblock %}
 {% block content %}
 <div class="page-head">
   <div>
-    <a class="back" href="{% url 'script_detail' script.id %}">← {{ script.name }}</a>
+    <a class="back" href="{% url 'script_detail' script.id %}"><svg class="i"><use href="#i-back"/></svg> {{ script.name }}</a>
     <h1 class="mono-title">{{ script.path.name }}</h1>
-    <p class="muted mono wrap-anywhere">{{ script.path }} · {{ size }} bytes · read-only</p>
+    <p class="muted small"><span class="mono wrap-anywhere">{{ script.path }}</span> · {{ size }} bytes · {% if language %}{{ language|capfirst }} · {% endif %}read-only</p>
   </div>
   <div class="btn-row">
     {% if not error %}
-    <button type="button" class="btn btn-ghost" id="copy-source">Copy</button>
-    <a class="btn btn-ghost" href="{% url 'script_source' script.id %}?download=1">Download</a>
+    <button type="button" class="btn btn-ghost" id="wrap-source" aria-pressed="false"><svg class="i"><use href="#i-wrap"/></svg> Wrap</button>
+    <button type="button" class="btn btn-ghost" id="copy-source"><svg class="i"><use href="#i-copy"/></svg> <span>Copy</span></button>
+    <a class="btn btn-ghost" href="{% url 'script_source' script.id %}?download=1"><svg class="i"><use href="#i-download"/></svg> Download</a>
     {% endif %}
-    {% if script.enabled and script.meta_valid %}<a class="btn btn-primary" href="{% url 'script_run' script.id %}">▶ Run</a>{% endif %}
+    {% if script.enabled and script.meta_valid %}<a class="btn btn-primary" href="{% url 'script_run' script.id %}"><svg class="i"><use href="#i-play"/></svg> Run</a>{% endif %}
   </div>
 </div>
 
@@ -24,24 +26,27 @@
 {% if meta_lines %}
 <div class="tabs" role="tablist">
   <button type="button" class="tab active" data-tab="tab-script" role="tab">Script</button>
-  <button type="button" class="tab" data-tab="tab-meta" role="tab">Metadata ({{ script.meta_source.name }})</button>
+  <button type="button" class="tab" data-tab="tab-meta" role="tab">Metadata <span class="mono small">{{ script.meta_source.name }}</span></button>
 </div>
 {% endif %}
 
 <div id="tab-script" class="tab-panel">
-  <pre class="source" id="source-text"><code>{% for line in lines %}<span class="ln">{{ line }}</span>{% endfor %}</code></pre>
+  <pre class="source" id="source-text" data-lang="{{ language }}"><code>{% for line in lines %}<span class="ln">{{ line }}</span>{% endfor %}</code></pre>
 </div>
 {% if meta_lines %}
 <div id="tab-meta" class="tab-panel" hidden>
-  <pre class="source"><code>{% for line in meta_lines %}<span class="ln">{{ line }}</span>{% endfor %}</code></pre>
+  <pre class="source" data-lang="json"><code>{% for line in meta_lines %}<span class="ln">{{ line }}</span>{% endfor %}</code></pre>
 </div>
 {% endif %}
 {% endif %}
 {% endblock %}
 
 {% block scripts %}
+<script src="{% static 'js/highlight.js' %}"></script>
 <script>
 (function () {
+  if (window.highlight) window.highlight.apply(document);
+
   var tabs = [].slice.call(document.querySelectorAll('.tab'));
   tabs.forEach(function (t) {
     t.addEventListener('click', function () {
@@ -49,11 +54,21 @@
       document.querySelectorAll('.tab-panel').forEach(function (p) { p.hidden = p.id !== t.dataset.tab; });
     });
   });
+
+  var wrap = document.getElementById('wrap-source');
+  if (wrap) wrap.addEventListener('click', function () {
+    var on = wrap.getAttribute('aria-pressed') !== 'true';
+    wrap.setAttribute('aria-pressed', on ? 'true' : 'false');
+    wrap.classList.toggle('is-on', on);
+    document.querySelectorAll('.source').forEach(function (s) { s.classList.toggle('wrap', on); });
+  });
+
   var btn = document.getElementById('copy-source');
   if (btn) btn.addEventListener('click', function () {
-    var lines = [].map.call(document.querySelectorAll('#source-text .ln'), function (n) { return n.textContent; });
-    var txt = lines.join('\n') + '\n';
-    function done() { btn.textContent = 'Copied ✓'; setTimeout(function () { btn.textContent = 'Copy'; }, 1500); }
+    var active = document.querySelector('.tab-panel:not([hidden]) .source');
+    var txt = [].map.call(active.querySelectorAll('.ln'), function (n) { return n.textContent; }).join('\n') + '\n';
+    var label = btn.querySelector('span');
+    function done() { label.textContent = 'Copied'; setTimeout(function () { label.textContent = 'Copy'; }, 1500); }
     if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(txt).then(done);
     else {
       var ta = document.createElement('textarea'); ta.value = txt; document.body.appendChild(ta);

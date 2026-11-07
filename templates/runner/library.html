@@ -4,62 +4,114 @@
 <div class="page-head">
   <div>
     <h1>Script Library</h1>
-    <p class="muted">{{ scripts|length }} script{{ scripts|length|pluralize }} catalogued · {{ enabled_count }} enabled</p>
+    <p class="muted">Approved scripts you can configure and run.</p>
   </div>
   <form method="post" action="{% url 'library_refresh' %}">{% csrf_token %}
-    <button class="btn btn-primary" type="submit">↻ Refresh scripts</button>
+    <button class="btn btn-primary" type="submit"><svg class="i"><use href="#i-refresh"/></svg> Refresh scripts</button>
   </form>
 </div>
 
 {% for p in problems %}<div class="flash flash-warning"><span>{{ p }}</span></div>{% endfor %}
 
+<div class="stats">
+  <div class="stat"><div class="stat-num">{{ scripts|length }}</div><div class="stat-label">Scripts</div></div>
+  <div class="stat stat-ok"><div class="stat-num">{{ enabled_count }}</div><div class="stat-label">Enabled</div></div>
+  <div class="stat"><div class="stat-num">{{ categories|length }}</div><div class="stat-label">Categories</div></div>
+  <div class="stat"><div class="stat-num">{{ interpreters|length }}</div><div class="stat-label">Interpreters</div></div>
+</div>
+
 {% if scripts %}
 <div class="toolbar">
-  <input id="script-search" class="input search" type="search" placeholder="Search name, description, path…" autocomplete="off">
+  <label class="searchbox">
+    <svg class="i"><use href="#i-search"/></svg>
+    <input id="script-search" type="search" placeholder="Search scripts…  ( press / )" autocomplete="off">
+  </label>
   <div class="chips" id="category-chips">
     <button class="chip active" type="button" data-category="">All</button>
     {% for c in categories %}<button class="chip" type="button" data-category="{{ c }}">{{ c }}</button>{% endfor %}
   </div>
+  <div class="seg" role="group" aria-label="Layout">
+    <button type="button" class="seg-btn active" data-view="cards" title="Cards"><svg class="i"><use href="#i-grid"/></svg></button>
+    <button type="button" class="seg-btn" data-view="table" title="Compact table"><svg class="i"><use href="#i-list"/></svg></button>
+  </div>
 </div>
 
-<div class="grid" id="script-grid">
+<div class="grid" id="view-cards">
   {% for s in scripts %}
-  <article class="card script-card {% if not s.enabled %}is-disabled{% endif %}"
+  <article class="card script-card {% if not s.enabled %}is-disabled{% endif %}" data-item
            data-category="{{ s.category }}"
            data-search="{{ s.name }} {{ s.description }} {{ s.relative }} {{ s.category }} {{ s.interpreter }}">
-    <div class="card-top">
-      <span class="badge badge-cat">{{ s.category }}</span>
-      <span class="badge badge-interp">{{ s.interpreter }}</span>
+    <div class="sc-head">
+      <span class="tile lang-{{ s.extension|slice:'1:' }}">{{ s.extension|slice:'1:' }}</span>
+      <div class="sc-title">
+        <h2><a class="plain" href="{% url 'script_detail' s.id %}">{{ s.name }}</a></h2>
+        <div class="sc-sub"><span class="badge badge-cat">{{ s.category }}</span><span class="muted small mono">{{ s.interpreter }}</span></div>
+      </div>
+      <form method="post" action="{% url 'script_toggle' s.id %}" class="toggle-form">{% csrf_token %}
+        <input type="hidden" name="enabled" value="{% if s.enabled %}0{% else %}1{% endif %}">
+        <button class="switch {% if s.enabled %}on{% endif %}" type="submit" role="switch" aria-checked="{% if s.enabled %}true{% else %}false{% endif %}" title="{% if s.enabled %}Enabled — click to disable{% else %}Disabled — click to enable{% endif %}"><span></span></button>
+      </form>
     </div>
-    <h2><a class="plain" href="{% url 'script_detail' s.id %}">{{ s.name }}</a></h2>
     <p class="desc">{% if s.description %}{{ s.description }}{% else %}<span class="muted">No description.</span>{% endif %}</p>
     {% if s.meta_error %}<p class="error-text">⚠ {{ s.meta_error }}</p>{% endif %}
-    <dl class="facts">
-      <div><dt>File</dt><dd class="mono" title="{{ s.path }}">{{ s.relative }}</dd></div>
-      <div><dt>Location</dt><dd class="mono" title="{{ s.location }}">{{ s.location }}</dd></div>
-      <div><dt>Parameters</dt><dd>{{ s.parameter_count }}</dd></div>
-    </dl>
+    <div class="sc-meta">
+      <span class="meta-chip mono" title="{{ s.path }}"><svg class="i"><use href="#i-folder"/></svg> {{ s.relative }}</span>
+      <span class="meta-chip">{{ s.parameter_count }} parameter{{ s.parameter_count|pluralize }}</span>
+    </div>
     <div class="card-foot">
-      <span class="state {% if s.enabled %}state-on{% else %}state-off{% endif %}">{% if s.enabled %}Enabled{% else %}Disabled{% endif %}</span>
       <div class="btn-row">
-        {% if s.enabled and s.meta_valid %}<a class="btn btn-primary btn-sm" href="{% url 'script_run' s.id %}">▶ Run</a>{% endif %}
-        <a class="btn btn-ghost btn-sm" href="{% url 'script_source' s.id %}">View</a>
-        <a class="btn btn-ghost btn-sm" href="{% url 'script_configure' s.id %}">Configure</a>
-        <form method="post" action="{% url 'script_toggle' s.id %}">{% csrf_token %}
-          <input type="hidden" name="enabled" value="{% if s.enabled %}0{% else %}1{% endif %}">
-          <button class="btn btn-ghost btn-sm" type="submit">{% if s.enabled %}Disable{% else %}Enable{% endif %}</button>
-        </form>
+        <a class="btn btn-ghost btn-sm" href="{% url 'script_source' s.id %}" title="View source"><svg class="i"><use href="#i-eye"/></svg> View</a>
+        <a class="btn btn-ghost btn-sm" href="{% url 'script_configure' s.id %}" title="Metadata and parameters"><svg class="i"><use href="#i-sliders"/></svg> Configure</a>
       </div>
+      {% if s.enabled and s.meta_valid %}<a class="btn btn-primary btn-sm" href="{% url 'script_run' s.id %}"><svg class="i"><use href="#i-play"/></svg> Run</a>
+      {% else %}<span class="btn btn-sm btn-disabled" aria-disabled="true">{% if not s.enabled %}Disabled{% else %}Fix metadata{% endif %}</span>{% endif %}
     </div>
   </article>
   {% endfor %}
+</div>
+
+<div class="card table-card" id="view-table" hidden>
+  <div class="table-scroll">
+  <table class="table lib-table">
+    <thead><tr><th>Script</th><th>Category</th><th>Interpreter</th><th>File</th><th>Params</th><th>Enabled</th><th></th></tr></thead>
+    <tbody>
+      {% for s in scripts %}
+      <tr class="{% if not s.enabled %}is-disabled{% endif %}" data-item data-category="{{ s.category }}"
+          data-search="{{ s.name }} {{ s.description }} {{ s.relative }} {{ s.category }} {{ s.interpreter }}">
+        <td>
+          <div class="row-name"><span class="tile tile-sm lang-{{ s.extension|slice:'1:' }}">{{ s.extension|slice:'1:' }}</span>
+            <div><a class="plain strong" href="{% url 'script_detail' s.id %}">{{ s.name }}</a>
+            <div class="muted small clamp-1">{{ s.description|default:"No description." }}</div></div></div>
+        </td>
+        <td><span class="badge badge-cat">{{ s.category }}</span></td>
+        <td class="mono small">{{ s.interpreter }}</td>
+        <td class="mono small" title="{{ s.path }}">{{ s.relative }}</td>
+        <td>{{ s.parameter_count }}</td>
+        <td>
+          <form method="post" action="{% url 'script_toggle' s.id %}">{% csrf_token %}
+            <input type="hidden" name="enabled" value="{% if s.enabled %}0{% else %}1{% endif %}">
+            <button class="switch {% if s.enabled %}on{% endif %}" type="submit" role="switch" aria-checked="{% if s.enabled %}true{% else %}false{% endif %}"><span></span></button>
+          </form>
+        </td>
+        <td class="pe-actions">
+          <div class="btn-row">
+            <a class="btn btn-ghost btn-sm" href="{% url 'script_source' s.id %}" title="View source"><svg class="i"><use href="#i-eye"/></svg></a>
+            <a class="btn btn-ghost btn-sm" href="{% url 'script_configure' s.id %}" title="Configure"><svg class="i"><use href="#i-sliders"/></svg></a>
+            {% if s.enabled and s.meta_valid %}<a class="btn btn-primary btn-sm" href="{% url 'script_run' s.id %}"><svg class="i"><use href="#i-play"/></svg> Run</a>{% endif %}
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
 </div>
 <p id="no-match" class="empty" hidden>No scripts match your search.</p>
 
 {% else %}
 <div class="empty card">
   <h2>No scripts found</h2>
-  <p class="muted">Add a script directory in <a href="{% url 'settings' %}">Settings</a>, or drop a <code>.py</code> / <code>.sh</code> file into <code>scripts/</code> and press Refresh.</p>
+  <p class="muted">Add a script directory in <a href="{% url 'settings' %}">Settings</a>, or drop a <code>.py</code> / <code>.sh</code> / <code>.bat</code> file into <code>scripts/</code> and press Refresh.</p>
 </div>
 {% endif %}
 {% endblock %}
@@ -69,19 +121,28 @@
 (function () {
   var search = document.getElementById('script-search');
   if (!search) return;
-  var cards = [].slice.call(document.querySelectorAll('.script-card'));
+  var items = [].slice.call(document.querySelectorAll('[data-item]'));
   var chips = [].slice.call(document.querySelectorAll('.chip'));
   var none = document.getElementById('no-match');
+  var cards = document.getElementById('view-cards'), table = document.getElementById('view-table');
+  var segs = [].slice.call(document.querySelectorAll('.seg-btn'));
   var category = '';
+
   function apply() {
     var q = search.value.trim().toLowerCase(), shown = 0;
-    cards.forEach(function (c) {
-      var ok = (!category || c.dataset.category === category) &&
-               (!q || c.dataset.search.toLowerCase().indexOf(q) !== -1);
-      c.hidden = !ok;
-      if (ok) shown++;
+    items.forEach(function (el) {
+      var ok = (!category || el.dataset.category === category) &&
+               (!q || el.dataset.search.toLowerCase().indexOf(q) !== -1);
+      el.hidden = !ok;
+      if (ok && el.tagName === 'ARTICLE') shown++;
     });
     none.hidden = shown !== 0;
+  }
+  function setView(v) {
+    cards.hidden = v !== 'cards';
+    table.hidden = v !== 'table';
+    segs.forEach(function (b) { b.classList.toggle('active', b.dataset.view === v); });
+    try { localStorage.setItem('sr.view', v); } catch (e) {}
   }
   search.addEventListener('input', apply);
   chips.forEach(function (chip) {
@@ -91,6 +152,17 @@
       apply();
     });
   });
+  segs.forEach(function (b) { b.addEventListener('click', function () { setView(b.dataset.view); }); });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === '/' && !/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName)) {
+      e.preventDefault(); search.focus();
+    } else if (e.key === 'Escape' && document.activeElement === search) {
+      search.value = ''; apply(); search.blur();
+    }
+  });
+  var saved = 'cards';
+  try { saved = localStorage.getItem('sr.view') || 'cards'; } catch (e) {}
+  setView(saved === 'table' ? 'table' : 'cards');
 })();
 </script>
 {% endblock %}
