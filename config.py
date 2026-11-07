@@ -37,6 +37,9 @@ DEFAULTS = {
     "polling_interval": 2000,
 }
 
+if os.name == "nt":
+    DEFAULTS["interpreters"][".bat"] = "cmd"
+
 _lock = threading.RLock()
 
 

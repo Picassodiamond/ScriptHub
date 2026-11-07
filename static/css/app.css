@@ -225,3 +225,15 @@ select.input { appearance: auto; }
   .form-grid { grid-template-columns: 1fr; }
   .th-row { width: 40%; }
 }
+
+/* parameter table */
+.pe-table { min-width: 760px; }
+.pe-table[hidden] { display: none; }
+.pe-table tbody.pe-item { border-top: 1px solid var(--border); }
+.pe-table .pe-row td { vertical-align: middle; border-bottom: 0; }
+.pe-table .pe-row:hover { background: var(--surface-2); }
+.pe-table td.pe-c-num { color: var(--muted); width: 32px; }
+.pe-table td.pe-actions { text-align: right; white-space: nowrap; }
+.pe-table .pe-edit td { padding: 4px 6px 14px; border-bottom: 0; }
+.pe-table td.pe-c-def { max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pe-table .btn-row { flex-wrap: nowrap; justify-content: flex-end; }

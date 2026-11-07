@@ -1,0 +1,12 @@
+{
+  "name": "List Directory (batch)",
+  "description": "Windows .bat example: one positional argument (directory) and one environment variable (LIST_MODE).",
+  "category": "System",
+  "enabled": true,
+  "timeout": 60,
+  "allow_concurrent": true,
+  "parameters": [
+    {"name": "directory", "label": "Directory", "type": "directory", "default": "C:\\Windows", "required": true, "pass_as": "positional", "position": 1},
+    {"name": "mode", "label": "Listing mode", "type": "select", "default": "brief", "required": true, "choices": [{"value": "brief", "label": "Names only"}, {"value": "full", "label": "Full details"}], "pass_as": "env", "env_name": "LIST_MODE"}
+  ]
+}

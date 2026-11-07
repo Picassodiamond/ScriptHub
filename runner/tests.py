@@ -158,6 +158,28 @@ class ArgumentTests(SimpleTestCase):
         self.assertEqual(values["b"], "fixed")
 
 
+class BundledExamplesTests(SimpleTestCase):
+    def test_all_bundled_metadata_is_valid(self):
+        files = sorted((config.BASE_DIR / "scripts").rglob("*.json"))
+        self.assertGreaterEqual(len(files), 5)
+        for f in files:
+            with self.subTest(file=f.name):
+                data = json.loads(f.read_text(encoding="utf-8"))
+                ps.validate_metadata(data)  # raises on problems
+
+    def test_example_argument_styles(self):
+        base = config.BASE_DIR / "scripts"
+        health = ps.validate_metadata(json.loads((base / "deployment/health_check.json").read_text()))["parameters"]
+        argv, env = ps.build_arguments(health, {"url": "https://x.test/h", "timeout_secs": 7})
+        self.assertEqual(argv, ["https://x.test/h"])        # positional
+        self.assertEqual(env, {"TIMEOUT_SECS": "7"})        # environment
+        ping = ps.validate_metadata(json.loads((base / "system/ping_host.json").read_text()))["parameters"]
+        argv, _ = ps.build_arguments(ping, {"host": "10.0.0.1", "count": 3})
+        self.assertEqual(argv, ["10.0.0.1", "3"])           # ordered positionals
+        _, errs = ps.clean_values(ping, {"host": "a;b", "count": "3"})
+        self.assertIn("host", errs)                         # metacharacters rejected by pattern
+
+
 class PageTests(SimpleTestCase):
     """Drive the real views against a temp scripts directory."""
 

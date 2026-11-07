@@ -42,7 +42,11 @@
       </div>
       <button type="button" class="btn btn-ghost" id="add-param">+ Add parameter</button>
     </div>
-    <div id="param-list" class="param-list"></div>
+    <div class="table-scroll">
+      <table id="param-list" class="table pe-table">
+        <thead><tr><th>#</th><th>Label</th><th>Name</th><th>Type</th><th>Default</th><th>Required</th><th>At run time</th><th>Passed as</th><th></th></tr></thead>
+      </table>
+    </div>
     <p id="param-empty" class="muted" hidden>No parameters yet. Click “Add parameter”.</p>
     <input type="hidden" name="parameters_json" id="parameters_json" value="[]">
   </section>
