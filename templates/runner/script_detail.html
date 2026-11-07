@@ -2,49 +2,87 @@
 {% block title %}{{ script.name }}{% endblock %}
 {% block content %}
 <div class="page-head">
-  <div>
-    <a class="back" href="{% url 'library' %}">← Script Library</a>
-    <h1>{{ script.name }}</h1>
-    <p class="muted">{{ script.description|default:"No description." }}</p>
+  <div class="detail-title">
+    <span class="tile tile-lg lang-{{ script.extension|slice:'1:' }}">{{ script.extension|slice:'1:' }}</span>
+    <div>
+      <a class="back" href="{% url 'library' %}"><svg class="i"><use href="#i-back"/></svg> Script Library</a>
+      <h1>{{ script.name }}</h1>
+      <div class="badge-row">
+        <span class="badge badge-cat">{{ script.category }}</span>
+        <span class="badge badge-interp">{{ script.language_label }}</span>
+        {% for label in script.platform_labels %}<span class="badge badge-plat">{{ label }}</span>{% endfor %}
+        <span class="state {% if script.enabled %}state-on{% else %}state-off{% endif %}">{% if script.enabled %}Enabled{% else %}Disabled{% endif %}</span>
+      </div>
+    </div>
   </div>
   <div class="btn-row">
-    {% if script.enabled and script.meta_valid %}<a class="btn btn-primary" href="{% url 'script_run' script.id %}">▶ Run</a>{% endif %}
-    <a class="btn btn-ghost" href="{% url 'script_source' script.id %}">View script</a>
-    <a class="btn btn-ghost" href="{% url 'script_configure' script.id %}">Configure</a>
+    {% if script.enabled and script.meta_valid %}<a class="btn btn-primary" href="{% url 'script_run' script.id %}"><svg class="i"><use href="#i-play"/></svg> Run</a>{% endif %}
+    <a class="btn btn-ghost" href="{% url 'script_source' script.id %}"><svg class="i"><use href="#i-eye"/></svg> View script</a>
+    <a class="btn btn-ghost" href="{% url 'script_configure' script.id %}"><svg class="i"><use href="#i-sliders"/></svg> Configure</a>
   </div>
 </div>
 
+{% if script.description %}<p class="lead">{{ script.description }}</p>{% endif %}
 {% if script.meta_error %}<div class="flash flash-error"><span>{{ script.meta_error }}</span></div>{% endif %}
 
-<section class="card">
-  <h2>Script information</h2>
-  <dl class="facts facts-wide">
-    <div><dt>Category</dt><dd>{{ script.category }}</dd></div>
-    <div><dt>Interpreter</dt><dd class="mono">{{ script.interpreter }}</dd></div>
-    <div><dt>Status</dt><dd>{% if script.enabled %}Enabled{% else %}Disabled{% endif %}</dd></div>
-    <div><dt>Path</dt><dd class="mono wrap-anywhere">{{ script.path }}</dd></div>
-    <div><dt>Metadata</dt><dd class="mono wrap-anywhere">{% if script.meta_source %}{{ script.meta_source }}{% else %}none (defaults){% endif %}</dd></div>
-    <div><dt>Timeout</dt><dd>{% if script.meta.timeout %}{{ script.meta.timeout }} s{% else %}application default{% endif %}</dd></div>
-    <div><dt>Concurrent runs</dt><dd>{% if script.meta.allow_concurrent %}Allowed{% else %}One at a time{% endif %}</dd></div>
-  </dl>
-</section>
+<div class="detail-grid">
+  <section class="card">
+    <h2>Details</h2>
+    <dl class="facts facts-wide">
+      <div><dt>Interpreter</dt><dd class="mono">{{ script.interpreter }}</dd></div>
+      <div><dt>Default host</dt><dd>{% if script.meta.host and script.meta.host != 'local' %}{{ script.meta.host }} <span class="muted small">(SSH)</span>{% else %}This computer (local){% endif %}</dd></div>
+      <div><dt>Timeout</dt><dd>{% if script.meta.timeout %}{{ script.meta.timeout }} s{% else %}application default{% endif %}</dd></div>
+      <div><dt>Concurrent runs</dt><dd>{% if script.meta.allow_concurrent %}Allowed{% else %}One at a time{% endif %}</dd></div>
+      <div><dt>Working dir</dt><dd class="mono wrap-anywhere">{{ script.meta.working_directory|default:"script's own folder" }}</dd></div>
+      <div><dt>Path</dt><dd class="mono wrap-anywhere">{{ script.path }}</dd></div>
+      <div><dt>Metadata</dt><dd class="mono wrap-anywhere">{% if script.meta_source %}{{ script.meta_source }}{% else %}none (defaults){% endif %}</dd></div>
+    </dl>
+  </section>
+
+  <section class="card">
+    <div class="section-head"><h2>Recent executions</h2></div>
+    {% if runs %}
+    <table class="table runs-table">
+      <thead><tr><th>Run</th><th>Status</th><th>Duration</th><th>When</th></tr></thead>
+      <tbody>
+        {% for r in runs %}
+        <tr>
+          <td class="mono small"><a href="{% url 'execution_console' r.id %}">{{ r.id }}</a></td>
+          <td><span class="st st-{{ r.status }}">{{ r.status_label }}</span></td>
+          <td class="mono small">{{ r.duration }}</td>
+          <td class="muted small">{{ r.ago }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="empty-inline">
+      <p class="muted">This script has not been run yet.</p>
+      {% if script.enabled and script.meta_valid %}<a class="btn btn-primary btn-sm" href="{% url 'script_run' script.id %}"><svg class="i"><use href="#i-play"/></svg> Run it now</a>{% endif %}
+    </div>
+    {% endif %}
+  </section>
+</div>
 
 <section class="card">
-  <h2>Parameters ({{ rows|length }})</h2>
+  <div class="section-head">
+    <h2>Parameters <span class="count-pill">{{ rows|length }}</span></h2>
+    <a class="btn btn-ghost btn-sm" href="{% url 'script_configure' script.id %}"><svg class="i"><use href="#i-sliders"/></svg> Edit parameters</a>
+  </div>
   {% if rows %}
   <div class="table-scroll">
   <table class="table">
-    <thead><tr><th>Label</th><th>Name</th><th>Type</th><th>Default</th><th>Required</th><th>Runtime</th><th>Passed as</th></tr></thead>
+    <thead><tr><th>Label</th><th>Name</th><th>Type</th><th>Default</th><th>Required</th><th>At run time</th><th>Passed as</th></tr></thead>
     <tbody>
       {% for r in rows %}
       <tr>
-        <td>{{ r.p.label }}</td>
-        <td class="mono">{{ r.p.name }}</td>
-        <td>{{ r.p.type }}</td>
-        <td class="mono">{{ r.default|default:"—" }}</td>
-        <td>{% if r.p.required %}Yes{% else %}No{% endif %}</td>
-        <td>{% if r.p.editable_at_runtime %}Editable{% else %}Fixed{% endif %}</td>
-        <td class="mono">{% if r.p.pass_as == 'flag' %}{{ r.p.arg|default:"--…" }}{% elif r.p.pass_as == 'env' %}env {{ r.p.env_name }}{% else %}positional {{ r.p.position|default:"" }}{% endif %}</td>
+        <td class="strong">{{ r.p.label }}</td>
+        <td class="mono small">{{ r.p.name }}</td>
+        <td><span class="badge badge-interp">{{ r.p.type }}</span></td>
+        <td class="mono small">{{ r.default|default:"—" }}</td>
+        <td>{% if r.p.required %}Yes{% else %}<span class="muted">No</span>{% endif %}</td>
+        <td>{% if r.p.editable_at_runtime %}Editable{% else %}<span class="muted">Fixed</span>{% endif %}</td>
+        <td class="mono small">{{ r.passed }}</td>
       </tr>
       {% endfor %}
     </tbody>

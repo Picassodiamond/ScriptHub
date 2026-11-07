@@ -20,6 +20,7 @@ from .validators import ValidationError
 
 NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]{0,63}$")
 ENV_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]{0,63}$")
+HOST_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._@-]{0,254}$")
 ARG_RE = re.compile(r"^-{1,2}[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$")
 FORBIDDEN_ENV = {
     "PATH", "PATHEXT", "COMSPEC", "SYSTEMROOT", "LD_PRELOAD", "LD_LIBRARY_PATH",
@@ -430,6 +431,32 @@ def validate_metadata(data):
     text("description", 2000)
     text("category", 60)
     text("interpreter", 260)
+    text("working_directory", 1000)
+    text("host", 255)
+    if "host" in clean and clean["host"] != "local" and not HOST_RE.match(clean["host"]):
+        errors.append("'host' must be 'local' or an SSH host alias (letters, digits, dots, hyphens, underscores).")
+
+    plats = clean.get("platforms")
+    if plats is None or plats == []:
+        clean.pop("platforms", None)
+    elif not isinstance(plats, list) or any(p not in ("windows", "linux", "macos") for p in plats):
+        errors.append("'platforms' must be a list containing any of: windows, linux, macos.")
+    else:
+        clean["platforms"] = [p for p in ("windows", "linux", "macos") if p in plats]
+
+    env = clean.get("environment")
+    if env is None or env == {}:
+        clean.pop("environment", None)
+    elif not isinstance(env, dict):
+        errors.append("'environment' must be an object of NAME: value pairs.")
+    else:
+        for k, v in env.items():
+            if not isinstance(k, str) or not ENV_RE.match(k):
+                errors.append(f"'environment' has an invalid variable name: {k!r}.")
+            elif k.upper() in FORBIDDEN_ENV:
+                errors.append(f"'environment' may not set {k}.")
+            elif not isinstance(v, str) or "\x00" in v:
+                errors.append(f"'environment' value for {k} must be text.")
 
     for key in ("enabled", "allow_concurrent"):
         if key in clean and not isinstance(clean[key], bool):

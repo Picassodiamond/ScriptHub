@@ -13,8 +13,16 @@
 <div class="flash flash-error"><span>{{ blocked }}</span></div>
 <a class="btn btn-ghost" href="{% url 'library' %}">Back to library</a>
 {% else %}
-{% if has_errors %}<div class="flash flash-error"><span>Please correct the highlighted fields.</span></div>{% endif %}
+{% if has_errors %}<div class="flash flash-error"><span>{% if host_error %}{{ host_error }}{% else %}Please correct the highlighted fields.{% endif %}</span></div>{% endif %}
 <form method="post" class="card form-card" novalidate>{% csrf_token %}
+  <div class="field host-field{% if host_error %} has-error{% endif %}">
+    <label class="field-label" for="id_host">Run on</label>
+    <select class="input" name="host" id="id_host">
+      {% for h in hosts %}<option value="{{ h }}" {% if h == host %}selected{% endif %}>{% if h == 'local' %}This computer (local){% else %}{{ h }} (SSH){% endif %}</option>{% endfor %}
+    </select>
+    {% if hosts|length > 1 %}<div class="help">SSH hosts are read from your <span class="mono">~/.ssh/config</span>. The script is streamed to the remote interpreter.</div>{% endif %}
+    {% if host_error %}<div class="field-error">{{ host_error }}</div>{% endif %}
+  </div>
   {% for f in fields %}{% include "runner/_field.html" %}
   {% empty %}<p class="muted">This script takes no parameters.</p>{% endfor %}
   <div class="form-actions">

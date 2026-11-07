@@ -311,3 +311,50 @@ class PageTests(SimpleTestCase):
         self.assertContains(r, 'data-lang="python"')
         self.assertContains(r, "js/highlight.js")
 
+    def test_language_and_platform_defaults_by_file_type(self):
+        (self.scripts / "a.sh").write_text("echo hi\n")
+        (self.scripts / "b.bat").write_text("@echo off\n")
+        config_file = config.CONFIG_FILE
+        cfg = json.loads(config_file.read_text())
+        cfg["interpreters"] = {".py": "python", ".sh": "bash", ".bat": "cmd"}
+        config_file.write_text(json.dumps(cfg))
+        by_name = {s.path.name: s for s in discovery.scan(force=True)[0]}
+        self.assertEqual((by_name["tool.py"].language, by_name["tool.py"].platforms), ("python", ["windows", "linux", "macos"]))
+        self.assertEqual((by_name["a.sh"].language, by_name["a.sh"].platforms), ("shell", ["linux", "macos"]))
+        self.assertEqual((by_name["b.bat"].language, by_name["b.bat"].platforms), ("batch", ["windows"]))
+
+    def test_library_renders_filter_rows_with_present_options_only(self):
+        (self.scripts / "a.sh").write_text("echo hi\n")
+        cfg = json.loads(config.CONFIG_FILE.read_text())
+        cfg["interpreters"] = {".py": "python", ".sh": "bash"}
+        config.CONFIG_FILE.write_text(json.dumps(cfg))
+        discovery.scan(force=True)
+        r = self.client.get("/scripts/")
+        for key in ("category", "platform", "language"):
+            self.assertContains(r, f'data-filter="{key}"')
+        self.assertContains(r, '<option value="python">')
+        self.assertContains(r, '<option value="shell">')
+        self.assertNotContains(r, '<option value="batch">')   # no batch scripts present
+        self.assertContains(r, 'data-platform="linux macos"')  # the .sh card
+
+    def test_platform_override_is_saved_only_when_different_from_default(self):
+        base = {"name": "Tool", "enabled": "on", "parameters_json": "[]"}
+        self.client.post(self.url("configure"), {**base, "platforms": ["linux"]})
+        self.assertEqual(json.loads((self.scripts / "tool.json").read_text())["platforms"], ["linux"])
+        self.assertEqual(discovery.scan(force=True)[0][0].platforms, ["linux"])
+        self.client.post(self.url("configure"), {**base, "platforms": ["windows", "linux", "macos"]})
+        self.assertNotIn("platforms", json.loads((self.scripts / "tool.json").read_text()))
+
+    def test_configure_saves_host_working_directory_and_environment(self):
+        base = {"name": "Tool", "enabled": "on", "parameters_json": "[]"}
+        r = self.client.post(self.url("configure"), {**base, "host": "prod-1", "working_directory": "/srv/app",
+                                                       "environment": "A=1\nB=two words\n# comment"})
+        self.assertEqual(r.status_code, 302)
+        saved = json.loads((self.scripts / "tool.json").read_text())
+        self.assertEqual((saved["host"], saved["working_directory"]), ("prod-1", "/srv/app"))
+        self.assertEqual(saved["environment"], {"A": "1", "B": "two words"})
+        bad = self.client.post(self.url("configure"), {**base, "environment": "NOEQUALS"})
+        self.assertContains(bad, "must look like NAME=value", status_code=400)
+        bad = self.client.post(self.url("configure"), {**base, "host": "-oProxyCommand=x"})
+        self.assertEqual(bad.status_code, 400)
+

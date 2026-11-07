@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}{{ run.id }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <a class="back" href="{% url 'executions' %}"><svg class="i"><use href="#i-back"/></svg> Executions</a>
+    <h1>{{ run.script_name }}</h1>
+    <p class="muted"><span class="mono">{{ run.id }}</span> · {% if run.host == 'local' %}local{% else %}{{ run.host }} (SSH){% endif %}</p>
+  </div>
+  <div class="btn-row">
+    <button type="button" class="btn btn-ghost" id="refresh-now"><svg class="i"><use href="#i-refresh"/></svg> Refresh</button>
+    <form method="post" action="{% url 'execution_stop' run.id %}" id="stop-form" data-confirm="Stop this execution?" {% if not active %}hidden{% endif %}>{% csrf_token %}
+      <button class="btn btn-danger" type="submit">■ Stop</button>
+    </form>
+    {% if run.script_id %}<a class="btn btn-ghost" href="{% url 'script_run' run.script_id %}"><svg class="i"><use href="#i-play"/></svg> Run again</a>{% endif %}
+  </div>
+</div>
+
+<div class="console-summary card" id="console-summary">
+  <div class="cs-item"><div class="cs-label">Status</div><div><span id="status-badge" class="st st-{{ run.status }}">{{ status_label }}</span></div></div>
+  <div class="cs-item"><div class="cs-label">Duration</div><div id="duration" class="mono">—</div></div>
+  <div class="cs-item"><div class="cs-label">Exit code</div><div id="exit-code" class="mono">{% if run.exit_code is None %}—{% else %}{{ run.exit_code }}{% endif %}</div></div>
+  <div class="cs-item"><div class="cs-label">Started</div><div id="started" class="small">{% if run.started_at %}{{ run.started_at|slice:":10" }} {{ run.started_at|slice:"11:" }}{% else %}—{% endif %}</div></div>
+  <div class="cs-item"><div class="cs-label">Completed</div><div id="finished" class="small">{% if run.finished_at %}{{ run.finished_at|slice:":10" }} {{ run.finished_at|slice:"11:" }}{% else %}—{% endif %}</div></div>
+</div>
+<div id="queue-note" class="flash flash-info" hidden></div>
+<div id="error-note" class="flash flash-error" {% if not run.error or run.status == 'success' %}hidden{% endif %}><span id="error-text">{{ run.error|default:"" }}</span></div>
+
+<details class="card run-details">
+  <summary>Submitted parameters &amp; command</summary>
+  <table class="table">
+    <tbody>
+      {% for k, v in param_rows %}<tr><th class="th-row mono">{{ k }}</th><td>{{ v }}</td></tr>
+      {% empty %}<tr><td class="muted">No parameters.</td></tr>{% endfor %}
+    </tbody>
+  </table>
+  <pre class="codebox">{{ run.command }}</pre>
+  <p class="muted small">Script: <span class="mono wrap-anywhere">{{ run.script_path }}</span>{% if run.pid %} · PID <span id="pid">{{ run.pid }}</span>{% endif %}</p>
+</details>
+
+<div class="console-bar">
+  <label class="check"><input type="checkbox" id="autoscroll" checked><span>Auto-scroll</span></label>
+  <span class="muted small" id="live-note"></span>
+</div>
+
+<div class="panes">
+  <section class="pane">
+    <header class="pane-head">
+      <h2>Standard output</h2>
+      <div class="btn-row">
+        <button type="button" class="btn btn-ghost btn-sm" data-copy="out"><svg class="i"><use href="#i-copy"/></svg> <span>Copy</span></button>
+        <a class="btn btn-ghost btn-sm" href="{% url 'execution_log' run.id 'stdout' %}"><svg class="i"><use href="#i-download"/></svg> Download</a>
+      </div>
+    </header>
+    <pre class="console" id="out" tabindex="0"></pre>
+  </section>
+  <section class="pane pane-err">
+    <header class="pane-head">
+      <h2>Standard error</h2>
+      <div class="btn-row">
+        <button type="button" class="btn btn-ghost btn-sm" data-copy="err"><svg class="i"><use href="#i-copy"/></svg> <span>Copy</span></button>
+        <a class="btn btn-ghost btn-sm" href="{% url 'execution_log' run.id 'stderr' %}"><svg class="i"><use href="#i-download"/></svg> Download</a>
+      </div>
+    </header>
+    <pre class="console console-err" id="err" tabindex="0"></pre>
+  </section>
+</div>
+
+<div id="console-config" data-status-url="{% url 'execution_status' run.id %}" data-interval="{{ polling_interval }}" hidden></div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{% static 'js/console.js' %}"></script>
+{% endblock %}

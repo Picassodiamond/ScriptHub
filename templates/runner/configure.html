@@ -29,6 +29,20 @@
       <div class="field"><label class="field-label" for="f_timeout">Timeout (seconds)</label>
         <input class="input" id="f_timeout" name="timeout" value="{{ form.timeout }}" inputmode="numeric" placeholder="Blank = application default">
       </div>
+      <div class="field"><label class="field-label" for="f_host">Default host</label>
+        <select class="input" id="f_host" name="host">
+          {% for h in hosts %}<option value="{{ h }}" {% if h == form.host %}selected{% endif %}>{% if h == 'local' %}local (this computer){% else %}{{ h }} (SSH){% endif %}</option>{% endfor %}
+        </select>
+        <div class="help">Where the script runs. SSH hosts come from your <span class="mono">~/.ssh/config</span>; the script is streamed to the remote interpreter.</div></div>
+      <div class="field"><label class="field-label" for="f_cwd">Working directory</label>
+        <input class="input" id="f_cwd" name="working_directory" value="{{ form.working_directory }}" placeholder="Blank = the script's own folder (local) or home (SSH)"></div>
+      <div class="field field-wide"><label class="field-label" for="f_env">Environment variables</label>
+        <textarea class="input mono" id="f_env" name="environment" rows="3" spellcheck="false" placeholder="NAME=value  (one per line)">{{ form.environment }}</textarea></div>
+      <div class="field field-wide"><span class="field-label">Runs on (platform)</span>
+        <div class="check-row">
+          {% for key, label in platform_choices %}<label class="check"><input type="checkbox" name="platforms" value="{{ key }}" {% if key in form.platforms %}checked{% endif %}><span>{{ label }}</span></label>{% endfor %}
+        </div>
+        <div class="help">Used by the library's Platform filter. Default for {{ script.extension }} files: {{ default_platform_labels }}.</div></div>
       <div class="field field-check"><label class="check"><input type="checkbox" name="allow_concurrent" {% if form.allow_concurrent %}checked{% endif %}><span>Allow concurrent runs of this script</span></label></div>
       <div class="field field-check"><label class="check"><input type="checkbox" name="enabled" {% if form.enabled %}checked{% endif %}><span>Enabled</span></label></div>
     </div>

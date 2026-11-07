@@ -14,6 +14,10 @@
   // Confirm before submitting forms that carry data-confirm
   document.addEventListener('submit', function (e) {
     var msg = e.target.getAttribute('data-confirm');
-    if (msg && !window.confirm(msg)) e.preventDefault();
+    if (msg && !window.confirm(msg)) { e.preventDefault(); return; }
+    // Double-click guard: buttons marked data-once are disabled once submitted
+    [].forEach.call(e.target.querySelectorAll('[data-once]'), function (b) {
+      setTimeout(function () { b.disabled = true; }, 0);
+    });
   });
 })();

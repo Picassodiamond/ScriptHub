@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Executions{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Executions</h1>
+    <p class="muted">What is running now, what is waiting for a slot, and what finished recently.</p>
+  </div>
+</div>
+<div id="runs">{% include "runner/_runs_table.html" %}</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  var box = document.getElementById('runs');
+  var every = Math.max(1000, {{ polling_interval }});
+  setInterval(function () {
+    if (document.hidden) return;
+    fetch('{% url "executions" %}?partial=1', { cache: 'no-store' })
+      .then(function (r) { return r.ok ? r.text() : null; })
+      .then(function (html) { if (html) box.innerHTML = html; })
+      .catch(function () {});
+  }, every);
+})();
+</script>
+{% endblock %}

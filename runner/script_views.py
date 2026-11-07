@@ -1,14 +1,13 @@
 """Views for a single script: details, configuration (metadata + parameter
 editor) and the dynamic run form."""
 import json
-import shlex
 
 from django.contrib import messages
 from django.http import Http404
 from django.shortcuts import redirect, render
 from django.views.decorators.http import require_POST
 
-from . import discovery, metadata
+from . import discovery, history, metadata, ssh_hosts
 from . import parameter_service as ps
 from .security import is_within
 from .validators import ValidationError
@@ -37,8 +36,17 @@ def script_detail(request, script_id):
             d = ", ".join(d)
         elif isinstance(d, bool):
             d = "Yes" if d else "No"
-        rows.append({"p": p, "default": d})
-    return render(request, "runner/script_detail.html", {"script": script, "rows": rows})
+        mode = p.get("pass_as", "flag")
+        if mode == "flag":
+            passed = p.get("arg") or "--" + p["name"].replace("_", "-")
+        elif mode == "env":
+            passed = "env " + (p.get("env_name") or p["name"].upper())
+        else:
+            passed = "positional" + (f" {p['position']}" if p.get("position") else "")
+        rows.append({"p": p, "default": d, "passed": passed})
+    from .execution_views import _decorate
+    runs = [_decorate(m) for m in history.list_runs(limit=8, script_id=script.id)]
+    return render(request, "runner/script_detail.html", {"script": script, "rows": rows, "runs": runs})
 
 
 # -------------------------------------------------------------- configure ---
@@ -46,8 +54,30 @@ def _type_info():
     return {k: {"label": t.label, "allowed": sorted(t.allowed)} for k, t in ps.TYPES.items()}
 
 
-def _info_form(data):
+def _env_to_text(env):
+    return "\n".join(f"{k}={v}" for k, v in env.items()) if isinstance(env, dict) else ""
+
+
+def _text_to_env(text):
+    """'KEY=VALUE' lines -> (dict, errors)."""
+    env, errors = {}, []
+    for n, line in enumerate(text.splitlines(), start=1):
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        key, sep, value = line.partition("=")
+        if not sep or not key.strip():
+            errors.append(f"Environment line {n} must look like NAME=value.")
+        else:
+            env[key.strip()] = value
+    return env, errors
+
+
+def _info_form(data, script):
     timeout = data.get("timeout")
+    plats = data.get("platforms")
+    if not (isinstance(plats, list) and plats):
+        plats = discovery.default_platforms(script.extension)
     return {
         "name": data.get("name", ""),
         "description": data.get("description", ""),
@@ -56,6 +86,10 @@ def _info_form(data):
         "timeout": "" if timeout is None else timeout,
         "allow_concurrent": data.get("allow_concurrent", False),
         "enabled": data.get("enabled", True),
+        "platforms": plats,
+        "host": data.get("host", "local"),
+        "working_directory": data.get("working_directory", ""),
+        "environment": _env_to_text(data.get("environment")),
     }
 
 
@@ -81,6 +115,10 @@ def _configure_response(request, script, *, form, params, raw_text, errors=None,
             "raw_text": raw_text,
             "errors": errors or [],
             "raw_errors": raw_errors or [],
+            "platform_choices": list(discovery.PLATFORM_LABELS.items()),
+            "default_platform_labels": ", ".join(
+                discovery.PLATFORM_LABELS[p] for p in discovery.default_platforms(script.extension)),
+            "hosts": ssh_hosts.allowed_hosts([form.get("host", "")]),
         },
         status=status,
     )
@@ -97,7 +135,7 @@ def script_configure(request, script_id):
 
     if request.method != "POST":
         return _configure_response(
-            request, script, form=_info_form(data), params=_param_list(data),
+            request, script, form=_info_form(data, script), params=_param_list(data),
             raw_text=_raw_text(script, data), errors=[load_err] if load_err else [],
         )
 
@@ -109,8 +147,13 @@ def script_configure(request, script_id):
         "timeout": request.POST.get("timeout", "").strip(),
         "allow_concurrent": request.POST.get("allow_concurrent") == "on",
         "enabled": request.POST.get("enabled") == "on",
+        "platforms": request.POST.getlist("platforms"),
+        "host": request.POST.get("host", "local").strip() or "local",
+        "working_directory": request.POST.get("working_directory", "").strip(),
+        "environment": request.POST.get("environment", ""),
     }
-    errors, params = [], []
+    environment, env_errors = _text_to_env(form["environment"])
+    errors, params = list(env_errors), []
     if load_err:
         errors.append(load_err + " Fix it in the Raw JSON editor first.")
     try:
@@ -138,6 +181,24 @@ def script_configure(request, script_id):
         new["allow_concurrent"] = form["allow_concurrent"]
         new["enabled"] = form["enabled"]
         new["parameters"] = params
+        # Platforms: only stored when they differ from the file-type default.
+        chosen = [p for p in discovery.ALL_PLATFORMS if p in form["platforms"]]
+        if chosen and chosen != discovery.default_platforms(script.extension):
+            new["platforms"] = chosen
+        else:
+            new.pop("platforms", None)
+        if form["host"] != "local":
+            new["host"] = form["host"]
+        else:
+            new.pop("host", None)
+        if form["working_directory"]:
+            new["working_directory"] = form["working_directory"]
+        else:
+            new.pop("working_directory", None)
+        if environment:
+            new["environment"] = environment
+        else:
+            new.pop("environment", None)
         try:
             clean = ps.validate_metadata(new)
             metadata.save_raw(script.path, script.id, clean)
@@ -178,63 +239,9 @@ def script_configure_raw(request, script_id):
             return redirect("script_configure", script_id=script.id)
     cur, _src, _err = metadata.load_raw(script.path, script.id)
     return _configure_response(
-        request, script, form=_info_form(cur), params=_param_list(cur),
+        request, script, form=_info_form(cur, script), params=_param_list(cur),
         raw_text=text, raw_errors=errors, status=400,
     )
-
-
-# -------------------------------------------------------------------- run ---
-def _display_value(p, value):
-    if value is None or value == "" or value == []:
-        return "—"
-    if p["type"] == "password":
-        return ps.SECRET_MASK
-    if isinstance(value, bool):
-        return "Yes" if value else "No"
-    if isinstance(value, list):
-        return ", ".join(value)
-    return str(value)
-
-
-def script_run(request, script_id):
-    script = _get_script_or_404(script_id)
-    ctx = {"script": script}
-    if not script.enabled:
-        ctx["blocked"] = "This script is disabled. Enable it from the Script Library to run it."
-        return render(request, "runner/run.html", ctx)
-    if not script.meta_valid:
-        ctx["blocked"] = script.meta_error
-        return render(request, "runner/run.html", ctx)
-
-    params = _params_of(script)
-    errors = {}
-    if request.method == "POST":
-        raw = ps.raw_from_post(params, request.POST)
-        if not request.POST.get("edit"):  # "edit" = back from confirmation
-            values, errors = ps.clean_values(params, raw)
-            if not errors:
-                argv, env = ps.build_arguments(params, values, mask_secrets=True)
-                ctx.update(
-                    confirm=True,
-                    rows=[
-                        {
-                            "label": p["label"],
-                            "value": _display_value(p, values.get(p["name"])),
-                            "locked": not p.get("editable_at_runtime", True),
-                        }
-                        for p in params
-                    ],
-                    command=shlex.join([script.interpreter or "python", str(script.path), *argv]),
-                    env_rows=sorted(env.items()),
-                    hidden=ps.hidden_pairs(params, raw),
-                )
-                return render(request, "runner/run_confirm.html", ctx)
-    else:
-        raw = ps.defaults_raw(params)
-
-    ctx["fields"] = ps.build_fields(params, raw, errors)
-    ctx["has_errors"] = bool(errors)
-    return render(request, "runner/run.html", ctx, status=400 if errors else 200)
 
 
 # ----------------------------------------------------------------- source ---

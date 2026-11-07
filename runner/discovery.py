@@ -21,6 +21,35 @@ CACHE_TTL = 2.0  # seconds; new scripts appear without a restart
 _lock = threading.Lock()
 _cache = {"time": 0.0, "scripts": [], "problems": []}
 
+# Language of a script, from its file extension.
+LANGUAGES = {
+    ".py": ("python", "Python"),
+    ".sh": ("shell", "Shell"), ".bash": ("shell", "Shell"),
+    ".bat": ("batch", "Batch"), ".cmd": ("batch", "Batch"),
+    ".ps1": ("powershell", "PowerShell"),
+}
+PLATFORM_LABELS = {"windows": "Windows", "linux": "Linux", "macos": "macOS"}
+ALL_PLATFORMS = ["windows", "linux", "macos"]
+# Where a script of this type normally runs. A script can override this with a
+# "platforms" list in its metadata.
+DEFAULT_PLATFORMS = {
+    ".sh": ["linux", "macos"], ".bash": ["linux", "macos"],
+    ".bat": ["windows"], ".cmd": ["windows"],
+}
+
+
+def language_of(ext: str):
+    """(key, label) for a file extension; unknown types use the extension."""
+    ext = ext.lower()
+    if ext in LANGUAGES:
+        return LANGUAGES[ext]
+    word = ext.lstrip(".") or "other"
+    return word, word.upper()
+
+
+def default_platforms(ext: str) -> list:
+    return list(DEFAULT_PLATFORMS.get(ext.lower(), ALL_PLATFORMS))
+
 
 @dataclass
 class Script:
@@ -38,6 +67,13 @@ class Script:
     parameter_count: int = 0
     meta: dict = field(default_factory=dict)
     meta_valid: bool = True
+    language: str = ""
+    language_label: str = ""
+    platforms: list = field(default_factory=list)
+
+    @property
+    def platform_labels(self) -> list:
+        return [PLATFORM_LABELS.get(p, p) for p in self.platforms]
 
     @property
     def relative(self) -> str:
@@ -84,6 +120,10 @@ def _build(path: Path, root: Path, interpreters: dict) -> Script:
     elif err:
         meta_valid = False
     params = data.get("parameters")
+    lang_key, lang_label = language_of(ext)
+    platforms = data.get("platforms")
+    if not (isinstance(platforms, list) and platforms and all(p in PLATFORM_LABELS for p in platforms)):
+        platforms = default_platforms(ext)
     return Script(
         id=sid,
         path=path,
@@ -99,6 +139,9 @@ def _build(path: Path, root: Path, interpreters: dict) -> Script:
         parameter_count=len(params) if isinstance(params, list) else 0,
         meta=data,
         meta_valid=meta_valid,
+        language=lang_key,
+        language_label=lang_label,
+        platforms=[p for p in ALL_PLATFORMS if p in platforms],
     )
 
 

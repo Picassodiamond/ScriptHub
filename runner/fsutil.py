@@ -2,7 +2,21 @@
 import json
 import os
 import tempfile
+import time
 from pathlib import Path
+
+
+def _replace_with_retry(src, dst, attempts: int = 60, delay: float = 0.025) -> None:
+    """os.replace, retrying briefly: on Windows it is refused while another
+    thread or process (e.g. a polling request) has the target open."""
+    for attempt in range(attempts):
+        try:
+            os.replace(src, dst)
+            return
+        except PermissionError:
+            if attempt == attempts - 1:
+                raise
+            time.sleep(delay)
 
 
 def atomic_write_text(path: Path, text: str) -> None:
@@ -15,7 +29,7 @@ def atomic_write_text(path: Path, text: str) -> None:
             fh.write(text)
             fh.flush()
             os.fsync(fh.fileno())
-        os.replace(tmp, path)
+        _replace_with_retry(tmp, path)
     except BaseException:
         try:
             os.unlink(tmp)
@@ -29,6 +43,15 @@ def atomic_write_json(path: Path, data) -> None:
 
 
 def read_json(path: Path):
-    """Return parsed JSON; raises ValueError (bad JSON) or OSError."""
-    with open(path, "r", encoding="utf-8-sig") as fh:
-        return json.load(fh)
+    """Return parsed JSON; raises ValueError (bad JSON) or OSError.
+
+    A brief PermissionError (file being swapped by an atomic write on
+    Windows) is retried."""
+    for attempt in range(40):
+        try:
+            with open(path, "r", encoding="utf-8-sig") as fh:
+                return json.load(fh)
+        except PermissionError:
+            if attempt == 39:
+                raise
+            time.sleep(0.025)

@@ -30,7 +30,13 @@ DEFAULTS = {
         ".py": "python" if os.name == "nt" else "python3",
         ".sh": "bash",
     },
+    # Interpreters used on remote Linux hosts (scripts are streamed over SSH).
+    "remote_interpreters": {".py": "python3", ".sh": "bash"},
+    "ssh_executable": "ssh",
+    "ssh_connect_timeout": 10,
+    "environment": {},  # extra environment variables for every run
     "max_concurrent_executions": 3,
+    "max_concurrent_per_host": 3,
     "default_timeout": 3600,
     "history_retention_days": 90,
     "log_retention_days": 30,

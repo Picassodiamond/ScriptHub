@@ -46,4 +46,31 @@
     </tbody>
   </table>
 </section>
+
+<section class="card">
+  <h2>SSH hosts</h2>
+  <p class="muted">Remote Linux hosts come from your <span class="mono">~/.ssh/config</span> (<span class="mono">Host</span> entries without wildcards). SSH itself is configured outside this app; it must log in without a password (key or agent). Scripts are streamed to the remote interpreter, so nothing is installed on the host.</p>
+  {% if ssh_hosts %}
+  <ul class="dir-list">
+    {% for h in ssh_hosts %}
+    <li>
+      <div class="mono">{{ h }}</div>
+      <form method="post" action="{% url 'settings_test_host' %}">{% csrf_token %}
+        <input type="hidden" name="host" value="{{ h }}">
+        <button class="btn btn-ghost btn-sm" type="submit">Test connection</button>
+      </form>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="muted">No hosts found. Add a <span class="mono">Host</span> entry to <span class="mono">~/.ssh/config</span> and reload this page.</p>
+  {% endif %}
+  <table class="table">
+    <thead><tr><th>Remote extension</th><th>Remote interpreter</th></tr></thead>
+    <tbody>
+      {% for ext, cmd in remote_interpreters.items %}<tr><td class="mono">{{ ext }}</td><td class="mono">{{ cmd }}</td></tr>{% endfor %}
+    </tbody>
+  </table>
+  <p class="muted small">SSH command: <span class="mono">{{ ssh_executable }}</span></p>
+</section>
 {% endblock %}
