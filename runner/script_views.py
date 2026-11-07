@@ -10,6 +10,7 @@ from django.views.decorators.http import require_POST
 
 from . import discovery, metadata
 from . import parameter_service as ps
+from .security import is_within
 from .validators import ValidationError
 
 
@@ -234,3 +235,57 @@ def script_run(request, script_id):
     ctx["fields"] = ps.build_fields(params, raw, errors)
     ctx["has_errors"] = bool(errors)
     return render(request, "runner/run.html", ctx, status=400 if errors else 200)
+
+
+# ----------------------------------------------------------------- source ---
+MAX_SOURCE_BYTES = 512 * 1024
+
+
+def _read_text_limited(path):
+    """Return (text, truncated, error). Refuses binary content."""
+    try:
+        with open(path, "rb") as fh:
+            blob = fh.read(MAX_SOURCE_BYTES + 1)
+    except OSError as exc:
+        return "", False, f"Could not read file: {exc}"
+    truncated = len(blob) > MAX_SOURCE_BYTES
+    blob = blob[:MAX_SOURCE_BYTES]
+    if b"\x00" in blob:
+        return "", False, "This file looks binary and cannot be displayed."
+    return blob.decode("utf-8-sig", errors="replace"), truncated, None
+
+
+def script_source(request, script_id):
+    """Read-only view of a catalogued script (and its metadata file)."""
+    from django.http import HttpResponse
+
+    script = _get_script_or_404(script_id)
+    # Re-check at read time: the file must still resolve inside its root.
+    if not is_within(script.path, script.root):
+        raise Http404("Script is outside its configured directory")
+
+    text, truncated, error = _read_text_limited(script.path)
+    if request.GET.get("download") == "1" and error is None:
+        resp = HttpResponse(text, content_type="text/plain; charset=utf-8")
+        resp["Content-Disposition"] = f'attachment; filename="{script.path.name}"'
+        return resp
+
+    meta_text = ""
+    if script.meta_source is not None:
+        meta_text, _t, _e = _read_text_limited(script.meta_source)
+    try:
+        size = script.path.stat().st_size
+    except OSError:
+        size = 0
+    return render(
+        request,
+        "runner/source.html",
+        {
+            "script": script,
+            "lines": text.splitlines() or ([""] if not error else []),
+            "error": error,
+            "truncated": truncated,
+            "size": size,
+            "meta_lines": meta_text.splitlines(),
+        },
+    )

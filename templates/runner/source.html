@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}{{ script.path.name }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <a class="back" href="{% url 'script_detail' script.id %}">← {{ script.name }}</a>
+    <h1 class="mono-title">{{ script.path.name }}</h1>
+    <p class="muted mono wrap-anywhere">{{ script.path }} · {{ size }} bytes · read-only</p>
+  </div>
+  <div class="btn-row">
+    {% if not error %}
+    <button type="button" class="btn btn-ghost" id="copy-source">Copy</button>
+    <a class="btn btn-ghost" href="{% url 'script_source' script.id %}?download=1">Download</a>
+    {% endif %}
+    {% if script.enabled and script.meta_valid %}<a class="btn btn-primary" href="{% url 'script_run' script.id %}">▶ Run</a>{% endif %}
+  </div>
+</div>
+
+{% if error %}
+<div class="flash flash-error"><span>{{ error }}</span></div>
+{% else %}
+{% if truncated %}<div class="flash flash-warning"><span>File is larger than 512 KB; only the beginning is shown.</span></div>{% endif %}
+
+{% if meta_lines %}
+<div class="tabs" role="tablist">
+  <button type="button" class="tab active" data-tab="tab-script" role="tab">Script</button>
+  <button type="button" class="tab" data-tab="tab-meta" role="tab">Metadata ({{ script.meta_source.name }})</button>
+</div>
+{% endif %}
+
+<div id="tab-script" class="tab-panel">
+  <pre class="source" id="source-text"><code>{% for line in lines %}<span class="ln">{{ line }}</span>{% endfor %}</code></pre>
+</div>
+{% if meta_lines %}
+<div id="tab-meta" class="tab-panel" hidden>
+  <pre class="source"><code>{% for line in meta_lines %}<span class="ln">{{ line }}</span>{% endfor %}</code></pre>
+</div>
+{% endif %}
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  var tabs = [].slice.call(document.querySelectorAll('.tab'));
+  tabs.forEach(function (t) {
+    t.addEventListener('click', function () {
+      tabs.forEach(function (x) { x.classList.toggle('active', x === t); });
+      document.querySelectorAll('.tab-panel').forEach(function (p) { p.hidden = p.id !== t.dataset.tab; });
+    });
+  });
+  var btn = document.getElementById('copy-source');
+  if (btn) btn.addEventListener('click', function () {
+    var lines = [].map.call(document.querySelectorAll('#source-text .ln'), function (n) { return n.textContent; });
+    var txt = lines.join('\n') + '\n';
+    function done() { btn.textContent = 'Copied ✓'; setTimeout(function () { btn.textContent = 'Copy'; }, 1500); }
+    if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(txt).then(done);
+    else {
+      var ta = document.createElement('textarea'); ta.value = txt; document.body.appendChild(ta);
+      ta.select(); try { document.execCommand('copy'); done(); } catch (e) {} ta.remove();
+    }
+  });
+})();
+</script>
+{% endblock %}

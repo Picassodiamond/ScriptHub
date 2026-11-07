@@ -11,6 +11,7 @@ urlpatterns = [
     path("scripts/<str:script_id>/", script_views.script_detail, name="script_detail"),
     path("scripts/<str:script_id>/configure/", script_views.script_configure, name="script_configure"),
     path("scripts/<str:script_id>/configure/raw/", script_views.script_configure_raw, name="script_configure_raw"),
+    path("scripts/<str:script_id>/source/", script_views.script_source, name="script_source"),
     path("scripts/<str:script_id>/run/", script_views.script_run, name="script_run"),
     path("settings/", views.settings_view, name="settings"),
     path("settings/directories/add/", views.settings_add_directory, name="settings_add_directory"),

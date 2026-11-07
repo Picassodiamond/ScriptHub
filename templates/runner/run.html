@@ -21,6 +21,7 @@
     <button class="btn btn-primary" type="submit">Review &amp; confirm →</button>
     <a class="btn btn-ghost" href="{% url 'script_run' script.id %}">Reset to defaults</a>
     <a class="btn btn-ghost" href="{% url 'script_configure' script.id %}">Edit parameters</a>
+    <a class="btn btn-ghost" href="{% url 'script_source' script.id %}" target="_blank" rel="noopener">View script ↗</a>
   </div>
 </form>
 {% endif %}

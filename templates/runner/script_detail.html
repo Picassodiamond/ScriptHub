@@ -9,6 +9,7 @@
   </div>
   <div class="btn-row">
     {% if script.enabled and script.meta_valid %}<a class="btn btn-primary" href="{% url 'script_run' script.id %}">▶ Run</a>{% endif %}
+    <a class="btn btn-ghost" href="{% url 'script_source' script.id %}">View script</a>
     <a class="btn btn-ghost" href="{% url 'script_configure' script.id %}">Configure</a>
   </div>
 </div>

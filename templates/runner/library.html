@@ -43,6 +43,7 @@
       <span class="state {% if s.enabled %}state-on{% else %}state-off{% endif %}">{% if s.enabled %}Enabled{% else %}Disabled{% endif %}</span>
       <div class="btn-row">
         {% if s.enabled and s.meta_valid %}<a class="btn btn-primary btn-sm" href="{% url 'script_run' s.id %}">▶ Run</a>{% endif %}
+        <a class="btn btn-ghost btn-sm" href="{% url 'script_source' s.id %}">View</a>
         <a class="btn btn-ghost btn-sm" href="{% url 'script_configure' s.id %}">Configure</a>
         <form method="post" action="{% url 'script_toggle' s.id %}">{% csrf_token %}
           <input type="hidden" name="enabled" value="{% if s.enabled %}0{% else %}1{% endif %}">

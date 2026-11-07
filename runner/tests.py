@@ -283,3 +283,19 @@ class PageTests(SimpleTestCase):
         self.assertContains(self.client.get(self.url("run")), "disabled")
         r = self.client.post(self.url("run"), {"p_db": "x", "p_days": "1"})
         self.assertNotContains(r, "Command preview")
+
+    def test_source_view_download_and_escaping(self):
+        (self.scripts / "tool.py").write_text("print('<b>hi</b>')\n# second line\n")
+        r = self.client.get(self.url("source"))
+        self.assertContains(r, "&lt;b&gt;hi&lt;/b&gt;")      # HTML-escaped, never executed as markup
+        self.assertContains(r, "second line")
+        self.assertContains(r, "tool.json")                    # metadata tab
+        d = self.client.get(self.url("source") + "?download=1")
+        self.assertEqual(d["Content-Type"].split(";")[0], "text/plain")
+        self.assertIn("attachment", d["Content-Disposition"])
+
+    def test_source_view_unknown_script_and_binary(self):
+        self.assertEqual(self.client.get("/scripts/doesnotexist/source/").status_code, 404)
+        (self.scripts / "tool.py").write_bytes(b"\x00\x01\x02binary")
+        self.assertContains(self.client.get(self.url("source")), "looks binary")
+
