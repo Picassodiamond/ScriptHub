@@ -1,0 +1,9 @@
+{
+  "name": "System Information",
+  "description": "Show hostname, operating system, Python version and current time.",
+  "category": "System",
+  "enabled": true,
+  "timeout": 60,
+  "allow_concurrent": true,
+  "parameters": []
+}

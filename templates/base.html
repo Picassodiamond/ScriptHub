@@ -1,0 +1,37 @@
+{% load static %}<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Script Runner{% endblock %} · Script Runner</title>
+  <link rel="stylesheet" href="{% static 'css/app.css' %}">
+</head>
+<body>
+  <header class="topbar">
+    <div class="wrap topbar-inner">
+      <a class="brand" href="{% url 'library' %}"><span class="brand-mark">▶</span> Script Runner</a>
+      <nav class="nav">
+        <a href="{% url 'library' %}" class="{% if nav_active == 'library' %}active{% endif %}">Script Library</a>
+        <a href="{% url 'settings' %}" class="{% if nav_active == 'settings' %}active{% endif %}">Settings</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="wrap">
+    {% if messages %}
+    <div class="flashes">
+      {% for m in messages %}
+      <div class="flash flash-{{ m.level_tag }}" role="alert">
+        <span>{{ m }}</span>
+        <button type="button" class="flash-x" aria-label="Dismiss" data-dismiss>×</button>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+    {% block content %}{% endblock %}
+  </main>
+
+  <script src="{% static 'js/app.js' %}"></script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

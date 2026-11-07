@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}Settings{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Settings</h1>
+    <p class="muted">Configuration is stored in <code>runtime/config.json</code>.</p>
+  </div>
+</div>
+
+<section class="card">
+  <h2>Script directories</h2>
+  <p class="muted">Scanned recursively. Only files with a configured extension are catalogued; nothing is executed during discovery.</p>
+  <ul class="dir-list">
+    {% for d in directories %}
+    <li>
+      <div>
+        <div class="mono">{{ d.resolved }}</div>
+        <div class="muted small">
+          {% if d.exists %}{{ d.count }} script{{ d.count|pluralize }}{% else %}<span class="error-text">Directory not found</span>{% endif %}
+          {% if d.configured != d.resolved|stringformat:"s" %} · configured as <span class="mono">{{ d.configured }}</span>{% endif %}
+        </div>
+      </div>
+      <form method="post" action="{% url 'settings_remove_directory' %}" data-confirm="Remove this directory from the library? Files are not deleted.">{% csrf_token %}
+        <input type="hidden" name="directory" value="{{ d.configured }}">
+        <button class="btn btn-danger btn-sm" type="submit">Remove</button>
+      </form>
+    </li>
+    {% empty %}
+    <li class="muted">No directories configured.</li>
+    {% endfor %}
+  </ul>
+  <form method="post" action="{% url 'settings_add_directory' %}" class="inline-form">{% csrf_token %}
+    <input class="input" type="text" name="directory" placeholder="C:\scripts   or   ./more_scripts" required>
+    <button class="btn btn-primary" type="submit">Add directory</button>
+  </form>
+</section>
+
+<section class="card">
+  <h2>Script types</h2>
+  <p class="muted">File extension → interpreter. Only these extensions are treated as scripts.</p>
+  <table class="table">
+    <thead><tr><th>Extension</th><th>Interpreter</th></tr></thead>
+    <tbody>
+      {% for ext, cmd in interpreters.items %}<tr><td class="mono">{{ ext }}</td><td class="mono">{{ cmd }}</td></tr>{% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endblock %}

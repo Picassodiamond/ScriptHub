@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% block title %}Script Library{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Script Library</h1>
+    <p class="muted">{{ scripts|length }} script{{ scripts|length|pluralize }} catalogued · {{ enabled_count }} enabled</p>
+  </div>
+  <form method="post" action="{% url 'library_refresh' %}">{% csrf_token %}
+    <button class="btn btn-primary" type="submit">↻ Refresh scripts</button>
+  </form>
+</div>
+
+{% for p in problems %}<div class="flash flash-warning"><span>{{ p }}</span></div>{% endfor %}
+
+{% if scripts %}
+<div class="toolbar">
+  <input id="script-search" class="input search" type="search" placeholder="Search name, description, path…" autocomplete="off">
+  <div class="chips" id="category-chips">
+    <button class="chip active" type="button" data-category="">All</button>
+    {% for c in categories %}<button class="chip" type="button" data-category="{{ c }}">{{ c }}</button>{% endfor %}
+  </div>
+</div>
+
+<div class="grid" id="script-grid">
+  {% for s in scripts %}
+  <article class="card script-card {% if not s.enabled %}is-disabled{% endif %}"
+           data-category="{{ s.category }}"
+           data-search="{{ s.name }} {{ s.description }} {{ s.relative }} {{ s.category }} {{ s.interpreter }}">
+    <div class="card-top">
+      <span class="badge badge-cat">{{ s.category }}</span>
+      <span class="badge badge-interp">{{ s.interpreter }}</span>
+    </div>
+    <h2>{{ s.name }}</h2>
+    <p class="desc">{% if s.description %}{{ s.description }}{% else %}<span class="muted">No description.</span>{% endif %}</p>
+    {% if s.meta_error %}<p class="error-text">⚠ {{ s.meta_error }}</p>{% endif %}
+    <dl class="facts">
+      <div><dt>File</dt><dd class="mono" title="{{ s.path }}">{{ s.relative }}</dd></div>
+      <div><dt>Location</dt><dd class="mono" title="{{ s.location }}">{{ s.location }}</dd></div>
+      <div><dt>Parameters</dt><dd>{{ s.parameter_count }}</dd></div>
+    </dl>
+    <div class="card-foot">
+      <span class="state {% if s.enabled %}state-on{% else %}state-off{% endif %}">{% if s.enabled %}Enabled{% else %}Disabled{% endif %}</span>
+      <form method="post" action="{% url 'script_toggle' s.id %}">{% csrf_token %}
+        <input type="hidden" name="enabled" value="{% if s.enabled %}0{% else %}1{% endif %}">
+        <button class="btn btn-ghost btn-sm" type="submit">{% if s.enabled %}Disable{% else %}Enable{% endif %}</button>
+      </form>
+    </div>
+  </article>
+  {% endfor %}
+</div>
+<p id="no-match" class="empty" hidden>No scripts match your search.</p>
+
+{% else %}
+<div class="empty card">
+  <h2>No scripts found</h2>
+  <p class="muted">Add a script directory in <a href="{% url 'settings' %}">Settings</a>, or drop a <code>.py</code> / <code>.sh</code> file into <code>scripts/</code> and press Refresh.</p>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  var search = document.getElementById('script-search');
+  if (!search) return;
+  var cards = [].slice.call(document.querySelectorAll('.script-card'));
+  var chips = [].slice.call(document.querySelectorAll('.chip'));
+  var none = document.getElementById('no-match');
+  var category = '';
+  function apply() {
+    var q = search.value.trim().toLowerCase(), shown = 0;
+    cards.forEach(function (c) {
+      var ok = (!category || c.dataset.category === category) &&
+               (!q || c.dataset.search.toLowerCase().indexOf(q) !== -1);
+      c.hidden = !ok;
+      if (ok) shown++;
+    });
+    none.hidden = shown !== 0;
+  }
+  search.addEventListener('input', apply);
+  chips.forEach(function (chip) {
+    chip.addEventListener('click', function () {
+      category = chip.dataset.category;
+      chips.forEach(function (c) { c.classList.toggle('active', c === chip); });
+      apply();
+    });
+  });
+})();
+</script>
+{% endblock %}

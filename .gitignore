@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+
+# Script Runner runtime state (config, history, presets, secrets)
+runtime/*
+!runtime/*/
+runtime/*/*
+!runtime/*/.gitkeep
+
+# Metadata backups and temp files
+*.json.bak
+*.tmp
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
