@@ -314,3 +314,9 @@ a.st:hover { text-decoration: none; filter: brightness(.96); }
   .panes { grid-template-columns: 1fr; }
 }
 @media (prefers-reduced-motion: reduce) { main.wrap > * { animation: none; } .st-running::before { animation: none; } }
+
+/* Running-line highlight in the console */
+.trace-card { margin-bottom: 14px; }
+.trace-src { margin: 0; max-height: 34vh; overflow: auto; border-radius: var(--radius); position: relative; }
+.trace-src .ln.is-current { background: rgba(255, 207, 77, .22); box-shadow: inset 3px 0 0 #ffcf4d; }
+.trace-opt { display: flex; align-items: center; margin-right: auto; }

@@ -48,6 +48,19 @@
   <p class="muted small">{% if run.adhoc %}Stored as{% else %}Script:{% endif %} <span class="mono wrap-anywhere">{{ run.script_path }}</span>{% if run.pid %} · PID <span id="pid">{{ run.pid }}</span>{% endif %}{% if run.initiator %} · started from <span class="mono">{{ run.initiator }}</span>{% endif %}</p>
 </details>
 
+{% if trace and trace_lines %}
+<section class="card trace-card" id="trace-card" data-line-count="{{ trace_lines|length }}">
+  <header class="pane-head">
+    <h2>Running line <span class="muted small mono" id="trace-line">—</span></h2>
+    <div class="btn-row">
+      <span class="muted small" id="trace-state"></span>
+      <button type="button" class="btn btn-ghost btn-sm" id="trace-stop" {% if trace.stopped or not active %}hidden{% endif %}>Stop tracing (run at full speed)</button>
+    </div>
+  </header>
+  <pre class="source trace-src" id="trace-src" data-lang="{{ trace_lang }}"><code>{% for line in trace_lines %}<span class="ln">{{ line }}</span>{% endfor %}</code></pre>
+</section>
+{% endif %}
+
 <div class="console-bar">
   <label class="check"><input type="checkbox" id="autoscroll" checked><span>Auto-scroll</span></label>
   <span class="muted small" id="live-note"></span>
@@ -76,9 +89,10 @@
   </section>
 </div>
 
-<div id="console-config" data-status-url="{% url 'execution_status' run.id %}" data-interval="{{ polling_interval }}" hidden></div>
+<div id="console-config" data-status-url="{% url 'execution_status' run.id %}" data-interval="{{ polling_interval }}" data-trace-stop-url="{% url 'execution_trace_stop' run.id %}" data-csrf="{{ csrf_token }}" hidden></div>
 {% endblock %}
 
 {% block scripts %}
+<script src="{% static 'js/highlight.js' %}"></script>
 <script src="{% static 'js/console.js' %}"></script>
 {% endblock %}

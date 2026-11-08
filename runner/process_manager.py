@@ -10,11 +10,13 @@ import subprocess
 import threading
 import time
 from collections import deque
+from pathlib import Path
 
 import config
 from . import executor, history
 from .executor import ExecutionError, ExecutionSpec
 
+TRACE_LOG_MAX = 1_000_000   # bytes of trace.log kept per run
 TOKEN_TTL = 600  # seconds a submit token is remembered (double-click guard)
 
 
@@ -76,6 +78,12 @@ class ExecutionManager:
                 source_file = run_dir / f"adhoc{spec.extension}"
                 source_file.write_bytes(spec.inline_source)
                 spec.script_path = str(source_file)
+            if spec.trace is not None:
+                # What the console shows next to the output: the source as it was when the run started.
+                try:
+                    (run_dir / "trace_source").write_bytes(Path(spec.script_path).read_bytes()[:512 * 1024])
+                except OSError:
+                    pass
             history.write_meta(run_id, {
                 "id": run_id,
                 "script_id": spec.script_id,
@@ -96,6 +104,7 @@ class ExecutionManager:
                 "timeout": spec.timeout,
                 "initiator": initiator,
                 "adhoc": spec.adhoc,
+                "trace": {"enabled": True, "stopped": False} if spec.trace is not None else None,
                 "owner_pid": os.getpid(),
                 "error": None,
             })
@@ -122,6 +131,37 @@ class ExecutionManager:
             active.reason = active.reason or "cancelled"
             active.cancel.set()
             return True
+
+    def stop_trace(self, run_id: str) -> bool:
+        """Stop line tracing for the rest of a running script (it then runs at full speed)."""
+        with self._lock:
+            active = self._active.get(run_id)
+        if active is None or active.spec.trace is None:
+            return False
+        spec = active.spec
+        if spec.host == executor.LOCAL:
+            stopfile = spec.trace.get("stopfile")
+            if not stopfile:
+                return False
+            try:
+                Path(stopfile).write_bytes(b"stop")
+            except OSError:
+                return False
+        else:
+            pid = active.remote_pid
+            if not isinstance(pid, int) or pid <= 1:
+                return False
+            cfg = config.load_config()
+            threading.Thread(target=self._remote_signal, args=(spec.host, pid, cfg), daemon=True).start()
+        history.update_meta(run_id, trace={"enabled": True, "stopped": True})
+        return True
+
+    @staticmethod
+    def _remote_signal(host, pid, cfg) -> None:
+        try:
+            executor.ssh_hosts.run_remote(host, f"kill -USR1 {int(pid)} 2>/dev/null; true", timeout=30, cfg=cfg)
+        except (OSError, subprocess.TimeoutExpired, ValueError):
+            pass
 
     def queue_position(self, run_id: str):
         with self._lock:
@@ -209,6 +249,8 @@ class ExecutionManager:
         cfg = config.load_config()
         try:
             history.update_meta(run_id, status=history.RUNNING, started_at=history.now_iso())
+            if spec.trace is not None:
+                spec.trace["stopfile"] = str(history.run_dir(run_id) / "trace.stop")
             try:
                 cmd = executor.build_command(spec, cfg)
             except ExecutionError as exc:
@@ -236,7 +278,8 @@ class ExecutionManager:
 
             out_t = threading.Thread(target=executor.pump, args=(proc.stdout, history.log_path(run_id, "stdout"),
                                      on_marker if cmd.remote else None), daemon=True)
-            err_t = threading.Thread(target=executor.pump, args=(proc.stderr, history.log_path(run_id, "stderr")), daemon=True)
+            on_trace = self._trace_writer(run_id) if spec.trace is not None else None
+            err_t = threading.Thread(target=executor.pump, args=(proc.stderr, history.log_path(run_id, "stderr"), None, on_trace), daemon=True)
             out_t.start()
             err_t.start()
             if cmd.stdin is not None:
@@ -287,6 +330,21 @@ class ExecutionManager:
             with self._lock:
                 self._active.pop(run_id, None)
             self._dispatch()
+
+    @staticmethod
+    def _trace_writer(run_id):
+        folder = history.run_dir(run_id)
+
+        def write(nums):
+            try:
+                log = folder / "trace.log"
+                if not log.exists() or log.stat().st_size < TRACE_LOG_MAX:
+                    with open(log, "ab") as fh:
+                        fh.write((chr(10).join(map(str, nums)) + chr(10)).encode())
+                (folder / "trace.last").write_text(str(nums[-1]))
+            except OSError:
+                pass
+        return write
 
     @staticmethod
     def _write_stderr(run_id, text) -> None:

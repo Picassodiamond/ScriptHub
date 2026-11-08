@@ -37,6 +37,7 @@
     <input type="hidden" name="host" value="{{ host }}">
     <input type="hidden" name="submit_token" value="{{ token }}">
     {% for name, value in hidden %}<input type="hidden" name="{{ name }}" value="{{ value }}">{% endfor %}
+    {% if trace_supported %}<label class="check trace-opt"><input type="checkbox" name="trace" value="1" {% if trace %}checked{% endif %}><span>Show the running line <span class="muted small">(slows the script a little; you can switch it off while it runs)</span></span></label>{% endif %}
     <button class="btn btn-primary" type="submit" data-once><svg class="i"><use href="#i-play"/></svg> Run now</button>
   </form>
   <form method="post" action="{% url 'script_run' script.id %}">{% csrf_token %}

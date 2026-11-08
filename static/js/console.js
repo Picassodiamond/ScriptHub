@@ -37,7 +37,41 @@
     if (auto.checked) el.scrollTop = el.scrollHeight;
   }
 
+  // ---- running-line highlight (only when the run was started with tracing)
+  var traceCard = document.getElementById('trace-card');
+  var traceSrc = document.getElementById('trace-src');
+  var traceLines = traceSrc ? traceSrc.querySelectorAll('.ln') : [];
+  var traceCur = null, traceStopBtn = document.getElementById('trace-stop');
+  if (window.highlight && traceSrc) window.highlight.apply(traceCard);
+
+  function showTrace(t, d) {
+    if (!traceCard || !t) return;
+    var stateEl = document.getElementById('trace-state');
+    if (t.line && traceLines[t.line - 1] && traceCur !== t.line) {
+      if (traceCur) traceLines[traceCur - 1].classList.remove('is-current');
+      traceCur = t.line;
+      var el = traceLines[t.line - 1];
+      el.classList.add('is-current');
+      document.getElementById('trace-line').textContent = t.line;
+      var box = traceSrc, top = el.offsetTop, h = el.offsetHeight;
+      if (top < box.scrollTop + 20 || top + h > box.scrollTop + box.clientHeight - 20) {
+        box.scrollTop = Math.max(0, top - box.clientHeight / 2);
+      }
+    }
+    if (traceStopBtn) traceStopBtn.hidden = t.stopped || !d.active;
+    stateEl.textContent = t.stopped ? (d.active ? 'Tracing stopped — running at full speed' : 'Tracing was stopped during the run')
+      : (d.active ? 'Tracing…' : 'Last line reached');
+  }
+
+  if (traceStopBtn) traceStopBtn.addEventListener('click', function () {
+    traceStopBtn.disabled = true;
+    fetch(cfg.dataset.traceStopUrl, { method: 'POST', headers: { 'X-CSRFToken': cfg.dataset.csrf } })
+      .then(function (r) { if (!r.ok) throw new Error(); traceStopBtn.hidden = true; })
+      .catch(function () { traceStopBtn.disabled = false; liveNote.textContent = 'Could not stop tracing (the run may have just finished).'; });
+  });
+
   function render(d) {
+    showTrace(d.trace, d);
     badge.className = 'st st-' + d.status;
     badge.textContent = d.status_label;
     exitEl.textContent = d.exit_code === null || d.exit_code === undefined ? '—' : d.exit_code;

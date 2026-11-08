@@ -408,6 +408,27 @@ accounts' on remote hosts). The application has no login, so:
 
 ---
 
+### Seeing which line is running
+
+Tick **Show the running line** on the confirmation page (or on the Ad-hoc screen) for
+a Python or Bash script. The console then shows the script's source next to the
+output with the current line highlighted and scrolled into view. The source shown is a
+copy taken when the run started, so later edits do not shift the highlight.
+
+* **How:** Python runs through a small launcher that reports line numbers
+  (`sys.monitoring` on Python 3.12+, `sys.settrace` before that). Bash gets a `DEBUG`
+  trap. Your script file is not modified. The markers travel on stderr and are removed
+  again, so `stderr.log` stays clean.
+* **Speed:** tracing slows the script (Python much more in tight loops). Press
+  **Stop tracing (run at full speed)** on the console to end it for the rest of the run.
+  It cannot be switched back on.
+* **Accuracy:** the page polls, so a fast script jumps ahead; the highlight shows roughly
+  where it is. Only the script's own lines count (not imported modules or `source`d
+  files). `.bat` files and `sh` (not bash) are not supported.
+* **SSH hosts:** Python needs nothing on the host; Bash receives one extra first line, so
+  line numbers are corrected by one. **Stop tracing** sends `SIGUSR1` to the script
+  (it is ignored for Python before 3.12 on Windows, which has no such signal).
+
 ## Execution lifecycle
 
 Every run gets an ID like `RUN-20261107-001` and moves through:

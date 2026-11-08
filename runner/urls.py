@@ -29,6 +29,7 @@ urlpatterns = [
     path("executions/<str:run_id>/", execution_views.execution_console, name="execution_console"),
     path("executions/<str:run_id>/status/", execution_views.execution_status, name="execution_status"),
     path("executions/<str:run_id>/stop/", execution_views.execution_stop, name="execution_stop"),
+    path("executions/<str:run_id>/trace/stop/", execution_views.execution_trace_stop, name="execution_trace_stop"),
     path("executions/<str:run_id>/log/<str:stream>/", execution_views.execution_log, name="execution_log"),
     path("settings/hosts/test/", views.settings_test_host, name="settings_test_host"),
     path("settings/", views.settings_view, name="settings"),

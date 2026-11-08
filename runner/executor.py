@@ -15,7 +15,7 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from . import ssh_hosts
+from . import ssh_hosts, tracing
 
 LOCAL = ssh_hosts.LOCAL
 BATCH_EXTENSIONS = (".bat", ".cmd")
@@ -52,6 +52,8 @@ class ExecutionSpec:
     # folder (so history keeps exactly what ran) and points script_path at it.
     inline_source: bytes | None = None
     adhoc: dict | None = None
+    # Line tracing: {} when requested (the manager adds "stopfile"), None when off.
+    trace: dict | None = None
 
 
 @dataclass
@@ -90,6 +92,11 @@ def check_batch_args(argv) -> None:
             )
 
 
+def trace_supported(extension: str, interpreter: str) -> bool:
+    parts = ssh_hosts.split_command(interpreter or "")
+    return bool(parts) and tracing.kind(extension, _exe_stem(parts[0])) is not None
+
+
 def _split(command: str):
     return ssh_hosts.split_command(command)
 
@@ -106,7 +113,13 @@ def build_command(spec: ExecutionSpec, cfg: dict) -> Command:
         env_extra.setdefault("PYTHONUNBUFFERED", "1")
         env_extra.setdefault("PYTHONUTF8", "1")
 
+    trace_kind = tracing.kind(spec.extension, stem) if spec.trace is not None else None
+    if spec.trace is not None and trace_kind is None:
+        raise ExecutionError("Line tracing is available for Python and Bash scripts only.")
+
     if spec.host == LOCAL:
+        if trace_kind:
+            return _local_traced(spec, path, interp, stem, trace_kind, env_extra)
         if spec.extension in BATCH_EXTENSIONS:
             if os.name != "nt":
                 raise ExecutionError("Batch files can only run on Windows.")
@@ -134,11 +147,35 @@ def build_command(spec: ExecutionSpec, cfg: dict) -> Command:
     except OSError as exc:
         raise ExecutionError(f"Could not read the script: {exc}") from exc
     flags = STDIN_FLAGS.get(stem, ["-"])
+    if trace_kind == "python":
+        flags = ["-c", tracing.PY_LAUNCHER, "-"]
+    elif trace_kind == "bash":
+        script_bytes = tracing.bash_prologue_line() + script_bytes
     remote_env = [f"{k}={v}" for k, v in env_extra.items()]
     parts = ["sh", "-c", REMOTE_WRAPPER, "sh", spec.cwd or ".", *remote_env, *interp, *flags, *spec.argv]
     remote_command = " ".join(shlex.quote(p) for p in parts)
     args = ssh_hosts.ssh_base(cfg) + ["-T", "--", spec.host, remote_command]
     return Command(args, script_bytes, dict(os.environ), None, remote=True)
+
+
+def _local_traced(spec, path, interp, stem, trace_kind, env_extra) -> Command:
+    stopfile = (spec.trace or {}).get("stopfile") or ""
+    env_extra["SR_TRACE_STOPFILE"] = stopfile
+    cwd = spec.cwd or str(path.parent)
+    if trace_kind == "python":
+        exe = [sys.executable] if stem in ("python", "python3") else interp
+        args = [*exe, "-c", tracing.PY_LAUNCHER, str(path), *spec.argv]
+        env = {**os.environ, **env_extra}
+    else:
+        prologue = Path(stopfile).with_name("trace_prologue.sh") if stopfile else path.with_suffix(".trace.sh")
+        prologue.write_bytes(tracing.bash_prologue_file(stopfile).encode())
+        shown = lambda p: (Path(p).as_posix() if os.name == "nt" else str(p)) if p else ""
+        env_extra["SR_TRACE_STOPFILE"] = shown(stopfile)
+        env_extra["BASH_ENV"] = shown(prologue)
+        script_arg = path.as_posix() if os.name == "nt" else str(path)
+        args = [*interp, script_arg, *spec.argv]
+        env = {**os.environ, **env_extra}
+    return Command(args, None, env, cwd, remote=False)
 
 
 def popen_flags() -> dict:
@@ -204,13 +241,14 @@ def stop(spec: ExecutionSpec, proc: subprocess.Popen, remote_pid, cfg: dict) -> 
         kill_tree(proc)
 
 
-def pump(stream, path: Path, on_marker=None) -> None:
+def pump(stream, path: Path, on_marker=None, on_trace=None) -> None:
     """Copy ``stream`` into ``path`` as data arrives (unbuffered, so the
     browser sees output live). ``on_marker(pid)`` is called if the very first
     line is the remote PID marker; that line is not written to the log."""
     reader = getattr(stream, "read1", stream.read)
     checking = on_marker is not None
     pending = b""
+    filt = tracing.MarkerFilter(on_trace) if on_trace else None
     with open(path, "ab", buffering=0) as fh:
         while True:
             try:
@@ -219,6 +257,10 @@ def pump(stream, path: Path, on_marker=None) -> None:
                 break
             if not chunk:
                 break
+            if filt:
+                chunk = filt.feed(chunk)
+                if not chunk:
+                    continue
             if checking:
                 pending += chunk
                 if b"\n" not in pending and len(pending) < 256:
@@ -239,6 +281,8 @@ def pump(stream, path: Path, on_marker=None) -> None:
             fh.write(chunk)
         if checking and pending:
             fh.write(pending)
+        if filt:
+            fh.write(filt.flush())
 
 
 def feed_stdin(proc: subprocess.Popen, data: bytes) -> None:

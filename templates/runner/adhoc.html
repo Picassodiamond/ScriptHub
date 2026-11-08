@@ -52,6 +52,9 @@
       <input class="input" id="a_cwd" name="cwd" value="{{ form.cwd }}" placeholder="Blank = your home folder">
     </div>
     <div class="field">
+      <label class="check"><input type="checkbox" name="trace" value="1" {% if form.trace %}checked{% endif %}><span>Show the running line <span class="muted small">(Python and Bash; slows the script a little, can be switched off while it runs)</span></span></label>
+    </div>
+    <div class="field">
       <label class="field-label" for="a_timeout">Timeout (seconds)</label>
       <input class="input" id="a_timeout" name="timeout" type="number" min="1" max="604800" value="{{ form.timeout }}">
     </div>

@@ -1,6 +1,7 @@
 """Views for running scripts: run form, start, live console, status polling,
 stop, execution list and log download."""
 import datetime
+from pathlib import Path
 import shlex
 import uuid
 
@@ -14,6 +15,7 @@ from . import discovery, executor, history, presets, ssh_hosts
 from . import parameter_service as ps
 from .executor import ExecutionError, ExecutionSpec
 from .process_manager import manager
+from .script_views import LANGUAGES
 
 
 def client_address(request) -> str:
@@ -34,13 +36,15 @@ def _params_of(script):
 
 
 # --------------------------------------------------------------- spec build ---
-def build_spec(script, host, params, values, token=None) -> ExecutionSpec:
+def build_spec(script, host, params, values, token=None, trace=False) -> ExecutionSpec:
     """Turn validated values into an ExecutionSpec. Raises ExecutionError."""
     cfg = config.load_config()
     interpreter = executor.resolve_interpreter(script.meta.get("interpreter"), script.extension, host, cfg)
     argv, env_from_params = ps.build_arguments(params, values)
     masked_argv, _ = ps.build_arguments(params, values, mask_secrets=True)
     env = {**cfg["environment"], **script.meta.get("environment", {}), **env_from_params}
+    if trace and not executor.trace_supported(script.extension, interpreter):
+        raise ExecutionError("Line tracing is available for Python and Bash scripts only.")
     if host == ssh_hosts.LOCAL:
         shown = shlex.join([interpreter, str(script.path), *masked_argv])
     else:
@@ -60,6 +64,7 @@ def build_spec(script, host, params, values, token=None) -> ExecutionSpec:
         parameters=ps.redact(params, values),
         display_command=shown,
         token=token,
+        trace={} if trace else None,
     )
 
 
@@ -133,6 +138,8 @@ def script_run(request, script_id):
                         "hidden": ps.hidden_pairs(params, raw),
                         "token": uuid.uuid4().hex,
                         "timeout": spec.timeout,
+                        "trace_supported": executor.trace_supported(script.extension, spec.interpreter),
+                        "trace": request.POST.get("trace") == "1",
                     })
     else:
         raw = ps.defaults_raw(params)
@@ -170,7 +177,8 @@ def script_start(request, script_id):
     spec = None
     if not errors and not host_error:
         try:
-            spec = build_spec(script, host, params, values, token=request.POST.get("submit_token") or None)
+            spec = build_spec(script, host, params, values, token=request.POST.get("submit_token") or None,
+                              trace=request.POST.get("trace") == "1")
         except ExecutionError as exc:
             host_error = str(exc)
     if spec is None:
@@ -205,7 +213,21 @@ def execution_console(request, run_id):
                 adhoc_source = fh.read(200 * 1024).decode("utf-8", errors="replace")
         except OSError:
             adhoc_source = None
+    trace = meta.get("trace") or None
+    trace_lines = None
+    if trace:
+        try:
+            with open(history.run_dir(run_id) / "trace_source", "rb") as fh:
+                trace_lines = fh.read().decode("utf-8", errors="replace").splitlines()
+            if trace_lines and trace_lines[-1] == "":
+                trace_lines.pop()
+        except OSError:
+            trace_lines = None
+    ext = Path(meta.get("script_path", "")).suffix.lower()
     return render(request, "runner/console.html", {
+        "trace": trace,
+        "trace_lines": trace_lines,
+        "trace_lang": LANGUAGES.get(ext, ""),
         "run": meta,
         "adhoc_source": adhoc_source,
         "adhoc_args": (meta.get("adhoc") or {}).get("arguments") or [],
@@ -246,7 +268,27 @@ def execution_status(request, run_id):
         "pid": meta.get("pid"),
         "stdout": out, "stdout_next": out_next,
         "stderr": err, "stderr_next": err_next,
+        "trace": _trace_state(run_id, meta),
     })
+
+
+def _trace_state(run_id, meta):
+    trace = meta.get("trace")
+    if not trace:
+        return None
+    line = None
+    try:
+        line = int((history.run_dir(run_id) / "trace.last").read_text().strip())
+    except (OSError, ValueError):
+        pass
+    return {"line": line, "stopped": bool(trace.get("stopped"))}
+
+
+@require_POST
+def execution_trace_stop(request, run_id):
+    _get_meta_or_404(run_id)
+    ok = manager.stop_trace(run_id)
+    return JsonResponse({"ok": ok}, status=200 if ok else 409)
 
 
 @require_POST

@@ -68,7 +68,7 @@ def _title(ext, code):
 
 def _default_form(cfg, ext=".py"):
     return {"language": ext, "code": TEMPLATES.get(ext, ""), "host": "local", "timeout": str(cfg["default_timeout"]),
-            "arguments": "", "cwd": ""}
+            "arguments": "", "cwd": "", "trace": False}
 
 
 def _form_from_run(run_id):
@@ -83,7 +83,7 @@ def _form_from_run(run_id):
     info = meta["adhoc"]
     return {"language": info.get("language", ".py"), "code": code.replace("\r\n", "\n"), "host": meta.get("host", "local"),
             "timeout": str(meta.get("timeout") or ""), "arguments": "\n".join(info.get("arguments") or []),
-            "cwd": info.get("cwd") or ""}
+            "cwd": info.get("cwd") or "", "trace": bool(meta.get("trace"))}
 
 
 def validate(form, cfg):
@@ -130,6 +130,8 @@ def validate(form, cfg):
             interpreter = executor.resolve_interpreter(None, ext, host, cfg)
             if ext in executor.BATCH_EXTENSIONS:
                 executor.check_batch_args(args)
+            if form.get("trace") == "1" and not executor.trace_supported(ext, interpreter):
+                raise ExecutionError("Line tracing is available for Python and Bash scripts only.")
         except ExecutionError as exc:
             errors.append(str(exc))
     if errors:
@@ -156,6 +158,7 @@ def validate(form, cfg):
         display_command=f"{'ssh ' + host + ': ' if host != 'local' else ''}{interpreter} <ad-hoc script> {shown_args}".rstrip(),
         inline_source=text.encode("utf-8"),
         adhoc={"language": ext, "arguments": args, "cwd": typed_cwd},
+        trace={} if form.get("trace") == "1" else None,
     )
     return spec, []
 
@@ -181,7 +184,7 @@ def adhoc(request):
         return blocked
     cfg = config.load_config()
     if request.method == "POST":
-        form = {k: request.POST.get(k, "") for k in ("language", "code", "host", "timeout", "arguments", "cwd")}
+        form = {k: request.POST.get(k, "") for k in ("language", "code", "host", "timeout", "arguments", "cwd", "trace")}
         spec, errors = validate(form, cfg)
         if errors:
             return render(request, "runner/adhoc.html", _context(cfg, form, errors), status=400)
