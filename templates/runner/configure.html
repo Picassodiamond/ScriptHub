@@ -1,93 +1,115 @@
-{% extends "base.html" %}
+{% extends "runner/_script_base.html" %}
+{% load static %}
 {% block title %}Configure {{ script.name }}{% endblock %}
+{% block body_mod %}fill adhoc-page{% endblock %}
+{% block actions %}
+<a class="btn btn-ghost btn-sm" href="{% url 'script_detail' script.id %}">Cancel</a>
+<button class="btn btn-primary" type="submit" form="configure-form" data-hotkey="Ctrl+s" data-hint="Save configuration"><svg class="i"><use href="#i-save"/></svg> Save configuration <kbd>Ctrl</kbd><kbd>S</kbd></button>
+{% endblock %}
 {% block content %}
-<div class="page-head">
-  <div>
-    <a class="back" href="{% url 'script_detail' script.id %}">← {{ script.name }}</a>
-    <h1>Configure: {{ script.name }}</h1>
-    <p class="muted mono wrap-anywhere">{{ script.path }}</p>
-  </div>
-</div>
-
 {% if errors %}
-<div class="flash flash-error"><div><strong>Not saved.</strong><ul class="err-list">{% for e in errors %}<li>{{ e }}</li>{% endfor %}</ul></div></div>
+<div class="flash flash-error notes"><div><strong>Not saved.</strong><ul class="err-list">{% for e in errors %}<li>{{ e }}</li>{% endfor %}</ul></div></div>
 {% endif %}
 
-<form method="post" id="configure-form" novalidate>{% csrf_token %}
-  <section class="card">
-    <h2>Script information</h2>
-    <div class="form-grid">
-      <div class="field"><label class="field-label" for="f_name">Name</label>
-        <input class="input" id="f_name" name="name" value="{{ form.name }}" maxlength="120" placeholder="Shown in the library"></div>
-      <div class="field"><label class="field-label" for="f_category">Category</label>
-        <input class="input" id="f_category" name="category" value="{{ form.category }}" maxlength="60" placeholder="Defaults to the folder name"></div>
-      <div class="field field-wide"><label class="field-label" for="f_description">Description</label>
-        <textarea class="input" id="f_description" name="description" rows="2" maxlength="2000">{{ form.description }}</textarea></div>
-      <div class="field"><label class="field-label" for="f_interpreter">Interpreter</label>
-        <input class="input" id="f_interpreter" name="interpreter" value="{{ form.interpreter }}" placeholder="Blank = default for the file type ({{ script.extension }})">
-        <div class="help">Command or full path, e.g. <span class="mono">python3</span> or <span class="mono">/usr/bin/bash</span>.</div></div>
-      <div class="field"><label class="field-label" for="f_timeout">Timeout (seconds)</label>
-        <input class="input" id="f_timeout" name="timeout" value="{{ form.timeout }}" inputmode="numeric" placeholder="Blank = application default">
+<div class="adhoc adhoc-wide">
+  <div class="adhoc-main">
+    <section class="doc" aria-label="Script and metadata">
+      <div class="doc-bar" role="tablist">
+        <button type="button" class="doc-tab{% if not raw_errors %} is-active{% endif %}" data-doc-tab="doc-src-panel" role="tab"><span class="lang lang-{{ script.extension|slice:'1:' }}">{{ script.extension|slice:'1:' }}</span>{{ script.path.name }}</button>
+        <button type="button" class="doc-tab{% if raw_errors %} is-active{% endif %}" data-doc-tab="doc-raw-panel" role="tab"><span class="lang">json</span>{% if script.meta_source %}{{ script.meta_source.name }}{% else %}metadata (new){% endif %}</button>
+        <span class="spacer"></span>
+        <span class="faint small mono hide-sm" id="doc-refs"></span>
+        {% if desktop %}<button type="button" class="btn btn-ghost btn-icon btn-sm" data-reveal-script="{{ script.id }}" title="Show in folder"><svg class="i"><use href="#i-folder"/></svg></button>{% endif %}
+        {% if editing_enabled %}<a class="btn btn-ghost btn-sm" href="{% url 'script_edit' script.id %}" title="Open the script in the editor"><svg class="i"><use href="#i-edit"/></svg></a>{% endif %}
       </div>
-      <div class="field"><label class="field-label" for="f_host">Default host</label>
-        <select class="input" id="f_host" name="host">
-          {% for h in hosts %}<option value="{{ h }}" {% if h == form.host %}selected{% endif %}>{% if h == 'local' %}local (this computer){% else %}{{ h }} (SSH){% endif %}</option>{% endfor %}
-        </select>
-        <div class="help">Where the script runs. SSH hosts come from your <span class="mono">~/.ssh/config</span>; the script is streamed to the remote interpreter.</div></div>
-      <div class="field"><label class="field-label" for="f_cwd">Working directory</label>
-        <input class="input" id="f_cwd" name="working_directory" value="{{ form.working_directory }}" placeholder="Blank = the script's own folder (local) or home (SSH)"></div>
-      <div class="field field-wide"><label class="field-label" for="f_env">Environment variables</label>
-        <textarea class="input mono" id="f_env" name="environment" rows="3" spellcheck="false" placeholder="NAME=value  (one per line)">{{ form.environment }}</textarea></div>
-      <div class="field field-wide"><span class="field-label">Runs on (platform)</span>
-        <div class="check-row">
-          {% for key, label in platform_choices %}<label class="check"><input type="checkbox" name="platforms" value="{{ key }}" {% if key in form.platforms %}checked{% endif %}><span>{{ label }}</span></label>{% endfor %}
+      <div class="doc-panel" id="doc-src-panel"{% if raw_errors %} hidden{% endif %}>
+        {% if src_error %}<div class="doc-msg">{{ src_error }}</div>
+        {% else %}<pre class="source doc-src" id="doc-src" data-lang="{{ src_lang }}"><code>{% for line in src_lines %}<span class="ln">{{ line }}</span>{% endfor %}</code></pre>{% endif %}
+      </div>
+      <form class="doc-panel" id="doc-raw-panel" method="post" action="{% url 'script_configure_raw' script.id %}"{% if not raw_errors %} hidden{% endif %}>{% csrf_token %}
+        {% if raw_errors %}
+        <div class="flash flash-error" style="margin:10px 10px 0"><div><strong>Not saved.</strong><ul class="err-list">{% for e in raw_errors %}<li>{{ e }}</li>{% endfor %}</ul></div></div>
+        {% endif %}
+        <textarea class="raw-doc" name="raw_json" spellcheck="false" aria-label="Raw metadata JSON">{{ raw_text }}</textarea>
+        <div class="doc-foot">
+          <span class="muted small">Advanced: the whole metadata document, validated before saving. Use it to repair invalid JSON.</span>
+          <span class="spacer"></span>
+          <button class="btn btn-sm" type="submit">Validate &amp; save raw JSON</button>
         </div>
-        <div class="help">Used by the library's Platform filter. Default for {{ script.extension }} files: {{ default_platform_labels }}.</div></div>
-      <div class="field field-check"><label class="check"><input type="checkbox" name="allow_concurrent" {% if form.allow_concurrent %}checked{% endif %}><span>Allow concurrent runs of this script</span></label></div>
-      <div class="field field-check"><label class="check"><input type="checkbox" name="enabled" {% if form.enabled %}checked{% endif %}><span>Enabled</span></label></div>
-    </div>
-  </section>
-
-  <section class="card">
-    <div class="section-head">
-      <div>
-        <h2>Parameters</h2>
-        <p class="muted small">Changes are saved to the script's JSON metadata; no restart needed. The previous valid version is kept as a <code>.bak</code> file.</p>
-      </div>
-      <button type="button" class="btn btn-ghost" id="add-param">+ Add parameter</button>
-    </div>
-    <div class="table-scroll">
-      <table id="param-list" class="table pe-table">
-        <thead><tr><th>#</th><th>Label</th><th>Name</th><th>Type</th><th>Default</th><th>Required</th><th>At run time</th><th>Passed as</th><th></th></tr></thead>
-      </table>
-    </div>
-    <p id="param-empty" class="muted" hidden>No parameters yet. Click “Add parameter”.</p>
-    <input type="hidden" name="parameters_json" id="parameters_json" value="[]">
-  </section>
-
-  <div class="form-actions sticky-actions">
-    <button class="btn btn-primary" type="submit">Save configuration</button>
-    <a class="btn btn-ghost" href="{% url 'script_detail' script.id %}">Cancel</a>
+      </form>
+    </section>
   </div>
-</form>
 
-<section class="card">
-  <h2>Raw JSON</h2>
-  <p class="muted small">Advanced: edit the whole metadata document. It is validated before saving. Use this to repair a file with invalid JSON.</p>
-  {% if raw_errors %}
-  <div class="flash flash-error"><div><strong>Not saved.</strong><ul class="err-list">{% for e in raw_errors %}<li>{{ e }}</li>{% endfor %}</ul></div></div>
-  {% endif %}
-  <form method="post" action="{% url 'script_configure_raw' script.id %}">{% csrf_token %}
-    <textarea class="input mono raw-json" name="raw_json" rows="16" spellcheck="false">{{ raw_text }}</textarea>
-    <div class="form-actions"><button class="btn btn-ghost" type="submit">Validate &amp; save raw JSON</button></div>
-  </form>
-</section>
+  <aside class="adhoc-side">
+    <form method="post" id="configure-form" novalidate>{% csrf_token %}
+      <section class="panel">
+        <div class="panel-head"><h2>Script</h2></div>
+        <div class="panel-body">
+          <div class="field"><label class="field-label" for="f_name">Name</label>
+            <input class="input" id="f_name" name="name" value="{{ form.name }}" maxlength="120" placeholder="Shown in the library"></div>
+          <div class="field"><label class="field-label" for="f_category">Category</label>
+            <input class="input" id="f_category" name="category" value="{{ form.category }}" maxlength="60" placeholder="Defaults to the folder name"></div>
+          <div class="field"><label class="field-label" for="f_description">Description</label>
+            <textarea class="input" id="f_description" name="description" rows="2" maxlength="2000">{{ form.description }}</textarea></div>
+          <div class="field" style="margin-bottom:0"><label class="check"><input type="checkbox" name="enabled" {% if form.enabled %}checked{% endif %}><span>Enabled</span></label></div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head"><h2>Execution</h2></div>
+        <div class="panel-body">
+          <div class="form-grid">
+            <div class="field"><label class="field-label" for="f_interpreter">Interpreter</label>
+              <input class="input mono" id="f_interpreter" name="interpreter" value="{{ form.interpreter }}" placeholder="default for {{ script.extension }}"></div>
+            <div class="field"><label class="field-label" for="f_timeout">Timeout (s)</label>
+              <input class="input" id="f_timeout" name="timeout" value="{{ form.timeout }}" inputmode="numeric" placeholder="app default"></div>
+          </div>
+          <div class="help" style="margin:-8px 0 14px">Interpreter: command or full path, e.g. <span class="mono">python3</span> or <span class="mono">/usr/bin/bash</span>.</div>
+          <div class="field"><label class="field-label" for="f_host">Default host</label>
+            <select class="input" id="f_host" name="host">
+              {% for h in hosts %}<option value="{{ h }}" {% if h == form.host %}selected{% endif %}>{% if h == 'local' %}local (this computer){% else %}{{ h }} (SSH){% endif %}</option>{% endfor %}
+            </select>
+            <div class="help">SSH hosts come from <span class="mono">~/.ssh/config</span>; the script is streamed to the remote interpreter.</div></div>
+          <div class="field"><label class="field-label" for="f_cwd">Working directory</label>
+            {% if desktop %}<div class="inline-form">{% endif %}<input class="input mono" id="f_cwd" name="working_directory" value="{{ form.working_directory }}" placeholder="script folder (local) / home (SSH)">{% if desktop %}<button type="button" class="btn btn-icon" data-pick-folder="#f_cwd" data-title="Working directory" title="Browse…"><svg class="i"><use href="#i-folder"/></svg></button></div>{% endif %}</div>
+          <div class="field"><label class="field-label" for="f_env">Environment variables</label>
+            <textarea class="input mono" id="f_env" name="environment" rows="3" spellcheck="false" placeholder="NAME=value  (one per line)">{{ form.environment }}</textarea></div>
+          <div class="field"><span class="field-label">Runs on (platform)</span>
+            <div class="check-row">
+              {% for key, label in platform_choices %}<label class="check"><input type="checkbox" name="platforms" value="{{ key }}" {% if key in form.platforms %}checked{% endif %}><span>{{ label }}</span></label>{% endfor %}
+            </div>
+            <div class="help">For the library's platform filter. Default for {{ script.extension }}: {{ default_platform_labels }}.</div></div>
+          <div class="field" style="margin-bottom:0"><label class="check"><input type="checkbox" name="allow_concurrent" {% if form.allow_concurrent %}checked{% endif %}><span>Allow concurrent runs of this script</span></label></div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head"><h2>Parameters</h2><span class="spacer"></span>
+          <button type="button" class="btn btn-sm" id="add-param"><svg class="i"><use href="#i-plus"/></svg> Add</button></div>
+        <div class="table-wrap">
+          <table id="param-list" class="table pe-table">
+            <thead><tr><th>#</th><th>Label</th><th>Name</th><th>Type</th><th>Default</th><th>Required</th><th>At run time</th><th>Passed as</th><th></th></tr></thead>
+          </table>
+        </div>
+        <div id="param-empty" class="empty" style="padding:18px" hidden><p style="margin:0">No parameters. Click “Add”.</p></div>
+        <div class="panel-foot muted small"><span>Saved to the script's JSON metadata; no restart needed. The previous valid version is kept as a <code>.bak</code> file.</span></div>
+        <input type="hidden" name="parameters_json" id="parameters_json" value="[]">
+      </section>
+
+      <div class="form-actions" style="margin-bottom:12px">
+        <button class="btn btn-primary" type="submit"><svg class="i"><use href="#i-save"/></svg> Save configuration</button>
+        <a class="btn btn-ghost" href="{% url 'script_detail' script.id %}">Cancel</a>
+      </div>
+    </form>
+  </aside>
+</div>
 
 {{ params|json_script:"params-data" }}
 {{ type_info|json_script:"type-info" }}
 {% endblock %}
 
 {% block scripts %}
-{% load static %}
+<script src="{% static 'js/highlight.js' %}"></script>
 <script src="{% static 'js/param_editor.js' %}"></script>
+<script src="{% static 'js/designer.js' %}"></script>
 {% endblock %}

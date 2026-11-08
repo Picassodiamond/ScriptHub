@@ -1,57 +1,83 @@
 {% extends "base.html" %}
 {% block title %}Settings{% endblock %}
-{% block content %}
-<div class="page-head">
-  <div>
-    <h1>Settings</h1>
-    <p class="muted">Stored in <code>runtime/config.json</code>. Changes apply to the next execution; no restart needed.</p>
-  </div>
+{% block side %}
+<div class="side-head"><span class="side-title">Settings</span></div>
+<div class="side-body">
+  <nav class="side-nav" aria-label="Settings sections">
+    <a href="#directories"><svg class="i"><use href="#i-folder"/></svg> Script directories</a>
+    <a href="#features"><svg class="i"><use href="#i-zap"/></svg> Features</a>
+    <a href="#execution"><svg class="i"><use href="#i-play"/></svg> Execution</a>
+    <a href="#retention"><svg class="i"><use href="#i-clock"/></svg> Retention</a>
+    <a href="#interpreters"><svg class="i"><use href="#i-code"/></svg> Interpreters</a>
+    <a href="#ssh"><svg class="i"><use href="#i-terminal"/></svg> SSH &amp; environment</a>
+    <a href="#hosts"><svg class="i"><use href="#i-server"/></svg> SSH hosts</a>
+  </nav>
+  <div class="side-section"><p class="help">Stored in <code>runtime/config.json</code>. Changes apply to the next execution; no restart needed.</p></div>
 </div>
-
-<section class="card">
-  <h2>Script directories</h2>
-  <p class="muted">Scanned recursively. Only files whose extension is listed under <a href="#interpreters">Interpreters</a> are catalogued; nothing is executed during discovery.</p>
-  <ul class="dir-list">
+{% endblock %}
+{% block crumbs %}<span>Workbench</span>{% endblock %}
+{% block heading %}<span class="t">Settings</span>{% endblock %}
+{% block actions %}<button class="btn btn-primary btn-sm" type="submit" form="settings-form"><svg class="i"><use href="#i-save"/></svg> Save settings</button>{% endblock %}
+{% block content %}
+<div class="page page-narrow">
+<section class="panel" id="directories">
+  <div class="panel-head"><h2>Script directories</h2></div>
+  <div class="panel-body">
+    <p class="muted small">Scanned recursively. Only files whose extension is listed under <a href="#interpreters">Interpreters</a> are catalogued; nothing is executed during discovery.</p>
+  </div>
+  <div class="table-wrap">
+  <table class="table">
+    <tbody>
     {% for d in directories %}
-    <li>
-      <div>
+    <tr>
+      <td>
         <div class="mono">{{ d.resolved }}</div>
         <div class="muted small">
           {% if d.exists %}{{ d.count }} script{{ d.count|pluralize }}{% else %}<span class="error-text">Directory not found</span>{% endif %}
           {% if d.configured != d.resolved|stringformat:"s" %} · configured as <span class="mono">{{ d.configured }}</span>{% endif %}
         </div>
-      </div>
-      <form method="post" action="{% url 'settings_remove_directory' %}" data-confirm="Remove this directory from the library? Files are not deleted.">{% csrf_token %}
-        <input type="hidden" name="directory" value="{{ d.configured }}">
-        <button class="btn btn-danger btn-sm" type="submit">Remove</button>
-      </form>
-    </li>
+      </td>
+      <td class="actions">
+        <form method="post" action="{% url 'settings_remove_directory' %}" data-confirm="Remove this directory from the library? Files are not deleted.">{% csrf_token %}
+          <input type="hidden" name="directory" value="{{ d.configured }}">
+          <button class="btn btn-danger btn-sm" type="submit">Remove</button>
+        </form>
+      </td>
+    </tr>
     {% empty %}
-    <li class="muted">No directories configured.</li>
+    <tr><td class="muted">No directories configured.</td></tr>
     {% endfor %}
-  </ul>
-  <form method="post" action="{% url 'settings_add_directory' %}" class="inline-form">{% csrf_token %}
-    <input class="input" type="text" name="directory" placeholder="C:\scripts   or   ./more_scripts" required>
-    <button class="btn btn-primary" type="submit">Add directory</button>
-  </form>
+    </tbody>
+  </table>
+  </div>
+  <div class="panel-foot">
+    <form method="post" action="{% url 'settings_add_directory' %}" class="inline-form" style="flex:1">{% csrf_token %}
+      <input class="input mono" type="text" name="directory" id="add-dir" placeholder="C:\scripts   or   ./more_scripts" required>
+      {% if desktop %}<button type="button" class="btn" data-pick-folder="#add-dir" data-title="Add a script directory"><svg class="i"><use href="#i-folder"/></svg> Browse…</button>{% endif %}
+      <button class="btn" type="submit"><svg class="i"><use href="#i-plus"/></svg> Add directory</button>
+    </form>
+  </div>
 </section>
 
 {% if errors %}
 <div class="flash flash-error"><div><strong>Not saved.</strong><ul class="err-list">{% for e in errors %}<li>{{ e }}</li>{% endfor %}</ul></div></div>
 {% endif %}
 
-<form method="post" action="{% url 'settings_save' %}" novalidate>{% csrf_token %}
-  <section class="card" id="features">
-    <h2>Features</h2>
-    <p class="muted small">This application has no login. Anyone who can open it can use every feature that is switched on here. Turn off what other people should not have.</p>
-    <div class="check-row">
-      <label class="check"><input type="checkbox" name="enable_adhoc" {% if form.enable_adhoc %}checked{% endif %}><span>Ad-hoc scripts <span class="muted small">(type code and run it once)</span></span></label>
-      <label class="check"><input type="checkbox" name="enable_script_editing" {% if form.enable_script_editing %}checked{% endif %}><span>Edit scripts in the browser</span></label>
+<form method="post" action="{% url 'settings_save' %}" id="settings-form" novalidate>{% csrf_token %}
+  <section class="panel" id="features">
+    <div class="panel-head"><h2>Features</h2></div>
+    <div class="panel-body">
+      <div class="flash flash-warning" style="margin-bottom:14px"><span>This application has no login. Anyone who can open it can use every feature that is switched on here.</span></div>
+      <div class="check-row">
+        <label class="check"><input type="checkbox" name="enable_adhoc" {% if form.enable_adhoc %}checked{% endif %}><span>Ad-hoc scripts <span class="muted small">(type code and run it once)</span></span></label>
+        <label class="check"><input type="checkbox" name="enable_script_editing" {% if form.enable_script_editing %}checked{% endif %}><span>Edit scripts in the browser</span></label>
+      </div>
     </div>
   </section>
 
-  <section class="card" id="execution">
-    <h2>Execution</h2>
+  <section class="panel" id="execution">
+    <div class="panel-head"><h2>Execution</h2></div>
+    <div class="panel-body">
     <div class="form-grid form-grid-3">
       <div class="field"><label class="field-label" for="s_max">Max concurrent executions</label>
         <input class="input" id="s_max" name="max_concurrent_executions" type="number" min="1" max="64" value="{{ form.max_concurrent_executions }}">
@@ -66,10 +92,12 @@
         <input class="input" id="s_poll" name="polling_interval" type="number" min="500" max="60000" step="100" value="{{ form.polling_interval }}">
         <div class="help">How often the live console asks for new output.</div></div>
     </div>
+    </div>
   </section>
 
-  <section class="card" id="retention">
-    <h2>Retention</h2>
+  <section class="panel" id="retention">
+    <div class="panel-head"><h2>Retention</h2></div>
+    <div class="panel-body">
     <p class="muted small">Cleanup runs when the app starts and when the History page is opened. Queued and running executions are never removed.</p>
     <div class="form-grid">
       <div class="field"><label class="field-label" for="s_hist">Keep executions for (days)</label>
@@ -79,10 +107,12 @@
         <input class="input" id="s_log" name="log_retention_days" type="number" min="1" max="36500" value="{{ form.log_retention_days }}">
         <div class="help">After this, only the record stays (no stdout/stderr).</div></div>
     </div>
+    </div>
   </section>
 
-  <section class="card" id="interpreters">
-    <h2>Interpreters</h2>
+  <section class="panel" id="interpreters">
+    <div class="panel-head"><h2>Interpreters</h2></div>
+    <div class="panel-body">
     <p class="muted small">One per line as <span class="mono">extension=command</span>. Only these extensions are treated as scripts.</p>
     <div class="form-grid">
       <div class="field"><label class="field-label" for="s_int">On this computer</label>
@@ -92,10 +122,12 @@
         <textarea class="input mono" id="s_rint" name="remote_interpreters" rows="5" spellcheck="false">{{ form.remote_interpreters }}</textarea>
         <div class="help">e.g. <span class="mono">.py=python3</span>, <span class="mono">.sh=bash</span></div></div>
     </div>
+    </div>
   </section>
 
-  <section class="card" id="ssh">
-    <h2>SSH &amp; environment</h2>
+  <section class="panel" id="ssh">
+    <div class="panel-head"><h2>SSH &amp; environment</h2></div>
+    <div class="panel-body">
     <div class="form-grid">
       <div class="field"><label class="field-label" for="s_ssh">SSH command</label>
         <input class="input mono" id="s_ssh" name="ssh_executable" value="{{ form.ssh_executable }}">
@@ -106,31 +138,39 @@
         <textarea class="input mono" id="s_env" name="environment" rows="3" spellcheck="false" placeholder="NAME=value  (one per line)">{{ form.environment }}</textarea>
         <div class="help">A script's own environment settings and parameters override these.</div></div>
     </div>
+    </div>
   </section>
 
   <div class="form-actions sticky-actions">
-    <button class="btn btn-primary" type="submit">Save settings</button>
+    <button class="btn btn-primary" type="submit"><svg class="i"><use href="#i-save"/></svg> Save settings</button>
     <a class="btn btn-ghost" href="{% url 'settings' %}">Discard changes</a>
   </div>
 </form>
 
-<section class="card">
-  <h2>SSH hosts</h2>
-  <p class="muted">Remote Linux hosts come from <span class="mono">Host</span> entries (without wildcards) in your <span class="mono">~/.ssh/config</span>. Scripts are streamed to the remote interpreter, so nothing is installed on the host.</p>
+<section class="panel" id="hosts" style="margin-top:16px">
+  <div class="panel-head"><h2>SSH hosts</h2><span class="spacer"></span><span class="count-pill">{{ ssh_hosts|length }}</span></div>
+  <div class="panel-body"><p class="muted small">Remote Linux hosts come from <span class="mono">Host</span> entries (without wildcards) in your <span class="mono">~/.ssh/config</span>. Scripts are streamed to the remote interpreter, so nothing is installed on the host.</p></div>
   {% if ssh_hosts %}
-  <ul class="dir-list">
+  <div class="table-wrap">
+  <table class="table">
+    <tbody>
     {% for h in ssh_hosts %}
-    <li>
-      <div class="mono">{{ h }}</div>
-      <form method="post" action="{% url 'settings_test_host' %}">{% csrf_token %}
-        <input type="hidden" name="host" value="{{ h }}">
-        <button class="btn btn-ghost btn-sm" type="submit">Test connection</button>
-      </form>
-    </li>
+    <tr>
+      <td class="mono"><svg class="i"><use href="#i-server"/></svg> {{ h }}</td>
+      <td class="actions">
+        <form method="post" action="{% url 'settings_test_host' %}">{% csrf_token %}
+          <input type="hidden" name="host" value="{{ h }}">
+          <button class="btn btn-sm" type="submit">Test connection</button>
+        </form>
+      </td>
+    </tr>
     {% endfor %}
-  </ul>
+    </tbody>
+  </table>
+  </div>
   {% else %}
-  <p class="muted">No hosts found. Add a <span class="mono">Host</span> entry to <span class="mono">~/.ssh/config</span> and reload this page.</p>
+  <div class="panel-body muted" style="padding-top:0">No hosts found. Add a <span class="mono">Host</span> entry to <span class="mono">~/.ssh/config</span> and reload this page.</div>
   {% endif %}
 </section>
+</div>
 {% endblock %}

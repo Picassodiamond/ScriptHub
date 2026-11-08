@@ -18,6 +18,12 @@ from .executor import ExecutionError, ExecutionSpec
 
 TRACE_LOG_MAX = 1_000_000   # bytes of trace.log kept per run
 TOKEN_TTL = 600  # seconds a submit token is remembered (double-click guard)
+DEBUG_ACTIONS = ("step", "continue", "pause", "detach", "breakpoints")
+MAX_BREAKPOINTS = 1000
+
+
+def _debug_blank(state="starting"):
+    return {"state": state, "line": None, "scopes": [], "stack": [], "breakpoints": []}
 
 
 def pid_alive(pid) -> bool:
@@ -56,6 +62,11 @@ class _Active:
         self.cancel = threading.Event()
         self.reason = None          # None | 'cancelled' | 'timed_out'
         self.thread = None
+        # Step debugger: state shown in the console, and the control channel (stdin).
+        self.dbg = _debug_blank() if spec.debug else None
+        self.wlock = threading.Lock()   # one writer on stdin at a time
+        self.pending = []               # control lines sent before the debuggee first paused
+        self.stdin_open = False
 
 
 class ExecutionManager:
@@ -73,6 +84,8 @@ class ExecutionManager:
             self._tokens = {t: v for t, v in self._tokens.items() if now - v[1] < TOKEN_TTL}
             if spec.token and spec.token in self._tokens:
                 return self._tokens[spec.token][0]  # duplicate submission
+            if spec.debug and spec.trace is None:
+                spec.trace = {}            # debugging always reports the running line too
             run_id, run_dir = history.allocate_run_dir()
             if spec.inline_source is not None:
                 source_file = run_dir / f"adhoc{spec.extension}"
@@ -105,6 +118,7 @@ class ExecutionManager:
                 "initiator": initiator,
                 "adhoc": spec.adhoc,
                 "trace": {"enabled": True, "stopped": False} if spec.trace is not None else None,
+                "debug": {"enabled": True} if spec.debug else None,
                 "owner_pid": os.getpid(),
                 "error": None,
             })
@@ -138,6 +152,8 @@ class ExecutionManager:
             active = self._active.get(run_id)
         if active is None or active.spec.trace is None:
             return False
+        if active.spec.debug:
+            return self.debug_command(run_id, "detach")
         spec = active.spec
         if spec.host == executor.LOCAL:
             stopfile = spec.trace.get("stopfile")
@@ -162,6 +178,109 @@ class ExecutionManager:
             executor.ssh_hosts.run_remote(host, f"kill -USR1 {int(pid)} 2>/dev/null; true", timeout=30, cfg=cfg)
         except (OSError, subprocess.TimeoutExpired, ValueError):
             pass
+
+    # ------------------------------------------------------------- debugger ---
+    def debug_state(self, run_id: str):
+        """What the step debugger of a run is doing, or None if it is not a debug run
+        managed here (finished runs included)."""
+        with self._lock:
+            active = self._active.get(run_id)
+            if active is not None and active.dbg is not None:
+                d = active.dbg
+                return {"state": d["state"], "line": d["line"], "scopes": list(d["scopes"]),
+                        "stack": list(d["stack"]), "breakpoints": list(d["breakpoints"])}
+            spec = self._specs.get(run_id)
+            if spec is not None and spec.debug:
+                return _debug_blank()
+        return None
+
+    def debug_command(self, run_id: str, action: str, lines=None) -> bool:
+        """Send step / continue / pause / detach / breakpoints to a running debug run."""
+        if action not in DEBUG_ACTIONS:
+            return False
+        with self._lock:
+            active = self._active.get(run_id)
+        if active is None or active.dbg is None:
+            return False
+        bps = []
+        if action == "breakpoints":
+            bps = sorted({int(n) for n in (lines or []) if int(n) >= 1})[:MAX_BREAKPOINTS]
+            text = "bp " + ",".join(map(str, bps))
+        else:
+            text = action
+        with active.wlock:
+            with self._lock:
+                d = active.dbg
+                if d["state"] == "detached" or active.reason:
+                    return False
+                queued = d["state"] == "starting"     # sent when the debuggee first stops
+                if action == "breakpoints":
+                    d["breakpoints"] = bps
+                elif action == "detach":
+                    d["state"] = "detached"
+                elif action in ("step", "continue") and d["state"] == "paused":
+                    d["state"] = "running"           # set before writing: the next 'P' must win
+                if queued:
+                    active.pending.append(text)
+            ok = queued or self._write_control(active, [text])
+        if ok and action == "detach":
+            history.update_meta(run_id, trace={"enabled": True, "stopped": True})
+        return ok
+
+    @staticmethod
+    def _write_control(active, lines) -> bool:
+        """Caller holds active.wlock."""
+        proc = active.proc
+        if proc is None or not active.stdin_open or proc.stdin is None:
+            return False
+        try:
+            proc.stdin.write("".join(t + "\n" for t in lines).encode("ascii", "replace"))
+            proc.stdin.flush()
+            return True
+        except (OSError, ValueError):
+            return False
+
+    def _debug_event(self, active):
+        """Marker callback (stderr pump thread): P paused, R resumed, V variables."""
+        def on_event(kind, value):
+            with active.wlock:
+                pending = []
+                with self._lock:
+                    d = active.dbg
+                    if kind == "P":
+                        if d["state"] != "detached":
+                            d["state"] = "paused"
+                        d.update(line=value, scopes=[], stack=[])
+                        pending, active.pending = active.pending, []
+                    elif kind == "R":
+                        if d["state"] == "paused":
+                            d["state"] = "running"
+                    elif kind == "V":
+                        scopes, stack = value.get("scopes"), value.get("stack")
+                        d["scopes"] = scopes if isinstance(scopes, list) else []
+                        d["stack"] = stack if isinstance(stack, list) else []
+                if pending:
+                    self._write_control(active, pending)
+        return on_event
+
+    def _open_stdin(self, active, data: bytes) -> None:
+        """Debug runs: write the initial bytes and keep stdin open for control lines."""
+        with active.wlock:
+            try:
+                if data:
+                    active.proc.stdin.write(data)
+                active.proc.stdin.flush()
+            except (OSError, ValueError):
+                pass
+
+    def _close_stdin(self, active) -> None:
+        with active.wlock:
+            active.stdin_open = False
+            try:
+                if active.proc is not None and active.proc.stdin is not None:
+                    active.proc.stdin.close()
+            except (OSError, ValueError):
+                pass
 
     def queue_position(self, run_id: str):
         with self._lock:
@@ -270,6 +389,7 @@ class ExecutionManager:
                 self._finish(active, history.FAILED, None, msg)
                 return
             active.proc = proc
+            active.stdin_open = cmd.keep_stdin_open
             history.update_meta(run_id, pid=proc.pid)
 
             def on_marker(pid):
@@ -279,10 +399,14 @@ class ExecutionManager:
             out_t = threading.Thread(target=executor.pump, args=(proc.stdout, history.log_path(run_id, "stdout"),
                                      on_marker if cmd.remote else None), daemon=True)
             on_trace = self._trace_writer(run_id) if spec.trace is not None else None
-            err_t = threading.Thread(target=executor.pump, args=(proc.stderr, history.log_path(run_id, "stderr"), None, on_trace), daemon=True)
+            on_event = self._debug_event(active) if active.dbg is not None else None
+            err_t = threading.Thread(target=executor.pump, args=(proc.stderr, history.log_path(run_id, "stderr"),
+                                     None, on_trace, on_event), daemon=True)
             out_t.start()
             err_t.start()
-            if cmd.stdin is not None:
+            if cmd.keep_stdin_open:
+                threading.Thread(target=self._open_stdin, args=(active, cmd.stdin or b""), daemon=True).start()
+            elif cmd.stdin is not None:
                 threading.Thread(target=executor.feed_stdin, args=(proc, cmd.stdin), daemon=True).start()
 
             deadline = time.monotonic() + spec.timeout
@@ -303,6 +427,8 @@ class ExecutionManager:
                         proc.wait()
                     break
 
+            if cmd.keep_stdin_open:
+                self._close_stdin(active)
             for t in (out_t, err_t):
                 t.join(timeout=5)
             for stream in (proc.stdout, proc.stderr):

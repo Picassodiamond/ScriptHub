@@ -7,6 +7,7 @@ import json
 import shutil
 import tempfile
 from pathlib import Path
+from types import SimpleNamespace
 from unittest import mock
 
 from django.test import SimpleTestCase
@@ -166,6 +167,13 @@ class DeleteAndRetentionTests(Phase4Case):
 class PresetStorageTests(Phase4Case):
     SID = "0123456789ab"
 
+    def setUp(self):
+        super().setUp()
+        self.script_file = self.scripts / "tool.py"
+        self.script_file.write_bytes(b"print(1)\n")
+        self.s = SimpleNamespace(id=self.SID, path=self.script_file, meta={})
+        self.file = self.scripts / "tool.params.json"            # saved parameters live next to the script
+
     def params(self, extra=None):
         base = [
             {"name": "db", "label": "Database", "type": "text", "default": "mydb", "required": True},
@@ -179,14 +187,15 @@ class PresetStorageTests(Phase4Case):
 
     RAW = {"db": "prod", "days": "7", "mode": "full", "zip": False, "secret": "hunter2", "fixed": "hacked"}
 
-    def test_save_load_roundtrip_excludes_passwords_and_fixed(self):
+    def test_save_load_roundtrip_next_to_the_script_without_passwords_or_fixed(self):
         params = self.params()
-        slug = presets.save_preset(self.SID, "Production Backup", params, self.RAW, "prod-1")
+        slug = presets.save_preset(self.s, "Production Backup", params, self.RAW, "prod-1")
         self.assertEqual(slug, "production-backup")
-        stored_text = (config.PRESETS_DIR / self.SID / "production-backup.json").read_text()
+        stored_text = self.file.read_text()
         self.assertNotIn("hunter2", stored_text)
         self.assertNotIn("hacked", stored_text)
-        data = presets.get_preset(self.SID, slug)
+        self.assertEqual(list(config.PRESETS_DIR.iterdir()), [])          # nothing in runtime/
+        data = presets.get_preset(self.s, slug)
         self.assertEqual(data["host"], "prod-1")
         raw, warnings = presets.apply_preset(params, data)
         self.assertEqual((raw["db"], raw["days"], raw["mode"], raw["zip"]), ("prod", "7", "full", False))
@@ -195,48 +204,49 @@ class PresetStorageTests(Phase4Case):
 
     def test_list_rename_delete_and_name_rules(self):
         params = self.params()
-        presets.save_preset(self.SID, "Weekly", params, self.RAW, "local")
-        presets.save_preset(self.SID, "Daily", params, self.RAW, "local")
-        self.assertEqual([p["name"] for p in presets.list_presets(self.SID)], ["Daily", "Weekly"])
-        presets.rename_preset(self.SID, "weekly", "Weekly Full")
-        self.assertEqual([p["name"] for p in presets.list_presets(self.SID)], ["Daily", "Weekly Full"])
+        presets.save_preset(self.s, "Weekly", params, self.RAW, "local")
+        presets.save_preset(self.s, "Daily", params, self.RAW, "local")
+        self.assertEqual([p["name"] for p in presets.list_presets(self.s)], ["Daily", "Weekly"])
+        presets.rename_preset(self.s, "weekly", "Weekly Full")
+        self.assertEqual([p["name"] for p in presets.list_presets(self.s)], ["Daily", "Weekly Full"])
         with self.assertRaises(presets.PresetError):
-            presets.rename_preset(self.SID, "daily", "weekly full")      # duplicate (case-insensitive)
+            presets.rename_preset(self.s, "daily", "weekly full")      # duplicate (case-insensitive)
         with self.assertRaises(presets.PresetError):
-            presets.save_preset(self.SID, "   ", params, self.RAW, "local")
+            presets.save_preset(self.s, "   ", params, self.RAW, "local")
         with self.assertRaises(presets.PresetError):
-            presets.save_preset(self.SID, "x" * 61, params, self.RAW, "local")
-        self.assertTrue(presets.delete_preset(self.SID, "daily"))
-        self.assertFalse(presets.delete_preset(self.SID, "daily"))
-        self.assertEqual([p["name"] for p in presets.list_presets(self.SID)], ["Weekly Full"])
+            presets.save_preset(self.s, "x" * 61, params, self.RAW, "local")
+        self.assertTrue(presets.delete_preset(self.s, "daily"))
+        self.assertFalse(presets.delete_preset(self.s, "daily"))
+        self.assertEqual([p["name"] for p in presets.list_presets(self.s)], ["Weekly Full"])
 
-    def test_saving_same_name_updates_and_different_names_get_unique_files(self):
+    def test_saving_same_name_updates_and_different_names_get_unique_slugs(self):
         params = self.params()
-        a = presets.save_preset(self.SID, "Nightly!", params, self.RAW, "local")
-        b = presets.save_preset(self.SID, "Nightly?", params, self.RAW, "local")      # same slug base
+        a = presets.save_preset(self.s, "Nightly!", params, self.RAW, "local")
+        b = presets.save_preset(self.s, "Nightly?", params, self.RAW, "local")      # same slug base
         self.assertNotEqual(a, b)
-        again = presets.save_preset(self.SID, "nightly!", params, {**self.RAW, "db": "other"}, "local")
+        again = presets.save_preset(self.s, "nightly!", params, {**self.RAW, "db": "other"}, "local")
         self.assertEqual(again, a)
-        self.assertEqual(presets.get_preset(self.SID, a)["values"]["db"], "other")
-        self.assertEqual(len(presets.list_presets(self.SID)), 2)
+        self.assertEqual(presets.get_preset(self.s, a)["values"]["db"], "other")
+        self.assertEqual(len(presets.list_presets(self.s)), 2)
 
-    def test_paths_cannot_escape_the_presets_folder(self):
+    def test_bad_ids_and_slugs_are_refused(self):
         params = self.params()
         for bad_sid in ("../x", "..", "a/b", ""):
+            bad = SimpleNamespace(id=bad_sid, path=self.script_file, meta={})
             with self.assertRaises(presets.PresetError):
-                presets.save_preset(bad_sid, "n", params, self.RAW, "local")
-            self.assertEqual(presets.list_presets(bad_sid), [])
-        self.assertIsNone(presets.get_preset(self.SID, "../../config"))
+                presets.save_preset(bad, "n", params, self.RAW, "local")
+            self.assertEqual(presets.list_presets(bad), [])
+        self.assertIsNone(presets.get_preset(self.s, "../../config"))
         with self.assertRaises(presets.PresetError):
-            presets.delete_preset(self.SID, "../evil")
-        slug = presets.save_preset(self.SID, "../../evil name", params, self.RAW, "local")
+            presets.delete_preset(self.s, "../evil")
+        slug = presets.save_preset(self.s, "../../evil name", params, self.RAW, "local")
         self.assertEqual(slug, "evil-name")
-        self.assertTrue((config.PRESETS_DIR / self.SID / "evil-name.json").is_file())
+        self.assertEqual(sorted(p.name for p in self.scripts.iterdir()), ["tool.params.json", "tool.py"])
 
     def test_removed_renamed_and_changed_parameters_are_handled(self):
         old = self.params()
-        slug = presets.save_preset(self.SID, "Old", old, self.RAW, "local")
-        data = presets.get_preset(self.SID, slug)
+        slug = presets.save_preset(self.s, "Old", old, self.RAW, "local")
+        data = presets.get_preset(self.s, slug)
         # metadata changed: 'db' removed, 'days' range tightened, 'mode' choices changed, new parameter added
         new, definition_errors = ps.validate_parameters([
             {"name": "days", "label": "Days", "type": "number", "default": 3, "min": 1, "max": 5},
@@ -255,11 +265,70 @@ class PresetStorageTests(Phase4Case):
         values, errors = ps.clean_values(new, raw)         # the merged result is always valid
         self.assertEqual(errors, {})
 
-    def test_unreadable_preset_files_are_skipped(self):
+    def test_broken_file_reads_as_empty_and_is_never_overwritten(self):
         params = self.params()
-        presets.save_preset(self.SID, "Good", params, self.RAW, "local")
-        (config.PRESETS_DIR / self.SID / "broken.json").write_text("{ nope")
-        self.assertEqual([p["name"] for p in presets.list_presets(self.SID)], ["Good"])
+        self.file.write_text("{ nope")
+        self.assertEqual(presets.list_presets(self.s), [])
+        with self.assertRaises(presets.PresetError):
+            presets.save_preset(self.s, "Good", params, self.RAW, "local")
+        with self.assertRaises(presets.PresetError):
+            presets.record_run(self.s, params, self.RAW, "local", "RUN-20260101-001")
+        self.assertEqual(self.file.read_text(), "{ nope")
+
+    def test_recent_runs_are_remembered_newest_first_and_deduplicated(self):
+        params = self.params()
+        presets.record_run(self.s, params, self.RAW, "local", "RUN-20260101-001")
+        presets.record_run(self.s, params, {**self.RAW, "db": "b"}, "local", "RUN-20260101-002")
+        presets.record_run(self.s, params, self.RAW, "local", "RUN-20260101-003")     # same values as the first
+        runs = presets.recent_runs(self.s)
+        self.assertEqual([r["run_id"] for r in runs], ["RUN-20260101-003", "RUN-20260101-002"])
+        self.assertEqual((runs[0]["key"], runs[0]["label"]), ("@0", "Last run"))
+        self.assertNotIn("hunter2", self.file.read_text())
+        for i in range(15):
+            presets.record_run(self.s, params, {**self.RAW, "days": str(i + 1)}, "local", f"RUN-20260102-{i:03d}")
+        self.assertEqual(len(presets.recent_runs(self.s)), presets.RECENT_MAX)
+        raw, _w = presets.apply_preset(params, presets.get_recent(self.s, 0))
+        self.assertEqual(raw["days"], "15")
+
+    def test_grid_compares_presets_and_recent_runs(self):
+        params = self.params()
+        presets.save_preset(self.s, "Prod", params, self.RAW, "prod-1")
+        presets.record_run(self.s, params, {**self.RAW, "db": "mydb"}, "local", "RUN-20260101-001")
+        g = presets.grid(self.s, params)
+        self.assertEqual([c["name"] for c in g["columns"]], ["Prod", "Last run"])
+        rows = {r["name"]: r for r in g["rows"]}
+        self.assertEqual([c["text"] for c in rows["db"]["cells"]], ["prod", "mydb"])
+        self.assertTrue(rows["db"]["varies"])
+        self.assertEqual([c.get("changed") for c in rows["db"]["cells"]], [True, False])   # mydb is the default
+        self.assertEqual(rows["secret"]["cells"][0]["text"], "not saved")
+        self.assertTrue(rows["host"]["varies"])
+
+    def test_version_1_presets_are_migrated_next_to_the_script(self):
+        legacy = config.PRESETS_DIR / self.SID
+        legacy.mkdir()
+        (legacy / "weekly.json").write_text(json.dumps({"name": "Weekly", "script_id": self.SID, "host": "local",
+                                                        "values": {"db": "w"}, "saved_at": "2026-01-01T00:00:00"}))
+        self.assertEqual([p["name"] for p in presets.list_presets(self.s)], ["Weekly"])
+        self.assertFalse(legacy.exists())
+        self.assertIn('"Weekly"', self.file.read_text())
+
+    def test_read_only_folder_falls_back_to_runtime_and_moves_back(self):
+        params = self.params()
+        real = presets.atomic_write_json
+
+        def deny_script_folder(path, data):
+            if Path(path).parent == self.scripts:
+                raise PermissionError("read-only")
+            return real(path, data)
+
+        with mock.patch.object(presets, "atomic_write_json", deny_script_folder):
+            presets.save_preset(self.s, "Ro", params, self.RAW, "local")
+        fallback = config.PRESETS_DIR / f"{self.SID}.json"
+        self.assertTrue(fallback.is_file())
+        self.assertFalse(self.file.exists())
+        self.assertEqual([p["name"] for p in presets.list_presets(self.s)], ["Ro"])   # also moves it back
+        self.assertTrue(self.file.is_file())
+        self.assertFalse(fallback.exists())
 
 
 class PresetWebTests(Phase4Case):
@@ -281,6 +350,37 @@ class PresetWebTests(Phase4Case):
 
     def url(self, name):
         return f"/scripts/{self.sid}/{name}/"
+
+    def start(self, db, days, token):
+        with mock.patch("runner.execution_views.manager.submit", return_value="RUN-20260101-009") as submit:
+            r = self.client.post(self.url("start"), {"host": "local", "p_db": db, "p_days": days,
+                                                     "p_password": "pw", "submit_token": token})
+        self.assertEqual(r.status_code, 302)
+        return submit
+
+    def test_started_runs_remember_values_and_prefill_the_form(self):
+        self.start("lastdb", "5", "t1")
+        stored = (self.scripts / "tool.params.json").read_text()
+        self.assertIn("lastdb", stored)
+        self.assertNotIn('"pw"', stored)                                   # passwords are never saved
+        page = self.client.get(self.url("run"))
+        self.assertContains(page, 'value="lastdb"')                       # opens with the last run's values
+        self.assertContains(page, "Last run")
+        self.assertContains(self.client.get(self.url("run") + "?preset=-"), 'value="mydb"')   # defaults on request
+
+    def test_run_with_saved_values_goes_straight_to_review(self):
+        self.client.post(self.url("presets/save"), {"host": "local", "p_db": "prod", "p_days": "7", "preset_name": "Prod"})
+        r = self.client.get(self.url("run") + "?preset=prod&review=1")
+        self.assertContains(r, "Confirm")
+        self.assertContains(r, 'name="submit_token"')
+        self.assertContains(r, "--db prod")
+        self.start("other", "9", "t2")
+        r = self.client.get(self.url("run") + "?preset=%400&review=1")    # @0 = last run
+        self.assertContains(r, "--db other")
+        grid = self.client.get(self.url("run") + "?tab=params")
+        self.assertContains(grid, 'id="doc-params-panel"')
+        self.assertContains(grid, "?preset=prod&amp;review=1")
+        self.assertContains(self.client.get(f"/scripts/{self.sid}/"), "Run with saved parameters")
 
     def test_save_load_in_run_form(self):
         r = self.client.post(self.url("presets/save"), {"host": "local", "p_db": "prod", "p_days": "7",

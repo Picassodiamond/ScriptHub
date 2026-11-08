@@ -1,85 +1,195 @@
-{% extends "base.html" %}
+{% extends "runner/_script_base.html" %}
+{% load static %}
 {% block title %}Run {{ script.name }}{% endblock %}
+{% block body_mod %}{% if not blocked %}fill adhoc-page{% endif %}{% endblock %}
+{% block actions %}
+{% if not blocked %}
+<a class="btn btn-ghost btn-sm" href="{% url 'script_run' script.id %}?preset=-" title="Discard changes and load the script's defaults">Defaults</a>
+<button class="btn btn-primary" type="submit" form="run-form" data-hotkey="Ctrl+Enter" data-hint="Continue to review">Review &amp; confirm <kbd>Ctrl</kbd><kbd>↵</kbd></button>
+{% endif %}
+{% endblock %}
 {% block content %}
-<div class="page-head">
-  <div class="detail-title">
-    <span class="tile tile-lg lang-{{ script.extension|slice:'1:' }}">{{ script.extension|slice:'1:' }}</span>
-    <div>
-      <a class="back" href="{% url 'script_detail' script.id %}"><svg class="i"><use href="#i-back"/></svg> {{ script.name }}</a>
-      <h1>Run: {{ script.name }}</h1>
-      {% if script.description %}<p class="muted">{{ script.description }}</p>{% endif %}
-    </div>
-  </div>
-</div>
-
 {% if blocked %}
 <div class="flash flash-error"><span>{{ blocked }}</span></div>
-<a class="btn btn-ghost" href="{% url 'library' %}">Back to library</a>
+<a class="btn" href="{% url 'library' %}"><svg class="i"><use href="#i-back"/></svg> Back to the library</a>
 {% else %}
-{% if has_errors %}<div class="flash flash-error"><span>{% if host_error %}{{ host_error }}{% else %}Please correct the highlighted fields.{% endif %}</span></div>{% endif %}
-{% for w in preset_warnings %}<div class="flash flash-warning"><span>{{ w }}</span></div>{% endfor %}
+{% if has_errors %}<div class="flash flash-error notes"><span>{% if host_error %}{{ host_error }}{% else %}Please correct the highlighted fields.{% endif %}</span></div>{% endif %}
+{% for w in preset_warnings %}<div class="flash flash-warning notes"><span>{{ w }}</span></div>{% endfor %}
 
-<div class="run-layout">
-  <form method="post" class="card form-card" id="run-form" novalidate>{% csrf_token %}
-    <div class="field host-field{% if host_error %} has-error{% endif %}">
-      <label class="field-label" for="id_host">Run on</label>
-      <select class="input" name="host" id="id_host">
-        {% for h in hosts %}<option value="{{ h }}" {% if h == host %}selected{% endif %}>{% if h == 'local' %}This computer (local){% else %}{{ h }} (SSH){% endif %}</option>{% endfor %}
-      </select>
-      {% if hosts|length > 1 %}<div class="help">SSH hosts are read from your <span class="mono">~/.ssh/config</span>. The script is streamed to the remote interpreter.</div>{% endif %}
-      {% if host_error %}<div class="field-error">{{ host_error }}</div>{% endif %}
-    </div>
-    {% for f in fields %}{% include "runner/_field.html" %}
-    {% empty %}<p class="muted">This script takes no parameters.</p>{% endfor %}
-    <div class="form-actions">
-      <button class="btn btn-primary" type="submit">Review &amp; confirm →</button>
-      <a class="btn btn-ghost" href="{% url 'script_run' script.id %}">Reset to defaults</a>
-      <a class="btn btn-ghost" href="{% url 'script_configure' script.id %}">Edit parameters</a>
-      <a class="btn btn-ghost" href="{% url 'script_source' script.id %}" target="_blank" rel="noopener">View script ↗</a>
-    </div>
-  </form>
-
-  <aside class="card preset-panel">
-    <h2>Presets</h2>
-    <p class="muted small">Named sets of parameter values you can load, change and run.</p>
-
-    <form method="get" class="preset-load">
-      <label class="field-label" for="preset-select">Load preset</label>
-      <div class="inline-form">
-        <select class="input" name="preset" id="preset-select" onchange="this.form.submit()">
-          <option value="">— defaults —</option>
-          {% for p in presets %}<option value="{{ p.slug }}" {% if current_preset and current_preset.slug == p.slug %}selected{% endif %}>{{ p.name }}</option>{% endfor %}
-        </select>
-        <noscript><button class="btn btn-ghost btn-sm" type="submit">Load</button></noscript>
+<div class="adhoc">
+  <div class="adhoc-main">
+    <section class="doc" aria-label="Script">
+      <div class="doc-bar" role="tablist">
+        {% with ptab=request.GET.tab %}
+        <button type="button" class="doc-tab{% if ptab != 'params' %} is-active{% endif %}" data-doc-tab="doc-code-panel" role="tab"><span class="lang lang-{{ script.extension|slice:'1:' }}">{{ script.extension|slice:'1:' }}</span>{{ script.path.name }}</button>
+        {% if meta_lines %}<button type="button" class="doc-tab" data-doc-tab="doc-meta-panel" role="tab"><span class="lang">json</span>{{ script.meta_source.name }}</button>{% endif %}
+        <button type="button" class="doc-tab{% if ptab == 'params' %} is-active{% endif %}" data-doc-tab="doc-params-panel" role="tab" data-hotkey="p" data-hint="Saved parameters"><svg class="i i-sm"><use href="#i-sliders"/></svg>Saved parameters <span class="count-pill">{{ pgrid.columns|length }}</span></button>
+        {% endwith %}
+        <span class="spacer"></span>
+        <span class="faint small mono hide-sm" id="doc-refs"></span>
+        {% if ed %}
+        <span class="faint small hide-sm" title="Line endings are kept when saving">{{ ed.newline }}{% if not ed.writable %} · <span class="error-text">read-only file</span>{% endif %}</span>
+        <form method="post" action="{% url 'script_restore' script.id %}" id="restore-form" data-confirm="Swap this file with its previous version ({{ script.path.name }}.bak)? What you have now becomes the backup." {% if not has_backup %}hidden{% endif %}>{% csrf_token %}
+          <button class="btn btn-ghost btn-sm" type="submit" title="Swap with the previous saved version"><svg class="i"><use href="#i-refresh"/></svg> <span class="hide-sm">Restore previous</span></button>
+        </form>
+        {% endif %}
+        {% if desktop %}<button type="button" class="btn btn-ghost btn-icon btn-sm" data-reveal-script="{{ script.id }}" title="Show in folder"><svg class="i"><use href="#i-folder"/></svg></button>{% endif %}
+        <button type="button" class="btn btn-ghost btn-icon btn-sm" data-copy-source title="Copy the script"><svg class="i"><use href="#i-copy"/></svg><span hidden>Copy</span></button>
+        <a class="btn btn-ghost btn-icon btn-sm" href="{% url 'script_source' script.id %}?download=1" title="Download"><svg class="i"><use href="#i-download"/></svg></a>
+        {% if ed %}
+        <a class="btn btn-ghost btn-icon btn-sm" href="{% url 'script_edit' script.id %}" title="Full-screen editor"><svg class="i"><use href="#i-external"/></svg></a>
+        <button class="btn btn-sm" type="submit" form="edit-form" name="action" value="save" data-save data-hotkey="Ctrl+s" data-hint="Save the script" title="Save the script (Ctrl+S)"><svg class="i"><use href="#i-save"/></svg> Save</button>
+        {% endif %}
       </div>
-      {% if not presets %}<div class="help">No presets yet. Fill in the form, then save it below.</div>{% endif %}
+      <div class="doc-panel" id="doc-code-panel"{% if request.GET.tab == 'params' %} hidden{% endif %}>
+        {% if ed %}
+        <form method="post" action="{% url 'script_edit' script.id %}" id="edit-form" class="editor-fill" novalidate>{% csrf_token %}
+          <input type="hidden" name="base_hash" value="{{ ed.hash }}">
+          {% include "runner/_editor.html" with editor_id="script-editor" editor_lang=src_lang editor_text=ed.text warn_unsaved=True %}
+        </form>
+        {% else %}
+        {% if ed_error %}<div class="doc-msg">{{ ed_error }} It is shown read-only.</div>{% endif %}
+        {% if src_error %}<div class="doc-msg">{{ src_error }}</div>
+        {% else %}<pre class="source doc-src" id="doc-src" data-lang="{{ src_lang }}"><code>{% for line in src_lines %}<span class="ln">{{ line }}</span>{% endfor %}</code></pre>{% endif %}
+        {% endif %}
+      </div>
+      {% if meta_lines %}
+      <div class="doc-panel" id="doc-meta-panel" hidden>
+        <pre class="source doc-src" data-lang="json"><code>{% for line in meta_lines %}<span class="ln">{{ line }}</span>{% endfor %}</code></pre>
+      </div>
+      {% endif %}
+      <div class="doc-panel" id="doc-params-panel"{% if request.GET.tab != 'params' %} hidden{% endif %}>
+        <div class="pg-toolbar">
+          <span class="mono small" title="{{ pfile.path }}">{{ pfile.name }}</span>
+          <span class="faint small hide-sm">{{ pfile.where }}</span>
+          <span class="spacer"></span>
+          <span class="faint small hide-sm">Highlighted = differs from the script's default</span>
+          <div class="seg" role="group" aria-label="View">
+            <button type="button" class="seg-btn is-active" data-pview="grid">Compare</button>
+            <button type="button" class="seg-btn" data-pview="raw">File</button>
+          </div>
+        </div>
+        <div class="pgrid-wrap" data-pview-panel="grid">
+          {% if pgrid.columns %}
+          <table class="pgrid">
+            <thead>
+              <tr>
+                <th class="pg-param">Parameter</th>
+                {% for c in pgrid.columns %}
+                <th class="pg-col{% if c.kind == 'recent' %} is-recent{% endif %}{% if source and source.key == c.key %} is-current{% endif %}">
+                  <div class="pgc-name"><svg class="i i-sm"><use href="#i-{% if c.kind == 'recent' %}clock{% else %}save{% endif %}"/></svg><span class="clamp-1" title="{{ c.name }}">{{ c.name }}</span></div>
+                  <div class="pgc-when">{% if c.kind == 'recent' and c.run_id and c.name != c.run_id %}{{ c.run_id }} · {% endif %}{{ c.saved_at|slice:":16" }}</div>
+                  <div class="pgc-actions">
+                    <a class="btn btn-primary btn-sm play" href="{% url 'script_run' script.id %}?preset={{ c.key|urlencode }}&amp;review=1" title="Review and run with these values"><svg class="i"><use href="#i-play"/></svg> Run</a>
+                    <a class="btn btn-ghost btn-sm" href="{% url 'script_run' script.id %}?preset={{ c.key|urlencode }}" title="Load into the form to change them first">Load</a>
+                    {% if c.kind == 'preset' %}
+                    <form method="post" action="{% url 'preset_delete' script.id %}" data-confirm="Delete the preset “{{ c.name }}”?">{% csrf_token %}
+                      <input type="hidden" name="slug" value="{{ c.key }}"><input type="hidden" name="tab" value="params">
+                      <button class="btn btn-ghost btn-icon btn-sm" type="submit" title="Delete this preset"><svg class="i"><use href="#i-trash"/></svg></button>
+                    </form>
+                    {% endif %}
+                  </div>
+                </th>
+                {% endfor %}
+              </tr>
+            </thead>
+            <tbody>
+              {% for r in pgrid.rows %}
+              <tr class="{% if r.varies %}varies{% endif %}" data-terms="{% if r.name != 'host' %}{{ r.name }}{% endif %}">
+                <th class="pg-param">{{ r.label }}{% if r.name != 'host' %}<div class="faint mono small">{{ r.name }}</div>{% endif %}</th>
+                {% for cell in r.cells %}<td class="{% if cell.changed %}is-changed{% endif %}{% if cell.muted %} is-muted{% endif %}">{{ cell.text }}</td>{% endfor %}
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          {% else %}
+          <div class="empty">
+            <svg class="i"><use href="#i-sliders"/></svg>
+            <h2>Nothing saved yet</h2>
+            <p>Every run remembers the values it was started with, and you can name a set with<br>“Save current values as” on the right. They are kept in <span class="mono">{{ pfile.name }}</span> next to the script.</p>
+          </div>
+          {% endif %}
+        </div>
+        <pre class="source doc-src pg-raw" data-pview-panel="raw" data-lang="json" hidden><code>{% for line in pfile.text.splitlines %}<span class="ln">{{ line }}</span>{% empty %}<span class="ln">(the file does not exist yet)</span>{% endfor %}</code></pre>
+      </div>
+    </section>
+  </div>
+
+  <aside class="adhoc-side">
+    {% include "runner/_stepper.html" with step=1 %}
+    <form method="post" class="panel" id="run-form" novalidate>{% csrf_token %}
+      <div class="panel-head"><h2>Run configuration</h2><span class="spacer"></span>
+        {% if source and source.kind != 'defaults' %}<span class="badge badge-accent clamp-1" title="Values loaded from {{ source.label }}"><svg class="i i-sm"><use href="#i-{% if source.kind == 'recent' %}clock{% else %}save{% endif %}"/></svg>{{ source.label }}</span>{% endif %}</div>
+      <div class="panel-body">
+        <div class="field host-field{% if host_error %} has-error{% endif %}">
+          <label class="field-label" for="id_host">Target host</label>
+          <select class="input" name="host" id="id_host">
+            {% for h in hosts %}<option value="{{ h }}" {% if h == host %}selected{% endif %}>{% if h == 'local' %}This computer (local){% else %}{{ h }} (SSH){% endif %}</option>{% endfor %}
+          </select>
+          {% if hosts|length > 1 %}<div class="help">SSH hosts come from <span class="mono">~/.ssh/config</span>; the script is streamed to the remote interpreter.</div>{% endif %}
+          {% if host_error %}<div class="field-error">{{ host_error }}</div>{% endif %}
+        </div>
+        {% if fields %}<div class="side-label" style="margin:4px 0 10px">Parameters · {{ fields|length }}</div>{% endif %}
+        {% for f in fields %}{% include "runner/_field.html" %}
+        {% empty %}<p class="muted small" style="margin:0">This script takes no parameters.</p>{% endfor %}
+      </div>
+      <div class="panel-foot">
+        <button class="btn btn-primary btn-sm" type="submit">Review &amp; confirm →</button>
+        <span class="spacer"></span>
+        <a class="btn btn-ghost btn-sm" href="{% url 'script_configure' script.id %}" title="Edit the parameter definitions">Definitions</a>
+      </div>
     </form>
 
-    <div class="preset-save">
-      <label class="field-label" for="preset-name">Save current values as</label>
-      <div class="inline-form">
-        <input class="input" type="text" id="preset-name" name="preset_name" form="run-form" maxlength="60"
-               placeholder="e.g. Production backup" value="{% if preset_name_draft %}{{ preset_name_draft }}{% elif current_preset %}{{ current_preset.name }}{% endif %}">
-        <button class="btn btn-ghost" type="submit" form="run-form" formaction="{% url 'preset_save' script.id %}" formnovalidate>Save</button>
+    <section class="panel">
+      <div class="panel-body">
+      <details class="save-box" open>
+        <summary>Saved parameters <span class="count-pill">{{ pgrid.columns|length }}</span></summary>
+        <form method="get" class="field">
+          <label class="field-label" for="preset-select">Load values from</label>
+          <select class="input" name="preset" id="preset-select" onchange="this.form.submit()">
+            <option value="-" {% if not source or source.kind == 'defaults' %}selected{% endif %}>Script defaults</option>
+            {% if recent %}<optgroup label="Recent runs">
+              {% for r in recent %}<option value="{{ r.key }}" {% if source.key == r.key %}selected{% endif %}>{{ r.label }} · {{ r.when }}</option>{% endfor %}
+            </optgroup>{% endif %}
+            {% if presets %}<optgroup label="Presets">
+              {% for p in presets %}<option value="{{ p.slug }}" {% if current_preset and current_preset.slug == p.slug %}selected{% endif %}>{{ p.name }}</option>{% endfor %}
+            </optgroup>{% endif %}
+          </select>
+          <noscript><button class="btn btn-sm" type="submit">Load</button></noscript>
+          <div class="help">The form opens with your last run's values. Compare every set in the <strong>Saved parameters</strong> tab.</div>
+        </form>
+        <div class="field">
+          <label class="field-label" for="preset-name">Save current values as</label>
+          <div class="inline-form">
+            <input class="input" type="text" id="preset-name" name="preset_name" form="run-form" maxlength="60"
+                   placeholder="e.g. Production backup" value="{% if preset_name_draft %}{{ preset_name_draft }}{% elif current_preset %}{{ current_preset.name }}{% endif %}">
+            <button class="btn btn-sm" type="submit" form="run-form" formaction="{% url 'preset_save' script.id %}" formnovalidate><svg class="i"><use href="#i-save"/></svg> Save</button>
+          </div>
+          <div class="help">An existing name updates that preset.{% if has_password %} Passwords are never saved.{% endif %}</div>
+        </div>
+        {% if current_preset %}
+        <div class="field" style="margin-bottom:0">
+          <span class="field-label">Manage “{{ current_preset.name }}”</span>
+          <form method="post" action="{% url 'preset_rename' script.id %}" class="inline-form">{% csrf_token %}
+            <input type="hidden" name="slug" value="{{ current_preset.slug }}">
+            <input class="input" type="text" name="new_name" maxlength="60" value="{{ current_preset.name }}" aria-label="New name">
+            <button class="btn btn-sm" type="submit">Rename</button>
+          </form>
+          <form method="post" action="{% url 'preset_delete' script.id %}" data-confirm="Delete the preset “{{ current_preset.name }}”?" style="margin-top:6px">{% csrf_token %}
+            <input type="hidden" name="slug" value="{{ current_preset.slug }}">
+            <button class="btn btn-danger btn-sm" type="submit"><svg class="i"><use href="#i-trash"/></svg> Delete preset</button>
+          </form>
+        </div>
+        {% endif %}
+      </details>
       </div>
-      <div class="help">Using an existing name updates that preset.{% if has_password %} Passwords are never saved; enter them each time.{% endif %}</div>
-    </div>
-
-    {% if current_preset %}
-    <div class="preset-manage">
-      <div class="field-label">“{{ current_preset.name }}”</div>
-      <form method="post" action="{% url 'preset_rename' script.id %}" class="inline-form">{% csrf_token %}
-        <input type="hidden" name="slug" value="{{ current_preset.slug }}">
-        <input class="input" type="text" name="new_name" maxlength="60" value="{{ current_preset.name }}" aria-label="New name">
-        <button class="btn btn-ghost btn-sm" type="submit">Rename</button>
-      </form>
-      <form method="post" action="{% url 'preset_delete' script.id %}" data-confirm="Delete the preset “{{ current_preset.name }}”?">{% csrf_token %}
-        <input type="hidden" name="slug" value="{{ current_preset.slug }}">
-        <button class="btn btn-danger btn-sm" type="submit">Delete preset</button>
-      </form>
-    </div>
-    {% endif %}
+    </section>
   </aside>
 </div>
 {% endif %}
 {% endblock %}
+{% block scripts %}{% if not blocked %}
+<script src="{% static 'js/highlight.js' %}"></script>
+{% if ed %}<script src="{% static 'js/editor.js' %}"></script>{% endif %}
+<script src="{% static 'js/designer.js' %}"></script>
+{% endif %}{% endblock %}

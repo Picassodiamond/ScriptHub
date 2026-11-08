@@ -1,56 +1,76 @@
 {% extends "base.html" %}
 {% block title %}History{% endblock %}
-{% block content %}
-<div class="page-head">
-  <div>
-    <h1>History</h1>
-    <p class="muted">Every execution is kept on disk. Executions are removed after {{ history_days }} days; their logs after {{ log_days }} days. <a href="{% url 'settings' %}#retention">Change</a></p>
+{% block side %}
+<div class="side-head"><span class="side-title">Filter history</span></div>
+<div class="side-body">
+  <form method="get" class="side-section side-form" id="history-filters">
+    <div class="field">
+      <label class="searchbox">
+        <svg class="i"><use href="#i-search"/></svg>
+        <input type="search" name="q" value="{{ f.q }}" placeholder="id, script, parameters, errors…" autocomplete="off" aria-label="Search" data-page-search>
+      </label>
+    </div>
+    <div class="field"><label class="field-label" for="h-script">Script</label>
+      <select class="input" name="script" id="h-script">
+        <option value="">All scripts</option>
+        {% for sid, name in scripts %}<option value="{{ sid }}" {% if f.script == sid %}selected{% endif %}>{{ name }}</option>{% endfor %}
+      </select></div>
+    <div class="field"><label class="field-label" for="h-status">Status</label>
+      <select class="input" name="status" id="h-status">
+        <option value="">Any status</option>
+        {% for key, label in statuses %}<option value="{{ key }}" {% if f.status == key %}selected{% endif %}>{{ label }}</option>{% endfor %}
+      </select></div>
+    <div class="field"><label class="field-label" for="h-from">From</label><input class="input" id="h-from" type="date" name="date_from" value="{{ f.date_from }}"></div>
+    <div class="field"><label class="field-label" for="h-to">To</label><input class="input" id="h-to" type="date" name="date_to" value="{{ f.date_to }}"></div>
+    <div class="btn-row">
+      <button class="btn btn-primary btn-sm" type="submit">Apply</button>
+      {% if filtered %}<a class="btn btn-ghost btn-sm" href="{% url 'history' %}">Clear</a>{% endif %}
+    </div>
+  </form>
+
+  <div class="side-section side-form">
+    <div class="side-label">Clean up</div>
+    <form method="post" action="{% url 'history_delete_old' %}" data-confirm="Delete all finished executions older than the number of days you entered?">{% csrf_token %}
+      <div class="field"><label class="field-label" for="old-days">Delete executions older than (days)</label>
+        <div class="inline-form"><input class="input" id="old-days" type="number" name="days" min="0" max="36500" value="{{ history_days }}" style="min-width:0;width:90px;flex:none">
+        <button class="btn btn-danger btn-sm" type="submit">Delete</button></div></div>
+    </form>
+    <form method="post" action="{% url 'history_apply_retention' %}">{% csrf_token %}
+      <button class="btn btn-sm" type="submit">Apply retention policy now</button>
+    </form>
+    <p class="help" style="margin-top:10px">Runs are kept {{ history_days }} days, their logs {{ log_days }} days. Queued and running executions are never deleted. <a href="{% url 'settings' %}#retention">Change</a></p>
   </div>
 </div>
-
-<form method="get" class="card filter-card" id="history-filters">
-  <label class="searchbox filter-q">
-    <svg class="i"><use href="#i-search"/></svg>
-    <input type="search" name="q" value="{{ f.q }}" placeholder="Search id, script, parameters, errors…" autocomplete="off">
-  </label>
-  <select class="input input-sm" name="script" aria-label="Script">
-    <option value="">All scripts</option>
-    {% for sid, name in scripts %}<option value="{{ sid }}" {% if f.script == sid %}selected{% endif %}>{{ name }}</option>{% endfor %}
-  </select>
-  <select class="input input-sm" name="status" aria-label="Status">
-    <option value="">Any status</option>
-    {% for key, label in statuses %}<option value="{{ key }}" {% if f.status == key %}selected{% endif %}>{{ label }}</option>{% endfor %}
-  </select>
-  <label class="date-field"><span class="muted small">From</span><input class="input input-sm" type="date" name="date_from" value="{{ f.date_from }}"></label>
-  <label class="date-field"><span class="muted small">To</span><input class="input input-sm" type="date" name="date_to" value="{{ f.date_to }}"></label>
-  <button class="btn btn-primary btn-sm" type="submit">Apply</button>
-  {% if filtered %}<a class="btn btn-ghost btn-sm" href="{% url 'history' %}">Clear</a>{% endif %}
-</form>
-
-<section class="card">
+{% endblock %}
+{% block crumbs %}<span>Workbench</span>{% endblock %}
+{% block heading %}<span class="t">History</span><span class="count-pill">{{ total }}</span>{% endblock %}
+{% block actions %}{% if filtered %}<a class="btn btn-ghost btn-sm" href="{% url 'history' %}"><svg class="i"><use href="#i-x"/></svg> Clear filters</a>{% endif %}{% endblock %}
+{% block content %}
+<div class="page">
+<section class="panel">
   {% if runs %}
-  <div class="table-scroll">
-  <table class="table runs-table">
-    <thead><tr><th>Run</th><th>Script</th><th>Host</th><th>Status</th><th>Exit</th><th>Started</th><th>Duration</th><th></th></tr></thead>
+  <div class="table-wrap">
+  <table class="table">
+    <thead><tr><th>Run</th><th>Script</th><th class="hide-sm">Host</th><th>Status</th><th class="num">Exit</th><th class="hide-sm">Started</th><th class="num">Duration</th><th></th></tr></thead>
     <tbody>
       {% for r in runs %}
       <tr>
         <td class="mono small"><a href="{% url 'execution_console' r.id %}">{{ r.id }}</a></td>
         <td class="strong">{{ r.script_name }}</td>
-        <td class="small">{{ r.host }}</td>
+        <td class="small muted hide-sm">{{ r.host }}</td>
         <td><span class="st st-{{ r.status }}">{{ r.status_label }}</span></td>
-        <td class="mono small">{% if r.exit_code is None %}—{% else %}{{ r.exit_code }}{% endif %}</td>
-        <td class="small muted">{{ r.started_display }}</td>
-        <td class="mono small">{{ r.duration }}</td>
-        <td class="pe-actions">
+        <td class="num mono small">{% if r.exit_code is None %}—{% else %}{{ r.exit_code }}{% endif %}</td>
+        <td class="small muted mono nowrap hide-sm">{{ r.started_display }}</td>
+        <td class="num mono small">{{ r.duration }}</td>
+        <td class="actions">
           <div class="btn-row">
-            <a class="btn btn-ghost btn-sm" href="{% url 'execution_console' r.id %}" title="Open details and logs"><svg class="i"><use href="#i-eye"/></svg></a>
+            <a class="btn btn-ghost btn-icon btn-sm" href="{% url 'execution_console' r.id %}" title="Open console and logs"><svg class="i"><use href="#i-terminal"/></svg></a>
             {% if not r.logs_deleted %}<a class="btn btn-ghost btn-sm" href="{% url 'execution_log' r.id 'stdout' %}" title="Download stdout"><svg class="i"><use href="#i-download"/></svg> out</a>
             <a class="btn btn-ghost btn-sm" href="{% url 'execution_log' r.id 'stderr' %}" title="Download stderr"><svg class="i"><use href="#i-download"/></svg> err</a>{% endif %}
             {% if not r.active %}
             <form method="post" action="{% url 'history_delete' r.id %}" data-confirm="Delete {{ r.id }} and its logs?">{% csrf_token %}
               <input type="hidden" name="return_query" value="{{ return_query }}">
-              <button class="btn btn-danger btn-sm" type="submit" title="Delete this execution">Delete</button>
+              <button class="btn btn-ghost btn-icon btn-sm" type="submit" title="Delete this execution"><svg class="i"><use href="#i-trash"/></svg></button>
             </form>
             {% endif %}
           </div>
@@ -60,38 +80,24 @@
     </tbody>
   </table>
   </div>
-  <div class="pager pager-inline">
+  <div class="panel-foot">
     <span class="muted small">Showing {{ first }}–{{ last }} of {{ total }}</span>
+    <span class="spacer"></span>
     {% if pages > 1 %}
-    <div class="pager-btns">
-      {% if prev_url %}<a class="btn btn-ghost btn-sm" href="{{ prev_url }}">‹ Prev</a>{% else %}<span class="btn btn-ghost btn-sm btn-disabled">‹ Prev</span>{% endif %}
+    <div class="btn-row">
+      {% if prev_url %}<a class="btn btn-sm" href="{{ prev_url }}" data-hotkey="[" data-hint="Previous page">‹ Prev</a>{% else %}<span class="btn btn-sm btn-disabled">‹ Prev</span>{% endif %}
       <span class="small muted">Page {{ page }} of {{ pages }}</span>
-      {% if next_url %}<a class="btn btn-ghost btn-sm" href="{{ next_url }}">Next ›</a>{% else %}<span class="btn btn-ghost btn-sm btn-disabled">Next ›</span>{% endif %}
+      {% if next_url %}<a class="btn btn-sm" href="{{ next_url }}" data-hotkey="]" data-hint="Next page">Next ›</a>{% else %}<span class="btn btn-sm btn-disabled">Next ›</span>{% endif %}
     </div>
     {% endif %}
   </div>
   {% else %}
-  <div class="empty-inline">
-    <div class="empty-icon"><svg class="i"><use href="#i-search"/></svg></div>
-    <p><strong>{% if filtered %}No executions match these filters.{% else %}No executions yet.{% endif %}</strong></p>
-    <p class="muted">{% if filtered %}<a href="{% url 'history' %}">Clear the filters</a> to see everything.{% else %}Run a script from the <a href="{% url 'library' %}">Script Library</a>.{% endif %}</p>
+  <div class="empty">
+    <svg class="i"><use href="#i-search"/></svg>
+    <h2>{% if filtered %}No executions match these filters.{% else %}No executions yet.{% endif %}</h2>
+    <p>{% if filtered %}<a href="{% url 'history' %}">Clear the filters</a> to see everything.{% else %}Run a script from the <a href="{% url 'library' %}">Script Library</a>.{% endif %}</p>
   </div>
   {% endif %}
 </section>
-
-<section class="card cleanup-card">
-  <h2>Clean up</h2>
-  <div class="cleanup-row">
-    <form method="post" action="{% url 'history_delete_old' %}" class="inline-form" data-confirm="Delete all finished executions older than the number of days you entered?">{% csrf_token %}
-      <label class="muted small" for="old-days">Delete executions older than</label>
-      <input class="input input-sm" id="old-days" type="number" name="days" min="0" max="36500" value="{{ history_days }}" style="width:90px">
-      <span class="muted small">days</span>
-      <button class="btn btn-danger btn-sm" type="submit">Delete</button>
-    </form>
-    <form method="post" action="{% url 'history_apply_retention' %}">{% csrf_token %}
-      <button class="btn btn-ghost btn-sm" type="submit">Apply retention policy now</button>
-    </form>
-  </div>
-  <p class="muted small">Queued and running executions are never deleted.</p>
-</section>
+</div>
 {% endblock %}

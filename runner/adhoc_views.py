@@ -10,7 +10,7 @@ from django.shortcuts import redirect, render
 
 import config
 from . import discovery, executor, history, metadata, script_editor, ssh_hosts
-from .execution_views import _ago, client_address
+from .execution_views import RUN_MODES, _ago, client_address, run_mode
 from .executor import ExecutionError, ExecutionSpec
 from .process_manager import manager
 from .script_views import LANGUAGES
@@ -68,7 +68,7 @@ def _title(ext, code):
 
 def _default_form(cfg, ext=".py"):
     return {"language": ext, "code": TEMPLATES.get(ext, ""), "host": "local", "timeout": str(cfg["default_timeout"]),
-            "arguments": "", "cwd": "", "trace": False}
+            "arguments": "", "cwd": "", "trace": False, "mode": "normal"}
 
 
 def _form_from_run(run_id):
@@ -81,14 +81,16 @@ def _form_from_run(run_id):
     except OSError:
         return None
     info = meta["adhoc"]
+    mode = "debug" if meta.get("debug") else ("trace" if meta.get("trace") else "normal")
     return {"language": info.get("language", ".py"), "code": code.replace("\r\n", "\n"), "host": meta.get("host", "local"),
             "timeout": str(meta.get("timeout") or ""), "arguments": "\n".join(info.get("arguments") or []),
-            "cwd": info.get("cwd") or "", "trace": bool(meta.get("trace"))}
+            "cwd": info.get("cwd") or "", "trace": mode == "trace", "mode": mode}
 
 
 def validate(form, cfg):
     """Return (spec, errors). The spec is ready for ExecutionManager.submit."""
     errors = []
+    mode = form.get("mode") if form.get("mode") in RUN_MODES else ("trace" if form.get("trace") == "1" else "normal")
     ext = (form.get("language") or "").lower()
     host = form.get("host") or "local"
     code = form.get("code", "")
@@ -130,7 +132,9 @@ def validate(form, cfg):
             interpreter = executor.resolve_interpreter(None, ext, host, cfg)
             if ext in executor.BATCH_EXTENSIONS:
                 executor.check_batch_args(args)
-            if form.get("trace") == "1" and not executor.trace_supported(ext, interpreter):
+            if mode == "debug" and not executor.debug_supported(ext, interpreter):
+                raise ExecutionError(executor.DEBUG_UNSUPPORTED)
+            if mode == "trace" and not executor.trace_supported(ext, interpreter):
                 raise ExecutionError("Line tracing is available for Python and Bash scripts only.")
         except ExecutionError as exc:
             errors.append(str(exc))
@@ -158,7 +162,8 @@ def validate(form, cfg):
         display_command=f"{'ssh ' + host + ': ' if host != 'local' else ''}{interpreter} <ad-hoc script> {shown_args}".rstrip(),
         inline_source=text.encode("utf-8"),
         adhoc={"language": ext, "arguments": args, "cwd": typed_cwd},
-        trace={} if form.get("trace") == "1" else None,
+        trace={} if mode in ("trace", "debug") else None,
+        debug=mode == "debug",
     )
     return spec, []
 
@@ -185,6 +190,7 @@ def adhoc(request):
     cfg = config.load_config()
     if request.method == "POST":
         form = {k: request.POST.get(k, "") for k in ("language", "code", "host", "timeout", "arguments", "cwd", "trace")}
+        form["mode"] = run_mode(request.POST)
         spec, errors = validate(form, cfg)
         if errors:
             return render(request, "runner/adhoc.html", _context(cfg, form, errors), status=400)

@@ -245,7 +245,9 @@ class TraceWebTests(WebCase):
         return self.client.post("/adhoc/", form)
 
     def test_adhoc_form_offers_the_option(self):
-        self.assertContains(self.client.get("/adhoc/"), 'name="trace"')
+        page = self.client.get("/adhoc/")
+        self.assertContains(page, 'name="mode" value="trace"')     # run-mode picker: normal / trace / debug
+        self.assertContains(page, 'name="mode" value="debug"')
 
     def test_traced_adhoc_run_shows_source_and_reports_the_line(self):
         run_id = self.run_id_of(self.post())

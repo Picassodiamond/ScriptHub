@@ -1,6 +1,6 @@
 from django.urls import path
 
-from . import adhoc_views, edit_views, execution_views, history_views, preset_views, script_views, views
+from . import adhoc_views, desktop, edit_views, execution_views, history_views, preset_views, script_views, views
 
 urlpatterns = [
     path("", views.dashboard, name="dashboard"),
@@ -30,9 +30,14 @@ urlpatterns = [
     path("executions/<str:run_id>/status/", execution_views.execution_status, name="execution_status"),
     path("executions/<str:run_id>/stop/", execution_views.execution_stop, name="execution_stop"),
     path("executions/<str:run_id>/trace/stop/", execution_views.execution_trace_stop, name="execution_trace_stop"),
+    path("executions/<str:run_id>/debug/", execution_views.execution_debug, name="execution_debug"),
     path("executions/<str:run_id>/log/<str:stream>/", execution_views.execution_log, name="execution_log"),
     path("settings/hosts/test/", views.settings_test_host, name="settings_test_host"),
     path("settings/", views.settings_view, name="settings"),
+    path("desktop/pick-folder/", desktop.pick_folder, name="desktop_pick_folder"),
+    path("desktop/reveal/", desktop.reveal, name="desktop_reveal"),
+    path("desktop/ping/", desktop.ping, name="desktop_ping"),
+    path("desktop/bye/", desktop.bye, name="desktop_bye"),
     path("settings/directories/add/", views.settings_add_directory, name="settings_add_directory"),
     path("settings/directories/remove/", views.settings_remove_directory, name="settings_remove_directory"),
 ]

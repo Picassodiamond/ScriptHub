@@ -1,24 +1,22 @@
 {% extends "base.html" %}
 {% block title %}Script Library{% endblock %}
-{% block body_class %}fit{% endblock %}
+{% block crumbs %}<span>Workbench</span>{% endblock %}
+{% block heading %}<span class="t">Script Library</span><span class="count-pill" id="head-count">{{ scripts|length }}</span>{% endblock %}
+{% block actions %}
+<form method="post" action="{% url 'library_refresh' %}">{% csrf_token %}
+  <button class="btn" type="submit" title="Rescan the script directories"><svg class="i"><use href="#i-refresh"/></svg> Rescan</button>
+</form>
+{% endblock %}
 {% block content %}
-<div class="page-head compact">
-  <div class="head-line">
-    <h1>Script Library</h1>
-    <span class="muted" id="head-count">{{ scripts|length }} script{{ scripts|length|pluralize }} · {{ enabled_count }} enabled</span>
-  </div>
-  <form method="post" action="{% url 'library_refresh' %}">{% csrf_token %}
-    <button class="btn btn-primary btn-sm" type="submit"><svg class="i"><use href="#i-refresh"/></svg> Refresh</button>
-  </form>
-</div>
-
+<div class="page">
 {% for p in problems %}<div class="flash flash-warning"><span>{{ p }}</span></div>{% endfor %}
 
 {% if scripts %}
-<div class="toolbar toolbar-compact">
+<div class="toolbar">
   <label class="searchbox">
     <svg class="i"><use href="#i-search"/></svg>
-    <input id="script-search" type="search" placeholder="Search…  ( / )" autocomplete="off">
+    <input id="script-search" type="search" placeholder="Search name, path, interpreter…" autocomplete="off" data-page-search>
+    <kbd>/</kbd>
   </label>
   <select class="input input-sm" data-filter="category" aria-label="Category">
     <option value="">All categories</option>
@@ -33,103 +31,105 @@
     {% for key, label in languages %}<option value="{{ key }}">{{ label }}</option>{% endfor %}
   </select>
   <button type="button" class="btn btn-ghost btn-sm" id="clear-filters" hidden>Clear</button>
+  <span class="spacer"></span>
+  <span class="muted small" id="match-count">{{ enabled_count }} of {{ scripts|length }} enabled</span>
   <div class="seg" role="group" aria-label="Layout">
-    <button type="button" class="seg-btn active" data-view="cards" title="Cards"><svg class="i"><use href="#i-grid"/></svg></button>
-    <button type="button" class="seg-btn" data-view="table" title="Compact table"><svg class="i"><use href="#i-list"/></svg></button>
+    <button type="button" class="seg-btn" data-view="table" title="Table"><svg class="i"><use href="#i-list"/></svg></button>
+    <button type="button" class="seg-btn" data-view="cards" title="Cards"><svg class="i"><use href="#i-grid"/></svg></button>
   </div>
 </div>
 
-<div class="results" id="results">
-  <div class="grid grid-fit" id="view-cards">
-    {% for s in scripts %}
-    <article class="card script-card {% if not s.enabled %}is-disabled{% endif %}" data-item
-             data-category="{{ s.category }}" data-platform="{{ s.platforms|join:' ' }}" data-language="{{ s.language }}"
-             data-search="{{ s.name }} {{ s.description }} {{ s.relative }} {{ s.category }} {{ s.interpreter }} {{ s.language_label }} {{ s.platform_labels|join:' ' }}">
-      <div class="sc-head">
-        <span class="tile lang-{{ s.extension|slice:'1:' }}">{{ s.extension|slice:'1:' }}</span>
-        <div class="sc-title">
-          <h2><a class="plain" href="{% url 'script_detail' s.id %}" title="{{ s.name }}">{{ s.name }}</a></h2>
-          <div class="sc-sub"><span class="badge badge-cat">{{ s.category }}</span><span class="muted small">{{ s.language_label }} · {{ s.platform_labels|join:' / ' }}</span></div>
-        </div>
-        <form method="post" action="{% url 'script_toggle' s.id %}" class="toggle-form">{% csrf_token %}
-          <input type="hidden" name="enabled" value="{% if s.enabled %}0{% else %}1{% endif %}">
-          <button class="switch {% if s.enabled %}on{% endif %}" type="submit" role="switch" aria-checked="{% if s.enabled %}true{% else %}false{% endif %}" title="{% if s.enabled %}Enabled — click to disable{% else %}Disabled — click to enable{% endif %}"><span></span></button>
-        </form>
-      </div>
-      <p class="desc desc-2">{% if s.description %}{{ s.description }}{% else %}<span class="muted">No description.</span>{% endif %}</p>
-      {% if s.meta_error %}<p class="error-text clamp-1" title="{{ s.meta_error }}">⚠ {{ s.meta_error }}</p>{% endif %}
-      <div class="sc-meta">
-        <span class="meta-chip mono" title="{{ s.path }}"><svg class="i"><use href="#i-folder"/></svg> {{ s.relative }}</span>
-        <span class="meta-chip">{{ s.parameter_count }} param{{ s.parameter_count|pluralize }}</span>
-        {% if s.last_run %}<a class="st st-sm st-{{ s.last_run.status }}" href="{% url 'execution_console' s.last_run.id %}" title="Last run: {{ s.last_run.label }}, {{ s.last_run.ago }}">{{ s.last_run.label }}</a>{% endif %}
-      </div>
-      <div class="card-foot">
-        <div class="btn-row">
-          <a class="btn btn-ghost btn-sm" href="{% url 'script_source' s.id %}" title="View source" aria-label="View source"><svg class="i"><use href="#i-eye"/></svg></a>
-          {% if editing_enabled %}<a class="btn btn-ghost btn-sm" href="{% url 'script_edit' s.id %}" title="Edit the script" aria-label="Edit the script"><svg class="i"><use href="#i-edit"/></svg></a>{% endif %}
-          <a class="btn btn-ghost btn-sm" href="{% url 'script_configure' s.id %}" title="Metadata and parameters"><svg class="i"><use href="#i-sliders"/></svg> Configure</a>
-        </div>
-        {% if s.enabled and s.meta_valid %}<a class="btn btn-primary btn-sm" href="{% url 'script_run' s.id %}"><svg class="i"><use href="#i-play"/></svg> Run</a>
-        {% else %}<span class="btn btn-sm btn-disabled" aria-disabled="true">{% if not s.enabled %}Disabled{% else %}Fix metadata{% endif %}</span>{% endif %}
-      </div>
-    </article>
-    {% endfor %}
-  </div>
-
-  <div class="card table-card" id="view-table" hidden>
-    <table class="table lib-table">
-      <thead><tr><th>Script</th><th>Category</th><th>Language</th><th>Platform</th><th>Last run</th><th>On</th><th></th></tr></thead>
+<div id="results">
+  <section class="panel" id="view-table">
+    <div class="table-wrap">
+    <table class="table">
+      <thead><tr><th>Script</th><th>Category</th><th class="hide-sm">Interpreter</th><th class="hide-sm">Platform</th><th class="hide-sm">Params</th><th>Last run</th><th>On</th><th></th></tr></thead>
       <tbody>
         {% for s in scripts %}
-        <tr class="{% if not s.enabled %}is-disabled{% endif %}" data-item data-category="{{ s.category }}"
+        <tr class="{% if not s.enabled %}is-off{% endif %}" data-item data-category="{{ s.category }}"
             data-platform="{{ s.platforms|join:' ' }}" data-language="{{ s.language }}"
             data-search="{{ s.name }} {{ s.description }} {{ s.relative }} {{ s.category }} {{ s.interpreter }} {{ s.language_label }} {{ s.platform_labels|join:' ' }}">
           <td>
-            <div class="row-name"><span class="tile tile-sm lang-{{ s.extension|slice:'1:' }}">{{ s.extension|slice:'1:' }}</span>
+            <div class="row-name"><span class="lang lang-{{ s.extension|slice:'1:' }}">{{ s.extension|slice:'1:' }}</span>
               <div class="row-text"><a class="plain strong" href="{% url 'script_detail' s.id %}">{{ s.name }}</a>
-              <div class="muted small clamp-1">{{ s.description|default:"No description." }}</div></div></div>
+                <div class="faint small mono clamp-1" title="{{ s.path }}">{{ s.relative }}</div>
+                {% if s.meta_error %}<div class="error-text small clamp-1" title="{{ s.meta_error }}">⚠ {{ s.meta_error }}</div>{% endif %}
+              </div></div>
           </td>
-          <td><span class="badge badge-cat">{{ s.category }}</span></td>
-          <td class="small">{{ s.language_label }}</td>
-          <td class="small">{{ s.platform_labels|join:", " }}</td>
-          <td>{% if s.last_run %}<a class="st st-sm st-{{ s.last_run.status }}" href="{% url 'execution_console' s.last_run.id %}" title="{{ s.last_run.ago }}">{{ s.last_run.label }}</a>{% else %}<span class="muted small">—</span>{% endif %}</td>
+          <td><span class="badge">{{ s.category }}</span></td>
+          <td class="mono small muted hide-sm">{{ s.interpreter|default:"—" }}</td>
+          <td class="small muted hide-sm">{{ s.platform_labels|join:", " }}</td>
+          <td class="mono small muted hide-sm">{{ s.parameter_count }}</td>
+          <td>{% if s.last_run %}<a class="st st-sm st-{{ s.last_run.status }}" href="{% url 'execution_console' s.last_run.id %}" title="Last run {{ s.last_run.ago }}">{{ s.last_run.label }}</a>{% else %}<span class="faint small">—</span>{% endif %}</td>
           <td>
-            <form method="post" action="{% url 'script_toggle' s.id %}">{% csrf_token %}
+            <form method="post" action="{% url 'script_toggle' s.id %}" class="toggle-form">{% csrf_token %}
               <input type="hidden" name="enabled" value="{% if s.enabled %}0{% else %}1{% endif %}">
-              <button class="switch {% if s.enabled %}on{% endif %}" type="submit" role="switch" aria-checked="{% if s.enabled %}true{% else %}false{% endif %}"><span></span></button>
+              <button class="switch {% if s.enabled %}on{% endif %}" type="submit" role="switch" aria-checked="{% if s.enabled %}true{% else %}false{% endif %}" title="{% if s.enabled %}Enabled — click to disable{% else %}Disabled — click to enable{% endif %}"><span></span></button>
             </form>
           </td>
-          <td class="pe-actions">
+          <td class="actions">
             <div class="btn-row">
-              <a class="btn btn-ghost btn-sm" href="{% url 'script_source' s.id %}" title="View source"><svg class="i"><use href="#i-eye"/></svg></a>
-              {% if editing_enabled %}<a class="btn btn-ghost btn-sm" href="{% url 'script_edit' s.id %}" title="Edit the script"><svg class="i"><use href="#i-edit"/></svg></a>{% endif %}
-              <a class="btn btn-ghost btn-sm" href="{% url 'script_configure' s.id %}" title="Configure"><svg class="i"><use href="#i-sliders"/></svg></a>
-              {% if s.enabled and s.meta_valid %}<a class="btn btn-primary btn-sm" href="{% url 'script_run' s.id %}"><svg class="i"><use href="#i-play"/></svg> Run</a>{% endif %}
+              <a class="btn btn-ghost btn-icon btn-sm" href="{% url 'script_source' s.id %}" title="View source"><svg class="i"><use href="#i-eye"/></svg></a>
+              {% if editing_enabled %}<a class="btn btn-ghost btn-icon btn-sm" href="{% url 'script_edit' s.id %}" title="Edit the script"><svg class="i"><use href="#i-edit"/></svg></a>{% endif %}
+              <a class="btn btn-ghost btn-icon btn-sm" href="{% url 'script_configure' s.id %}" title="Configure"><svg class="i"><use href="#i-sliders"/></svg></a>
+              {% if s.enabled and s.meta_valid %}<a class="btn btn-sm play" href="{% url 'script_run' s.id %}"><svg class="i"><use href="#i-play"/></svg> Run</a>
+              {% else %}<span class="btn btn-sm btn-disabled" aria-disabled="true">{% if not s.enabled %}Off{% else %}Fix{% endif %}</span>{% endif %}
             </div>
           </td>
         </tr>
         {% endfor %}
       </tbody>
     </table>
-  </div>
-  <p id="no-match" class="empty" hidden>No scripts match your filters.</p>
-</div>
+    </div>
+  </section>
 
-<div class="pager" id="pager">
-  <span class="muted small" id="pager-count"></span>
-  <div class="pager-btns" id="pager-btns" hidden>
-    <button type="button" class="btn btn-ghost btn-sm" id="pg-prev" aria-label="Previous page">‹ Prev</button>
-    <span class="small muted" id="pg-info"></span>
-    <button type="button" class="btn btn-ghost btn-sm" id="pg-next" aria-label="Next page">Next ›</button>
+  <div class="cards" id="view-cards" hidden>
+    {% for s in scripts %}
+    <article class="sc {% if not s.enabled %}is-off{% endif %}" data-item
+             data-category="{{ s.category }}" data-platform="{{ s.platforms|join:' ' }}" data-language="{{ s.language }}"
+             data-search="{{ s.name }} {{ s.description }} {{ s.relative }} {{ s.category }} {{ s.interpreter }} {{ s.language_label }} {{ s.platform_labels|join:' ' }}">
+      <div class="sc-head">
+        <span class="lang lang-lg lang-{{ s.extension|slice:'1:' }}">{{ s.extension|slice:'1:' }}</span>
+        <div class="sc-title">
+          <h2><a class="plain" href="{% url 'script_detail' s.id %}" title="{{ s.name }}">{{ s.name }}</a></h2>
+          <div class="sc-sub">{{ s.category }} · {{ s.language_label }}</div>
+        </div>
+        <form method="post" action="{% url 'script_toggle' s.id %}" class="toggle-form">{% csrf_token %}
+          <input type="hidden" name="enabled" value="{% if s.enabled %}0{% else %}1{% endif %}">
+          <button class="switch {% if s.enabled %}on{% endif %}" type="submit" role="switch" aria-checked="{% if s.enabled %}true{% else %}false{% endif %}" title="{% if s.enabled %}Enabled — click to disable{% else %}Disabled — click to enable{% endif %}"><span></span></button>
+        </form>
+      </div>
+      <p class="desc">{% if s.description %}{{ s.description }}{% else %}<span class="faint">No description.</span>{% endif %}</p>
+      {% if s.meta_error %}<p class="error-text small clamp-1" title="{{ s.meta_error }}">⚠ {{ s.meta_error }}</p>{% endif %}
+      <div class="sc-meta">
+        <span class="badge mono" title="{{ s.path }}">{{ s.relative }}</span>
+        <span class="badge">{{ s.parameter_count }} param{{ s.parameter_count|pluralize }}</span>
+        {% if s.last_run %}<a class="st st-sm st-{{ s.last_run.status }}" href="{% url 'execution_console' s.last_run.id %}" title="Last run: {{ s.last_run.label }}, {{ s.last_run.ago }}">{{ s.last_run.label }}</a>{% endif %}
+      </div>
+      <div class="sc-foot">
+        <a class="btn btn-ghost btn-icon btn-sm" href="{% url 'script_source' s.id %}" title="View source"><svg class="i"><use href="#i-eye"/></svg></a>
+        {% if editing_enabled %}<a class="btn btn-ghost btn-icon btn-sm" href="{% url 'script_edit' s.id %}" title="Edit the script"><svg class="i"><use href="#i-edit"/></svg></a>{% endif %}
+        <a class="btn btn-ghost btn-icon btn-sm" href="{% url 'script_configure' s.id %}" title="Configure"><svg class="i"><use href="#i-sliders"/></svg></a>
+        <span class="spacer"></span>
+        {% if s.enabled and s.meta_valid %}<a class="btn btn-primary btn-sm play" href="{% url 'script_run' s.id %}"><svg class="i"><use href="#i-play"/></svg> Run</a>
+        {% else %}<span class="btn btn-sm btn-disabled" aria-disabled="true">{% if not s.enabled %}Disabled{% else %}Fix metadata{% endif %}</span>{% endif %}
+      </div>
+    </article>
+    {% endfor %}
   </div>
+  <div class="empty" id="no-match" hidden><h2>No scripts match</h2><p>Try a different search or <button type="button" class="btn btn-sm" data-clear>clear the filters</button></p></div>
 </div>
 
 {% else %}
-<div class="empty card">
-  <h2>No scripts found</h2>
-  <p class="muted">Add a script directory in <a href="{% url 'settings' %}">Settings</a>, or drop a <code>.py</code> / <code>.sh</code> / <code>.bat</code> file into <code>scripts/</code> and press Refresh.</p>
-</div>
+<section class="panel">
+  <div class="empty">
+    <svg class="i"><use href="#i-folder"/></svg>
+    <h2>No scripts found</h2>
+    <p>Add a script directory in <a href="{% url 'settings' %}">Settings</a>, or drop a <code>.py</code> / <code>.sh</code> / <code>.bat</code> file into <code>scripts/</code> and rescan.</p>
+  </div>
+</section>
 {% endif %}
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -137,106 +137,54 @@
 (function () {
   var search = document.getElementById('script-search');
   if (!search) return;
-  var results = document.getElementById('results');
-  var cardsBox = document.getElementById('view-cards'), tableBox = document.getElementById('view-table');
+  var boxes = { table: document.getElementById('view-table'), cards: document.getElementById('view-cards') };
   var lists = {
-    cards: [].slice.call(cardsBox.querySelectorAll('[data-item]')),
-    table: [].slice.call(tableBox.querySelectorAll('[data-item]'))
+    table: [].slice.call(boxes.table.querySelectorAll('[data-item]')),
+    cards: [].slice.call(boxes.cards.querySelectorAll('[data-item]'))
   };
-  var none = document.getElementById('no-match');
+  var none = document.getElementById('no-match'), count = document.getElementById('match-count');
   var segs = [].slice.call(document.querySelectorAll('.seg-btn'));
   var selects = [].slice.call(document.querySelectorAll('select[data-filter]'));
   var clear = document.getElementById('clear-filters');
-  var pager = { count: document.getElementById('pager-count'), btns: document.getElementById('pager-btns'),
-                prev: document.getElementById('pg-prev'), next: document.getElementById('pg-next'),
-                info: document.getElementById('pg-info') };
-  var view = 'cards', page = 0;
-  var css = getComputedStyle(document.documentElement);
-  function px(name, fallback) { var v = parseFloat(css.getPropertyValue(name)); return isNaN(v) ? fallback : v; }
-  var CARD_H = px('--card-h', 184), ROW_H = px('--row-h', 56), GAP = px('--grid-gap', 14), HEAD_H = 42;
-  var small = window.matchMedia('(max-width: 700px), (max-height: 480px)');
-
-  function wanted() {
-    var w = {};
-    selects.forEach(function (s) { w[s.dataset.filter] = s.value; });
-    return w;
-  }
-  function matches(el, w, q) {
-    if (w.category && el.dataset.category !== w.category) return false;
-    if (w.platform && (' ' + el.dataset.platform + ' ').indexOf(' ' + w.platform + ' ') < 0) return false;
-    if (w.language && el.dataset.language !== w.language) return false;
-    return !q || el.dataset.search.toLowerCase().indexOf(q) !== -1;
-  }
-  function perPage() {
-    if (small.matches) return Infinity;                      // phones: one normal scrolling page
-    var h = results.clientHeight;
-    if (view === 'cards') {
-      var cols = Math.max(1, getComputedStyle(cardsBox).gridTemplateColumns.split(' ').length);
-      return cols * Math.max(1, Math.floor((h + GAP) / (CARD_H + GAP)));
-    }
-    return Math.max(1, Math.floor((h - HEAD_H - 16) / ROW_H));
-  }
+  var total = lists.table.length, initialCount = count.textContent, view = 'table';
 
   function render() {
-    var q = search.value.trim().toLowerCase(), w = wanted();
-    var items = lists[view];
-    var hit = items.filter(function (el) { return matches(el, w, q); });
-    var pp = perPage(), pages = Math.max(1, Math.ceil(hit.length / pp));
-    if (page >= pages) page = pages - 1;
-    var from = page * pp, to = from + pp;
-    var shown = {};
-    hit.forEach(function (el, i) { if (i >= from && i < to) shown[i] = el; });
-    items.forEach(function (el) { el.hidden = true; });
-    Object.keys(shown).forEach(function (i) { shown[i].hidden = false; });
-
-    cardsBox.hidden = view !== 'cards' || hit.length === 0;
-    tableBox.hidden = view !== 'table' || hit.length === 0;
-    none.hidden = hit.length !== 0;
-    clear.hidden = !(q || w.category || w.platform || w.language);
-
-    var last = Math.min(to, hit.length);
-    pager.count.textContent = hit.length === 0 ? '' :
-      (pages > 1 ? 'Showing ' + (from + 1) + '–' + last + ' of ' + hit.length : hit.length + ' script' + (hit.length === 1 ? '' : 's'));
-    pager.btns.hidden = pages <= 1;
-    pager.info.textContent = 'Page ' + (page + 1) + ' of ' + pages;
-    pager.prev.disabled = page === 0;
-    pager.next.disabled = page >= pages - 1;
+    var q = search.value.trim().toLowerCase(), w = {};
+    selects.forEach(function (s) { w[s.dataset.filter] = s.value; });
+    var hits = 0;
+    ['table', 'cards'].forEach(function (k) {
+      lists[k].forEach(function (el) {
+        var ok = (!w.category || el.dataset.category === w.category) &&
+          (!w.platform || (' ' + el.dataset.platform + ' ').indexOf(' ' + w.platform + ' ') >= 0) &&
+          (!w.language || el.dataset.language === w.language) &&
+          (!q || el.dataset.search.toLowerCase().indexOf(q) !== -1);
+        el.hidden = !ok;
+        if (ok && k === 'table') hits++;
+      });
+    });
+    var filtered = !!(q || w.category || w.platform || w.language);
+    boxes.table.hidden = view !== 'table' || hits === 0;
+    boxes.cards.hidden = view !== 'cards' || hits === 0;
+    none.hidden = hits !== 0;
+    clear.hidden = !filtered;
+    count.textContent = filtered ? hits + ' of ' + total + ' shown' : initialCount;
   }
-  function reset() { page = 0; render(); }
-
   function setView(v) {
-    view = v; page = 0;
-    segs.forEach(function (b) { b.classList.toggle('active', b.dataset.view === v); });
+    view = v;
+    segs.forEach(function (b) { b.classList.toggle('is-active', b.dataset.view === v); });
     try { localStorage.setItem('sr.view', v); } catch (e) {}
     render();
   }
-
-  search.addEventListener('input', reset);
-  selects.forEach(function (s) { s.addEventListener('change', reset); });
-  clear.addEventListener('click', function () {
-    search.value = ''; selects.forEach(function (s) { s.value = ''; }); reset();
-  });
+  function reset() { search.value = ''; selects.forEach(function (s) { s.value = ''; }); render(); }
+  search.addEventListener('input', render);
+  search.addEventListener('keydown', function (e) { if (e.key === 'Escape') { search.value = ''; search.blur(); render(); } });
+  selects.forEach(function (s) { s.addEventListener('change', render); });
+  clear.addEventListener('click', reset);
+  none.querySelector('[data-clear]').addEventListener('click', reset);
   segs.forEach(function (b) { b.addEventListener('click', function () { setView(b.dataset.view); }); });
-  pager.prev.addEventListener('click', function () { page = Math.max(0, page - 1); render(); });
-  pager.next.addEventListener('click', function () { page += 1; render(); });
-
-  document.addEventListener('keydown', function (e) {
-    var typing = /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName);
-    if (e.key === '/' && !typing) { e.preventDefault(); search.focus(); }
-    else if (e.key === 'Escape' && document.activeElement === search) { search.value = ''; search.blur(); reset(); }
-    else if (!typing && e.key === 'ArrowRight' && !pager.next.disabled) { page += 1; render(); }
-    else if (!typing && e.key === 'ArrowLeft' && !pager.prev.disabled) { page -= 1; render(); }
-  });
-
-  // Recompute how many items fit whenever the window (or its content area) changes size.
-  var timer;
-  function onResize() { clearTimeout(timer); timer = setTimeout(render, 60); }
-  window.addEventListener('resize', onResize);
-  if (window.ResizeObserver) new ResizeObserver(onResize).observe(results);
-
-  var saved = 'cards';
-  try { saved = localStorage.getItem('sr.view') || 'cards'; } catch (e) {}
-  setView(saved === 'table' ? 'table' : 'cards');
+  var saved = 'table';
+  try { saved = localStorage.getItem('sr.view') || 'table'; } catch (e) {}
+  setView(saved === 'cards' ? 'cards' : 'table');
 })();
 </script>
 {% endblock %}

@@ -23,9 +23,9 @@
       var canHighlight = window.highlight && text.length < 200000 && window.highlight.languages.indexOf(state.lang) >= 0;
       html = canHighlight ? window.highlight.lines(state.lang, text).join('\n') : esc(text);
       hl.innerHTML = html + '\n';
-      var n = text.split('\n').length, nums = [];
-      for (var i = 1; i <= n; i++) nums.push(i);
-      gutter.textContent = nums.join('\n');
+      var n = text.split('\n').length, nums = [], marks = state.marks || {};
+      for (var i = 1; i <= n; i++) nums.push(marks[i] ? '<span class="ed-mark">' + i + '</span>' : i);
+      gutter.innerHTML = nums.join('\n');
       sync();
       updateStatus();
     }
@@ -84,7 +84,10 @@
         insert('\n' + indent);
       } else if ((e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'S')) {
         e.preventDefault();
-        var btn = form && (form.querySelector('[data-save]') || form.querySelector('[type=submit]'));
+        // form.elements also holds buttons placed outside the form (form="…"), e.g. in the page header.
+        var els = form ? [].slice.call(form.elements) : [];
+        var btn = els.filter(function (b) { return b.matches('[data-save]'); })[0] ||
+                  els.filter(function (b) { return b.matches('[type=submit]'); })[0];
         if (btn) btn.click();
       }
     });
@@ -115,6 +118,20 @@
     },
     isDirty: function (root) {
       var ed = editors.get(root); return !!ed && ed.ta.value !== ed.state.original;
+    },
+    markSaved: function (root) {          // after a save that did not reload the page
+      var ed = editors.get(root); if (!ed) return;
+      ed.state.original = ed.ta.value; ed.state.render();
+    },
+    mark: function (root, lines) {        // highlight these line numbers in the gutter
+      var ed = editors.get(root); if (!ed) return;
+      var m = {}; (lines || []).forEach(function (n) { m[n] = 1; });
+      ed.state.marks = m; ed.state.render();
+    },
+    reveal: function (root, line) {       // scroll so that this line is visible
+      var ed = editors.get(root); if (!ed) return;
+      var lh = parseFloat(getComputedStyle(ed.ta).lineHeight) || 20, top = (line - 1) * lh;
+      if (top < ed.ta.scrollTop || top > ed.ta.scrollTop + ed.ta.clientHeight - 2 * lh) ed.ta.scrollTop = Math.max(0, top - ed.ta.clientHeight / 3);
     }
   };
 

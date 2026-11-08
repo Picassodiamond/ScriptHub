@@ -1,49 +1,44 @@
-{% extends "base.html" %}
+{% extends "runner/_script_base.html" %}
 {% load static %}
 {% block title %}Edit {{ script.path.name }}{% endblock %}
+{% block body_mod %}{% if not blocked %}fill{% endif %}{% endblock %}
+{% block actions %}
+{% if not blocked %}
+{% if has_backup %}
+<form method="post" action="{% url 'script_restore' script.id %}" data-confirm="Swap this file with its previous version ({{ script.path.name }}.bak)? What you have now becomes the backup.">{% csrf_token %}
+  <button class="btn btn-ghost btn-sm" type="submit" title="Swap with the previous saved version"><svg class="i"><use href="#i-refresh"/></svg> Restore previous</button>
+</form>
+{% endif %}
+{% if not conflict %}
+<button class="btn btn-sm" type="submit" form="edit-form" name="action" value="save" data-save><svg class="i"><use href="#i-save"/></svg> Save <kbd>Ctrl</kbd><kbd>S</kbd></button>
+{% if script.enabled and script.meta_valid %}<button class="btn btn-primary btn-sm play" type="submit" form="edit-form" name="action" value="save_run"><svg class="i"><use href="#i-play"/></svg> Save &amp; run</button>{% endif %}
+{% endif %}
+{% endif %}
+{% endblock %}
 {% block content %}
 {% if blocked %}
-<div class="page-head"><div>
-  <a class="back" href="{% url 'script_detail' script.id %}"><svg class="i"><use href="#i-back"/></svg> {{ script.name }}</a>
-  <h1>Edit script</h1></div></div>
 <div class="flash flash-error"><span>{{ blocked }}</span></div>
-<a class="btn btn-ghost" href="{% url 'script_source' script.id %}">View the script instead</a>
+<a class="btn" href="{% url 'script_source' script.id %}"><svg class="i"><use href="#i-eye"/></svg> View the script instead</a>
 {% else %}
-<div class="page-head">
-  <div>
-    <a class="back" href="{% url 'script_detail' script.id %}"><svg class="i"><use href="#i-back"/></svg> {{ script.name }}</a>
-    <h1 class="mono-title">{{ script.path.name }}</h1>
-    <p class="muted small"><span class="mono wrap-anywhere">{{ script.path }}</span> · {{ size }} bytes · line endings {{ newline }}{% if not writable %} · <span class="error-text">read-only file</span>{% endif %}</p>
-  </div>
-  <div class="btn-row">
-    <a class="btn btn-ghost" href="{% url 'script_source' script.id %}"><svg class="i"><use href="#i-eye"/></svg> View</a>
-    {% if has_backup %}
-    <form method="post" action="{% url 'script_restore' script.id %}" data-confirm="Swap this file with its previous version ({{ script.path.name }}.bak)? What you have now becomes the backup.">{% csrf_token %}
-      <button class="btn btn-ghost" type="submit" title="Swap with the previous saved version">Restore previous</button>
-    </form>
-    {% endif %}
-  </div>
-</div>
-
 {% if error %}
 <div class="flash flash-error"><div><strong>{% if conflict %}Not saved — the file changed.{% else %}Not saved.{% endif %}</strong> {{ error }}</div></div>
 {% endif %}
-
-<form method="post" id="edit-form" novalidate>{% csrf_token %}
+<div class="subtabs">
+  <span class="mono small strong">{{ script.path.name }}</span>
+  <span class="spacer"></span>
+  <span class="muted small mono wrap-anywhere">{{ size }} bytes · line endings {{ newline }}{% if not writable %} · <span class="error-text">read-only file</span>{% endif %}</span>
+</div>
+<form method="post" id="edit-form" class="editor-fill" novalidate>{% csrf_token %}
   <input type="hidden" name="base_hash" value="{{ base_hash }}">
   {% include "runner/_editor.html" with editor_id="editor" editor_lang=language editor_text=text warn_unsaved=True %}
-  <div class="form-actions">
-    {% if conflict %}
+  {% if conflict %}
+  <div class="form-actions" style="margin-top:10px">
     <button class="btn btn-danger" type="submit" name="force" value="1" data-save>Overwrite the file with my version</button>
     <a class="btn btn-ghost" href="{% url 'script_edit' script.id %}">Discard mine and reload</a>
-    {% else %}
-    <button class="btn btn-primary" type="submit" name="action" value="save" data-save><svg class="i"><use href="#i-save"/></svg> Save</button>
-    {% if script.enabled and script.meta_valid %}<button class="btn btn-ghost" type="submit" name="action" value="save_run"><svg class="i"><use href="#i-play"/></svg> Save &amp; run</button>{% endif %}
-    <a class="btn btn-ghost" href="{% url 'script_detail' script.id %}">Close</a>
-    {% endif %}
   </div>
+  {% endif %}
 </form>
-<p class="muted small">Saving keeps the previous version as <span class="mono">{{ script.path.name }}.bak</span>, checks the syntax (without running anything) and keeps the file's line-ending style. The change takes effect for the next run.</p>
+<p class="muted small" style="margin:8px 0 0">Saving keeps the previous version as <span class="mono">{{ script.path.name }}.bak</span>, checks the syntax (without running anything) and keeps the file's line-ending style. The change applies to the next run.</p>
 {% endif %}
 {% endblock %}
 

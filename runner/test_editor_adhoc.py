@@ -273,6 +273,21 @@ class WebEditTests(WebCase):
         self.assertEqual(r.status_code, 302)
         self.assertEqual(r["Location"], f"/scripts/{self.sid}/run/")
 
+    def test_script_tab_merges_run_form_and_editor(self):
+        page = self.client.get(f"/scripts/{self.sid}/run/")
+        self.assertContains(page, 'id="edit-form"')                      # editable script in the body
+        self.assertContains(page, 'id="run-form"')                       # run configuration on the right
+        self.assertContains(page, "print(&#x27;v1&#x27;)")
+        old_hash = page.content.decode().split('name="base_hash" value="')[1].split('"')[0]
+        r = self.client.post(self.url(), {"content": "print('v3')\n", "base_hash": old_hash, "action": "save"}, follow=True)
+        self.assertEqual(r.redirect_chain[-1][0], f"/scripts/{self.sid}/run/")   # saving lands back on the Script tab
+        new_hash = r.content.decode().split('name="base_hash" value="')[1].split('"')[0]
+        self.assertNotEqual(new_hash, old_hash)                           # the page carries the new hash for the next save
+        self.write_config(enable_script_editing=False)
+        page = self.client.get(f"/scripts/{self.sid}/run/")
+        self.assertNotContains(page, 'id="edit-form"')                   # read-only when editing is off
+        self.assertContains(page, 'id="doc-src"')
+
     def test_restore_view(self):
         self.client.post(self.url(), {"content": "print('v2')\n", "base_hash": self.hash_on_page()})
         r = self.client.post(self.url("restore/"), follow=True)

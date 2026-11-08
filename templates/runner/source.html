@@ -1,42 +1,36 @@
-{% extends "base.html" %}
+{% extends "runner/_script_base.html" %}
 {% load static %}
-{% block title %}{{ script.path.name }}{% endblock %}
+{% block body_mod %}fill{% endblock %}
+{% block actions %}
+{% if not error %}
+<button type="button" class="btn btn-ghost btn-sm" id="wrap-source" aria-pressed="false" data-hotkey="w" data-hint="Toggle line wrap"><svg class="i"><use href="#i-wrap"/></svg> Wrap</button>
+<button type="button" class="btn btn-ghost btn-sm" id="copy-source"><svg class="i"><use href="#i-copy"/></svg> <span>Copy</span></button>
+<a class="btn btn-ghost btn-sm" href="{% url 'script_source' script.id %}?download=1"><svg class="i"><use href="#i-download"/></svg> Download</a>
+{% endif %}
+{% if editing_enabled %}<a class="btn btn-sm" href="{% url 'script_edit' script.id %}"><svg class="i"><use href="#i-edit"/></svg> Edit</a>{% endif %}
+{% endblock %}
 {% block content %}
-<div class="page-head">
-  <div>
-    <a class="back" href="{% url 'script_detail' script.id %}"><svg class="i"><use href="#i-back"/></svg> {{ script.name }}</a>
-    <h1 class="mono-title">{{ script.path.name }}</h1>
-    <p class="muted small"><span class="mono wrap-anywhere">{{ script.path }}</span> · {{ size }} bytes · {% if language %}{{ language|capfirst }} · {% endif %}read-only</p>
-  </div>
-  <div class="btn-row">
-    {% if not error %}
-    <button type="button" class="btn btn-ghost" id="wrap-source" aria-pressed="false"><svg class="i"><use href="#i-wrap"/></svg> Wrap</button>
-    <button type="button" class="btn btn-ghost" id="copy-source"><svg class="i"><use href="#i-copy"/></svg> <span>Copy</span></button>
-    <a class="btn btn-ghost" href="{% url 'script_source' script.id %}?download=1"><svg class="i"><use href="#i-download"/></svg> Download</a>
-    {% endif %}
-    {% if editing_enabled %}<a class="btn btn-ghost" href="{% url 'script_edit' script.id %}"><svg class="i"><use href="#i-edit"/></svg> Edit</a>{% endif %}
-    {% if script.enabled and script.meta_valid %}<a class="btn btn-primary" href="{% url 'script_run' script.id %}"><svg class="i"><use href="#i-play"/></svg> Run</a>{% endif %}
-  </div>
-</div>
-
 {% if error %}
 <div class="flash flash-error"><span>{{ error }}</span></div>
 {% else %}
 {% if truncated %}<div class="flash flash-warning"><span>File is larger than 512 KB; only the beginning is shown.</span></div>{% endif %}
-
-{% if meta_lines %}
-<div class="tabs" role="tablist">
-  <button type="button" class="tab active" data-tab="tab-script" role="tab">Script</button>
-  <button type="button" class="tab" data-tab="tab-meta" role="tab">Metadata <span class="mono small">{{ script.meta_source.name }}</span></button>
+<div class="subtabs">
+  {% if meta_lines %}
+  <div class="seg" role="tablist">
+    <button type="button" class="seg-btn is-active" data-tab="tab-script" role="tab">{{ script.path.name }}</button>
+    <button type="button" class="seg-btn" data-tab="tab-meta" role="tab">{{ script.meta_source.name }}</button>
+  </div>
+  {% else %}<span class="mono small">{{ script.path.name }}</span>{% endif %}
+  <span class="spacer"></span>
+  <span class="muted small mono">{{ size }} bytes · {% if language %}{{ language }} · {% endif %}{{ lines|length }} lines · read-only</span>
 </div>
-{% endif %}
 
-<div id="tab-script" class="tab-panel">
-  <pre class="source" id="source-text" data-lang="{{ language }}"><code>{% for line in lines %}<span class="ln">{{ line }}</span>{% endfor %}</code></pre>
+<div id="tab-script" class="tab-panel source-full" style="display:flex;flex-direction:column">
+  <pre class="source source-full" id="source-text" data-lang="{{ language }}"><code>{% for line in lines %}<span class="ln">{{ line }}</span>{% endfor %}</code></pre>
 </div>
 {% if meta_lines %}
-<div id="tab-meta" class="tab-panel" hidden>
-  <pre class="source" data-lang="json"><code>{% for line in meta_lines %}<span class="ln">{{ line }}</span>{% endfor %}</code></pre>
+<div id="tab-meta" class="tab-panel source-full" style="display:flex;flex-direction:column" hidden>
+  <pre class="source source-full" data-lang="json"><code>{% for line in meta_lines %}<span class="ln">{{ line }}</span>{% endfor %}</code></pre>
 </div>
 {% endif %}
 {% endif %}
@@ -47,15 +41,13 @@
 <script>
 (function () {
   if (window.highlight) window.highlight.apply(document);
-
-  var tabs = [].slice.call(document.querySelectorAll('.tab'));
+  var tabs = [].slice.call(document.querySelectorAll('[data-tab]'));
   tabs.forEach(function (t) {
     t.addEventListener('click', function () {
-      tabs.forEach(function (x) { x.classList.toggle('active', x === t); });
+      tabs.forEach(function (x) { x.classList.toggle('is-active', x === t); });
       document.querySelectorAll('.tab-panel').forEach(function (p) { p.hidden = p.id !== t.dataset.tab; });
     });
   });
-
   var wrap = document.getElementById('wrap-source');
   if (wrap) wrap.addEventListener('click', function () {
     var on = wrap.getAttribute('aria-pressed') !== 'true';
@@ -63,18 +55,11 @@
     wrap.classList.toggle('is-on', on);
     document.querySelectorAll('.source').forEach(function (s) { s.classList.toggle('wrap', on); });
   });
-
   var btn = document.getElementById('copy-source');
   if (btn) btn.addEventListener('click', function () {
     var active = document.querySelector('.tab-panel:not([hidden]) .source');
     var txt = [].map.call(active.querySelectorAll('.ln'), function (n) { return n.textContent; }).join('\n') + '\n';
-    var label = btn.querySelector('span');
-    function done() { label.textContent = 'Copied'; setTimeout(function () { label.textContent = 'Copy'; }, 1500); }
-    if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(txt).then(done);
-    else {
-      var ta = document.createElement('textarea'); ta.value = txt; document.body.appendChild(ta);
-      ta.select(); try { document.execCommand('copy'); done(); } catch (e) {} ta.remove();
-    }
+    window.sr.copy(txt, btn.querySelector('span'));
   });
 })();
 </script>

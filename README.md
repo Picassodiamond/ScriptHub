@@ -1,16 +1,19 @@
 # Script Runner
 
-A small, standalone web app for **discovering, configuring, running and monitoring
-Python, Bash and batch scripts** from a browser, on this computer or on Linux
-servers over SSH.
+A small, standalone app for **discovering, configuring, running and monitoring
+Python, Bash and batch scripts**, on this computer or on Linux servers over SSH.
+Use it as a **desktop app** (its own window and tray icon) or as a web app in a browser.
 
 The scripts are the workers. Django is only the management and execution
 interface. There is **no database, no Redis, no Celery and no Node.js**:
 configuration, presets, history and logs are plain JSON and text files.
 
 > **Built for one trusted user.** There is no login. Anyone who can open the web
-> page can run every enabled script. Keep it on `127.0.0.1` (the default) or behind
-> your own network restrictions. See [Security](#security).
+> page can run every enabled script. Use the desktop app, keep the web server on
+> `127.0.0.1` (the default), or put your own authentication in front of it.
+> See [Security](#security) and [SECURITY.md](SECURITY.md).
+
+MIT licensed — see [Licence and contributing](#licence-and-contributing).
 
 ---
 
@@ -36,6 +39,7 @@ configuration, presets, history and logs are plain JSON and text files.
 18. [Testing](#testing)
 19. [Project layout](#project-layout)
 20. [Troubleshooting](#troubleshooting)
+21. [Licence and contributing](#licence-and-contributing)
 
 ---
 
@@ -48,10 +52,14 @@ cd ScriptRunner
 python -m venv .venv                      # optional but recommended
 .venv\Scripts\activate                    # Windows   (Linux/macOS: source .venv/bin/activate)
 pip install -r requirements.txt
-python manage.py runserver --noreload
 ```
 
-Open <http://127.0.0.1:8000>.
+Then either:
+
+* **Desktop app** (recommended for one person on their own PC): double-click
+  `desktop.pyw`, or run `python manage.py desktop`. Script Runner opens in its own
+  window with a tray icon. See [Desktop app](#desktop-app).
+* **Web server**: `python manage.py runserver --noreload` and open <http://127.0.0.1:8000>.
 
 * **No `migrate` is needed**, and no database file is ever created.
 * Use `--noreload`. The auto-reloader restarts the process whenever a Python file
@@ -61,6 +69,36 @@ Open <http://127.0.0.1:8000>.
 Try it: open **Script Library**, press **Run** on *System Information*, then
 **Run now** on the confirmation page. The live console opens.
 
+### Desktop app
+
+Nothing extra is installed: the desktop app is built from the Python standard
+library, Django and the Edge (or Chrome) that is already on the PC. No `.exe`, no
+installer, no registry entries.
+
+```bash
+pythonw desktop.pyw                 # or double-click desktop.pyw; no console window
+python manage.py desktop            # the same, with a console (handy to see errors)
+python manage.py desktop --background   # tray only, no window
+```
+
+* **Own window.** The UI opens in an Edge/Chrome *app window* (no tabs, no address bar)
+  with its own profile in `runtime/desktop-profile/`. Without Edge or Chrome, the default
+  browser is used.
+* **Private.** The app listens on `127.0.0.1` on a random port and requires a secret
+  created at each launch; the window gets it, everything else (other users, other
+  browser tabs, web pages) gets *403*.
+* **Tray icon** (Windows): the tooltip shows what is running; left click opens the
+  window; right click: *Open*, *Start with Windows*, *Quit*.
+* **Notifications** (Windows): when a run finishes or fails; click to open its console.
+* **Closing the window** with nothing running ends the app. With runs in progress it stays
+  in the tray until they finish. **Quit** from the tray asks before stopping running scripts.
+* **Start with Windows** (tray menu) writes `Script Runner.cmd` into your Startup folder,
+  which starts the app in the tray at sign-in; untick it to remove the file.
+* **Native extras:** *Browse…* buttons (folder dialogs) next to directory fields in
+  Settings, Configure and Ad-hoc, and *Show in folder* for scripts and run folders.
+* Launching it again while it runs just opens another window.
+* Log: `runtime/desktop.log`. As with `runserver`, runs live inside the app's process.
+
 For SSH hosts, `ssh` must already work for you from a terminal (see
 [Running on Linux servers over SSH](#running-on-linux-servers-over-ssh)).
 
@@ -68,21 +106,49 @@ For SSH hosts, `ssh` must already work for you from a terminal (see
 
 ## A tour of the pages
 
+Version 2 is laid out like an IDE workbench (dark theme by default; **Theme** in the
+status bar or the moon/sun icon switches to light, remembered per browser):
+
+* **Activity bar** (far left): Overview, Library, Ad-hoc, Jobs (with a live count),
+  History, Settings, plus the command palette and theme switch.
+* **Side panel**: the **Explorer** (every script grouped by category, with a dot for its
+  last result and a filter box) on most pages; the list of executions on Jobs and in the
+  console; the filters on History; the section list on Settings. **Ctrl+B** hides it.
+* **Main area**: breadcrumb, title and actions on top; script pages have tabs
+  **Overview · Script · Configure**.
+* **Status bar**: running/queued count, command palette, shortcuts, theme.
+
 | Page | What it does |
 |---|---|
-| **Dashboard** (`/`) | Counts of scripts, running, successful and failed executions; recent executions; **Quick run** and frequently used scripts. |
-| **Script Library** (`/scripts/`) | Every approved script as cards or a compact table. Search (`/` focuses it), filter by **category, platform and language**, enable/disable with a switch. It always fits the window with no scrollbars; a pager shows as many items as fit (←/→ change page). |
-| **Script details** | Metadata, parameter table, the script's recent executions. |
-| **View script** | Read-only source with syntax highlighting (Python, Bash, Batch, JSON), line numbers, wrap, copy and download. Only catalogued scripts can be opened. |
-| **Edit script** | A code editor (syntax colours, line numbers, auto-indent, Tab, **Ctrl+S**) to change a catalogued script and save it. See [Editing scripts and ad-hoc scripts](#editing-scripts-and-ad-hoc-scripts). |
-| **Ad-hoc** (`/adhoc/`) | Type or paste a script and run it once, on this computer or over SSH; optionally save it to the library. |
-| **Configure** | Name, category, interpreter, timeout, concurrency, default host, working directory, environment, platforms, and the **parameter editor** (table with add / edit / reorder / delete). A **Raw JSON** editor can repair a broken metadata file. |
-| **Run** | A form generated from the metadata, a *Run on* host selector and the **Presets** panel. |
-| **Confirm** | Review parameters and the exact command (passwords masked), then **Run now**. |
-| **Console** (`/executions/RUN-…/`) | Live status, duration, exit code, separate stdout and stderr, auto-scroll, copy, download, stop. |
-| **Executions** | What is running, queued and finished recently (refreshes by itself). |
+| **Overview** (`/`) | Counts of scripts, running, successful and failed executions; recent executions; **Quick run** and most-used scripts. |
+| **Script Library** (`/scripts/`) | Every script as a dense table (or cards). Search (`/` focuses it), filter by **category, platform and language**, enable/disable with a switch. |
+| **Script › Overview** | The script in the body; on the right its details, parameters (hover one to see where the script uses it) and recent executions, plus the enable switch. |
+| **Script › Script** | Run, view and edit in one place. The script in the body: an editor (syntax colours, line numbers, auto-indent, Tab, **Ctrl+S** saves in place) or read-only when editing is off, with the metadata JSON as a second tab, copy, download, **Restore previous** and a full-screen editor. On the right the **Run configuration** (target host, parameters) and **Presets**; focusing a parameter marks the lines that use it. **Review & confirm** (Ctrl+Enter) saves unsaved edits first. |
+| **Review** | Step 2 of the run. The script in the body; on the right the **run mode** (Normal, Trace lines, Debug), the exact command (passwords masked) and every value. **Run now** (Ctrl+Enter) starts it, **Esc** goes back. |
+| **Script › Configure** | The script in the body (and the metadata JSON as a second tab, editable as raw JSON); on the right name, category, interpreter, timeout, concurrency, default host, working directory, environment, platforms and the **parameter editor**. |
+| **Ad-hoc** (`/adhoc/`) | An editor in the body, run configuration on the right; run once on this computer or over SSH, optionally save to the library. |
+| **Console** (`/executions/RUN-…/`) | Step 3. Live status, duration, exit code, stdout and stderr (side by side, stacked or stdout only), auto-scroll, copy, download, stop; the running line (trace) or the **debugger** (debug). |
+| **Jobs** (`/executions/`) | What is running, queued and finished recently (refreshes by itself). |
 | **History** | Search and filter every past execution, open or download logs, delete runs, apply retention. |
-| **Settings** | Script directories, concurrency limits, timeouts, polling, retention, interpreters (local and SSH), SSH command, environment variables, SSH host test. |
+| **Settings** | Script directories, features, concurrency limits, timeouts, polling, retention, interpreters (local and SSH), SSH command, environment variables, SSH host test. |
+
+### Keyboard and command palette
+
+**Ctrl+K** opens the command palette: fuzzy-search any script (Enter opens it,
+Ctrl+Enter runs it), type `run ` to list run actions only, paste a run id such as
+`RUN-20260101-001` to open it, or pick a page or command. **?** shows every shortcut.
+
+| Keys | Action |
+|---|---|
+| `Ctrl+K` | Command palette |
+| `Ctrl+B` | Toggle the side panel |
+| `/` | Focus the page search (or the explorer filter) |
+| `g o` `g l` `g a` `g j` `g h` `g s` | Go to Overview, Library, Ad-hoc, Jobs, History, Settings |
+| `i` `r` `c` | On a script: Overview, Script (run / view / edit), Configure |
+| `Ctrl+Enter` | Review (Run step), Run now (Review step and Ad-hoc) |
+| `Esc` | Back from Review to the parameters |
+| `F5` `F10`/`n` `F6` `Shift+F5` | Debugger: continue, step, pause, stop |
+
 
 ---
 
@@ -325,27 +391,72 @@ New types can be added in `runner/parameter_service.py` (`register_type`).
 
 ---
 
+### Step debugging
+
+Choose the run mode **Debug — step through** on the Review step (or on the Ad-hoc
+screen) for a Python or Bash script, on this computer or an SSH host. The run pauses
+on the script's first line and the console turns into a debugger:
+
+* **Step** (`F10` or `n`) runs one line and pauses again (it goes into the script's own
+  functions); **Continue** (`F5`) runs to the next breakpoint; **Pause** (`F6`) stops at
+  the next line; **Detach** ends debugging and lets the script finish at full speed;
+  **Stop** (`Shift+F5`) ends the run.
+* **Breakpoints:** click a line number in the source. They are listed (and removable)
+  on the right and can be set while the run is starting.
+* **Variables and call stack** (Python): locals and globals of the paused frame with
+  type and a shortened value (changed values are marked), and the stack of the script's
+  own frames. Bash shows the current line only.
+* **How:** the commands travel over the process's standard input, which stays open for
+  the run (also through SSH, so a step costs no extra connection). The script and the
+  programs it starts get an empty stdin. Pause/variable reports travel on stderr like
+  the trace markers and are removed from `stderr.log`.
+* **Limits:** time spent paused counts toward the timeout. Bash pauses on simple
+  commands (not inside `$(...)`). Only the script's own lines are stepped through.
+
 ## Running a script, hosts and presets
 
-1. **Run** opens a form built from the metadata with the defaults filled in.
-2. Choose **Run on**: *This computer* or any SSH host.
+1. The **Script** tab shows the script with a form on the right, built from the metadata with the defaults filled in.
+2. Choose the **Target host**: *This computer* or any SSH host.
 3. Optionally load a **preset**.
 4. **Review & confirm** validates every value and shows the exact command.
-5. **Run now** starts it; you land in the live console.
+5. Pick the **run mode** (Normal, Trace lines or Debug — the last two for Python and Bash)
+   and press **Run now**; you land in the live console.
 
 Values are validated for type, range, choices and pattern, on the server.
 
-### Presets
+### Saved parameters (presets and recent runs)
 
-Presets are named sets of values for one script, stored as
-`runtime/presets/<script>/<name>.json`, separate from the metadata.
+Run the same script with different, remembered sets of values. Everything is kept
+**next to the script**, in one file per script:
 
-* **Save** with a name (an existing name is updated), **load**, **rename**, **delete**.
-* You can change values after loading and run without saving.
-* A preset is **re-validated against the current metadata** each time it loads:
-  removed parameters are ignored, new ones get defaults, values that are no longer
-  valid are reset, and each case shows a warning.
-* **Passwords and fixed parameters are not saved in presets.**
+```
+scripts/system/directory_backup.py
+scripts/system/directory_backup.json          metadata
+scripts/system/directory_backup.params.json   saved parameters
+```
+
+so the values travel with the script (move it, copy it, commit it to git).
+
+* **Recent runs** are remembered automatically: every started run stores the values it
+  used (the last 10 distinct sets, newest first). The **Script** tab opens with the
+  **last run's values**; **Defaults** in the header (or *Script defaults* in the list)
+  goes back to the script's defaults.
+* **Presets** are named sets: **Save current values as** (an existing name updates it),
+  load, rename, delete.
+* **Run with saved values:** every preset and recent run has a **▶ Run** button (on the
+  Overview tab and in the comparison grid) that opens the Review step with those values
+  already filled in and validated; **Ctrl+Enter** launches.
+* **Compare:** the **Saved parameters** tab in the centre of the Script tab (`p`) shows a
+  grid, rows = parameters, columns = presets and recent runs; values that differ from the
+  script's default are highlighted. **File** shows the raw `.params.json`.
+* Values are **re-validated against the current metadata** each time they load: removed
+  parameters are ignored, new ones get defaults, values that are no longer valid are
+  reset, and each case shows a warning.
+* **Passwords and fixed parameters are never saved.**
+* If the script folder is read-only, the file is kept in `runtime/presets/<script id>.json`
+  and moved next to the script as soon as the folder can be written. Presets from
+  version 1 (`runtime/presets/<script id>/<name>.json`) are moved over automatically.
+  A `.params.json` that is not valid JSON is never overwritten; saving reports it instead.
 
 ---
 
@@ -410,7 +521,7 @@ accounts' on remote hosts). The application has no login, so:
 
 ### Seeing which line is running
 
-Tick **Show the running line** on the confirmation page (or on the Ad-hoc screen) for
+Choose the run mode **Trace lines** on the Review step (or on the Ad-hoc screen) for
 a Python or Bash script. The console then shows the script's source next to the
 output with the current line highlighted and scrolled into view. The source shown is a
 copy taken when the run started, so later edits do not shift the highlight.
@@ -420,7 +531,7 @@ copy taken when the run started, so later edits do not shift the highlight.
   trap. Your script file is not modified. The markers travel on stderr and are removed
   again, so `stderr.log` stays clean.
 * **Speed:** tracing slows the script (Python much more in tight loops). Press
-  **Stop tracing (run at full speed)** on the console to end it for the rest of the run.
+  **Stop tracing** on the console to end it for the rest of the run.
   It cannot be switched back on.
 * **Accuracy:** the page polls, so a fast script jumps ahead; the highlight shows roughly
   where it is. Only the script's own lines count (not imported modules or `source`d
@@ -724,7 +835,7 @@ ScriptRunner/
 │   ├── executor.py           builds and supervises one process (local / SSH)
 │   ├── process_manager.py    queue, limits, threads, cancel, recovery
 │   ├── history.py, history_ops.py   run records, search, retention
-│   ├── presets.py, ssh_hosts.py, security.py, validators.py, fsutil.py
+│   ├── presets.py (saved parameters), ssh_hosts.py, security.py, validators.py, fsutil.py
 │   └── test*.py
 ├── scripts/                  bundled examples (system, django, python_packages, …)
 ├── runtime/                  config.json, executions/, presets/, metadata_overrides/
@@ -752,3 +863,11 @@ there are no sessions, and the queue lives in memory.)
 | **Interrupted** after a restart | The app stopped while the run was active (see [Limitations](#limitations-of-long-lived-subprocesses)). |
 | Pages have no styling in production | With `SCRIPT_RUNNER_DEBUG=0`, serve `/static/` from your web server or use `--insecure`. |
 | `DisallowedHost` error | Set `SCRIPT_RUNNER_ALLOWED_HOSTS` to the host name you browse to. |
+
+---
+
+## Licence and contributing
+
+Released under the [MIT licence](LICENSE). Contributions are welcome — see
+[CONTRIBUTING.md](CONTRIBUTING.md). Please report security problems privately as
+described in [SECURITY.md](SECURITY.md).

@@ -1,95 +1,137 @@
 {% extends "base.html" %}
 {% load static %}
 {% block title %}{{ run.id }}{% endblock %}
+{% block side %}{% include "runner/_runs_side.html" %}{% endblock %}
+{% block body_mod %}fill{% endblock %}
+{% block crumbs %}<a href="{% url 'executions' %}">Jobs</a><span class="sep">/</span><span class="mono">{{ run.id }}</span>{% if run.script_id and not run.adhoc %}<span class="sep">·</span><a href="{% url 'script_detail' run.script_id %}">script</a>{% endif %}{% endblock %}
+{% block heading %}<span class="t">{{ run.script_name }}</span><span id="status-badge" class="st st-{{ run.status }}">{{ status_label }}</span>{% if debug %}<span class="badge badge-warn"><svg class="i i-sm"><use href="#i-bug"/></svg> debug</span>{% elif trace %}<span class="badge"><svg class="i i-sm"><use href="#i-eye"/></svg> trace</span>{% endif %}{% endblock %}
+{% block actions %}
+{% if desktop %}<button type="button" class="btn btn-ghost btn-icon btn-sm" data-reveal-run="{{ run.id }}" title="Show the run folder (logs, metadata)"><svg class="i"><use href="#i-folder"/></svg></button>{% endif %}
+<button type="button" class="btn btn-ghost btn-icon btn-sm" id="refresh-now" title="Refresh now"><svg class="i"><use href="#i-refresh"/></svg></button>
+{% if run.adhoc %}{% if adhoc_enabled %}<a class="btn btn-sm" href="{% url 'adhoc' %}?from={{ run.id }}"><svg class="i"><use href="#i-edit"/></svg> Edit &amp; run again</a>{% endif %}
+{% elif run.script_id %}<a class="btn btn-sm" href="{% url 'script_run' run.script_id %}" data-hotkey="r" data-hint="Run this script again"><svg class="i"><use href="#i-play"/></svg> Run again</a>{% endif %}
+<form method="post" action="{% url 'history_delete' run.id %}" id="delete-form" data-confirm="Delete {{ run.id }} and its logs?" {% if active %}hidden{% endif %}>{% csrf_token %}
+  <input type="hidden" name="from" value="console">
+  <button class="btn btn-ghost btn-sm" type="submit"><svg class="i"><use href="#i-trash"/></svg> Delete</button>
+</form>
+<form method="post" action="{% url 'execution_stop' run.id %}" id="stop-form" data-confirm="Stop this execution?" {% if not active %}hidden{% endif %}>{% csrf_token %}
+  <button class="btn btn-danger btn-sm" type="submit" id="stop-btn"><svg class="i i-fill"><use href="#i-stop"/></svg> Stop</button>
+</form>
+{% endblock %}
+
 {% block content %}
-<div class="page-head">
-  <div>
-    <a class="back" href="{% url 'executions' %}"><svg class="i"><use href="#i-back"/></svg> Executions</a>
-    <h1>{{ run.script_name }}</h1>
-    <p class="muted"><span class="mono">{{ run.id }}</span> · {% if run.host == 'local' %}local{% else %}{{ run.host }} (SSH){% endif %}</p>
-  </div>
-  <div class="btn-row">
-    <button type="button" class="btn btn-ghost" id="refresh-now"><svg class="i"><use href="#i-refresh"/></svg> Refresh</button>
-    <form method="post" action="{% url 'execution_stop' run.id %}" id="stop-form" data-confirm="Stop this execution?" {% if not active %}hidden{% endif %}>{% csrf_token %}
-      <button class="btn btn-danger" type="submit">■ Stop</button>
-    </form>
-    {% if run.adhoc %}{% if adhoc_enabled %}<a class="btn btn-ghost" href="{% url 'adhoc' %}?from={{ run.id }}"><svg class="i"><use href="#i-edit"/></svg> Edit &amp; run again</a>{% endif %}
-    {% elif run.script_id %}<a class="btn btn-ghost" href="{% url 'script_run' run.script_id %}"><svg class="i"><use href="#i-play"/></svg> Run again</a>{% endif %}
-    <form method="post" action="{% url 'history_delete' run.id %}" id="delete-form" data-confirm="Delete {{ run.id }} and its logs?" {% if active %}hidden{% endif %}>{% csrf_token %}
-      <input type="hidden" name="from" value="console">
-      <button class="btn btn-ghost" type="submit">Delete</button>
-    </form>
-  </div>
+<div class="run-summary" id="console-summary">
+  <div class="rs-item"><div class="rs-label">Duration</div><div id="duration" class="rs-val">—</div></div>
+  <div class="rs-item"><div class="rs-label">Exit code</div><div id="exit-code" class="rs-val">{% if run.exit_code is None %}—{% else %}{{ run.exit_code }}{% endif %}</div></div>
+  <div class="rs-item"><div class="rs-label">Started</div><div id="started" class="rs-val">{% if run.started_at %}{{ run.started_at|slice:":10" }} {{ run.started_at|slice:"11:" }}{% else %}—{% endif %}</div></div>
+  <div class="rs-item"><div class="rs-label">Completed</div><div id="finished" class="rs-val">{% if run.finished_at %}{{ run.finished_at|slice:":10" }} {{ run.finished_at|slice:"11:" }}{% else %}—{% endif %}</div></div>
+  <div class="rs-item hide-sm"><div class="rs-label">Host</div><div class="rs-val">{% if run.host == 'local' %}local{% else %}{{ run.host }} <span class="faint">ssh</span>{% endif %}</div></div>
+  <div class="rs-item hide-sm"><div class="rs-label">PID</div><div class="rs-val" id="pid">{{ run.pid|default:"—" }}</div></div>
 </div>
 
-<div class="console-summary card" id="console-summary">
-  <div class="cs-item"><div class="cs-label">Status</div><div><span id="status-badge" class="st st-{{ run.status }}">{{ status_label }}</span></div></div>
-  <div class="cs-item"><div class="cs-label">Duration</div><div id="duration" class="mono">—</div></div>
-  <div class="cs-item"><div class="cs-label">Exit code</div><div id="exit-code" class="mono">{% if run.exit_code is None %}—{% else %}{{ run.exit_code }}{% endif %}</div></div>
-  <div class="cs-item"><div class="cs-label">Started</div><div id="started" class="small">{% if run.started_at %}{{ run.started_at|slice:":10" }} {{ run.started_at|slice:"11:" }}{% else %}—{% endif %}</div></div>
-  <div class="cs-item"><div class="cs-label">Completed</div><div id="finished" class="small">{% if run.finished_at %}{{ run.finished_at|slice:":10" }} {{ run.finished_at|slice:"11:" }}{% else %}—{% endif %}</div></div>
-</div>
+<div class="notes">
 {% if run.logs_deleted %}<div class="flash flash-info"><span>The logs of this execution were removed by the retention policy; only its record remains.</span></div>{% endif %}
 <div id="queue-note" class="flash flash-info" hidden></div>
 <div id="error-note" class="flash flash-error" {% if not run.error or run.status == 'success' %}hidden{% endif %}><span id="error-text">{{ run.error|default:"" }}</span></div>
+</div>
 
-<details class="card run-details">
-  <summary>Submitted parameters &amp; command</summary>
-  <table class="table">
-    <tbody>
-      {% for k, v in param_rows %}<tr><th class="th-row mono">{{ k }}</th><td>{{ v }}</td></tr>
-      {% empty %}<tr><td class="muted">No parameters.</td></tr>{% endfor %}
-    </tbody>
-  </table>
-  <pre class="codebox">{{ run.command }}</pre>
-  {% if adhoc_args %}<p class="muted small">Arguments:</p><pre class="codebox">{% for a in adhoc_args %}{{ a }}
+<details class="run-details">
+  <summary>Parameters &amp; command</summary>
+  <div class="rd-body">
+    <table class="table table-dense">
+      <tbody>
+        {% for k, v in param_rows %}<tr><th class="th-row mono">{{ k }}</th><td class="mono">{{ v }}</td></tr>
+        {% empty %}<tr><td class="muted">No parameters.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+    <pre class="codebox">{{ run.command }}</pre>
+    {% if adhoc_args %}<p class="muted small" style="margin-top:10px">Arguments:</p><pre class="codebox">{% for a in adhoc_args %}{{ a }}
 {% endfor %}</pre>{% endif %}
-  {% if adhoc_source %}<p class="muted small">Ad-hoc script that ran (kept with this execution):</p><pre class="codebox adhoc-source">{{ adhoc_source }}</pre>{% endif %}
-  <p class="muted small">{% if run.adhoc %}Stored as{% else %}Script:{% endif %} <span class="mono wrap-anywhere">{{ run.script_path }}</span>{% if run.pid %} · PID <span id="pid">{{ run.pid }}</span>{% endif %}{% if run.initiator %} · started from <span class="mono">{{ run.initiator }}</span>{% endif %}</p>
+    {% if adhoc_source and not trace_lines %}<p class="muted small" style="margin-top:10px">Ad-hoc script that ran (kept with this execution):</p><pre class="codebox adhoc-source">{{ adhoc_source }}</pre>{% endif %}
+    <p class="muted small" style="margin:10px 0 0">{% if run.adhoc %}Stored as{% else %}Script:{% endif %} <span class="mono wrap-anywhere">{{ run.script_path }}</span>{% if run.initiator %} · started from <span class="mono">{{ run.initiator }}</span>{% endif %}</p>
+  </div>
 </details>
 
-{% if trace and trace_lines %}
-<section class="card trace-card" id="trace-card" data-line-count="{{ trace_lines|length }}">
-  <header class="pane-head">
-    <h2>Running line <span class="muted small mono" id="trace-line">—</span></h2>
-    <div class="btn-row">
-      <span class="muted small" id="trace-state"></span>
-      <button type="button" class="btn btn-ghost btn-sm" id="trace-stop" {% if trace.stopped or not active %}hidden{% endif %}>Stop tracing (run at full speed)</button>
-    </div>
-  </header>
-  <pre class="source trace-src" id="trace-src" data-lang="{{ trace_lang }}"><code>{% for line in trace_lines %}<span class="ln">{{ line }}</span>{% endfor %}</code></pre>
-</section>
-{% endif %}
-
 <div class="console-bar">
-  <label class="check"><input type="checkbox" id="autoscroll" checked><span>Auto-scroll</span></label>
-  <span class="muted small" id="live-note"></span>
+  <span class="live" id="live"><span class="sb-dot"></span><span id="live-note">Connecting…</span></span>
+  <span class="spacer"></span>
+  <label class="check small"><input type="checkbox" id="autoscroll" checked><span>Auto-scroll</span></label>
+  <div class="seg" role="group" aria-label="Output layout">
+    <button type="button" class="seg-btn" data-panes="side" title="Side by side"><svg class="i"><use href="#i-layout"/></svg></button>
+    <button type="button" class="seg-btn" data-panes="stack" title="Stacked"><svg class="i"><use href="#i-layout-rows"/></svg></button>
+    <button type="button" class="seg-btn" data-panes="out" title="Standard output only"><svg class="i"><use href="#i-terminal"/></svg></button>
+  </div>
 </div>
 
-<div class="panes">
-  <section class="pane">
-    <header class="pane-head">
-      <h2>Standard output</h2>
-      <div class="btn-row">
-        <button type="button" class="btn btn-ghost btn-sm" data-copy="out"><svg class="i"><use href="#i-copy"/></svg> <span>Copy</span></button>
-        <a class="btn btn-ghost btn-sm" href="{% url 'execution_log' run.id 'stdout' %}"><svg class="i"><use href="#i-download"/></svg> Download</a>
+<div class="workspace{% if trace and trace_lines %} has-source{% endif %}">
+  {% if trace and trace_lines %}
+  <div class="ws-top{% if debug %} has-inspector{% endif %}">
+    <section class="pane trace-card" id="trace-card" data-line-count="{{ trace_lines|length }}">
+      {% if debug %}
+      <div class="dbg-bar" role="toolbar" aria-label="Debugger">
+        <button type="button" class="dbg-btn dbg-continue" data-dbg="continue" data-hotkey="F5" data-hint="Continue to the next breakpoint" title="Continue (F5)" disabled><svg class="i"><use href="#i-play"/></svg> Continue <kbd>F5</kbd></button>
+        <button type="button" class="dbg-btn dbg-step" data-dbg="step" data-hotkey="F10|n" data-hint="Step to the next line" title="Step to next line (F10 or N)" disabled><svg class="i"><use href="#i-step"/></svg> Step <kbd>F10</kbd></button>
+        <button type="button" class="dbg-btn dbg-pause" data-dbg="pause" data-hotkey="F6" data-hint="Pause at the next line" title="Pause (F6)" disabled><svg class="i i-fill"><use href="#i-pause"/></svg> Pause <kbd>F6</kbd></button>
+        <span class="dbg-sep"></span>
+        <button type="button" class="dbg-btn" data-dbg="detach" data-hint="Stop debugging, run to the end at full speed" title="Detach: stop debugging and run at full speed" disabled><svg class="i"><use href="#i-unplug"/></svg> <span class="hide-sm">Detach</span></button>
+        <button type="button" class="dbg-btn dbg-stop" data-dbg="stop" data-hotkey="Shift+F5" data-hint="Stop the run" title="Stop the run (Shift+F5)" {% if not active %}disabled{% endif %}><svg class="i i-fill"><use href="#i-stop"/></svg> <span class="hide-sm">Stop</span></button>
+        <span class="dbg-state"><span id="dbg-state">{% if active %}Starting…{% else %}Ended{% endif %}</span></span>
       </div>
-    </header>
-    <pre class="console" id="out" tabindex="0"></pre>
-  </section>
-  <section class="pane pane-err">
-    <header class="pane-head">
-      <h2>Standard error</h2>
-      <div class="btn-row">
-        <button type="button" class="btn btn-ghost btn-sm" data-copy="err"><svg class="i"><use href="#i-copy"/></svg> <span>Copy</span></button>
-        <a class="btn btn-ghost btn-sm" href="{% url 'execution_log' run.id 'stderr' %}"><svg class="i"><use href="#i-download"/></svg> Download</a>
+      {% else %}
+      <header class="pane-head">
+        <h2>Running line <span class="faint mono" id="trace-line">—</span></h2>
+        <span class="spacer"></span>
+        <span class="muted small" id="trace-state"></span>
+        <button type="button" class="btn btn-ghost btn-sm" id="trace-stop" {% if trace.stopped or not active %}hidden{% endif %}>Stop tracing</button>
+      </header>
+      {% endif %}
+      <pre class="source trace-src{% if debug %} dbg-src{% endif %}" id="trace-src" data-lang="{{ trace_lang }}"><code>{% for line in trace_lines %}<span class="ln">{{ line }}</span>{% endfor %}</code></pre>
+    </section>
+    {% if debug %}
+    <aside class="inspector" id="inspector">
+      <div class="insp-sec grow">
+        <div class="insp-head">Variables <span class="spacer"></span><span class="faint mono" id="dbg-where"></span></div>
+        <div class="insp-body" id="dbg-vars"><p class="insp-empty">Shown while paused{% if trace_lang != 'python' %} (Python only){% endif %}.</p></div>
       </div>
-    </header>
-    <pre class="console console-err" id="err" tabindex="0"></pre>
-  </section>
+      <div class="insp-sec">
+        <div class="insp-head">Call stack</div>
+        <div class="insp-body" id="dbg-stack" style="max-height:140px"><p class="insp-empty">—</p></div>
+      </div>
+      <div class="insp-sec">
+        <div class="insp-head">Breakpoints <span class="spacer"></span><button type="button" class="btn btn-ghost btn-sm" id="bp-clear" hidden>Clear all</button></div>
+        <div class="insp-body" id="dbg-bps" style="max-height:140px"><p class="insp-empty">Click a line number to add one.</p></div>
+      </div>
+    </aside>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  <div class="panes" id="panes">
+    <section class="pane">
+      <header class="pane-head">
+        <h2><span class="dot st-success" style="background:var(--ok)"></span>Standard output</h2>
+        <span class="spacer"></span>
+        <button type="button" class="btn btn-ghost btn-sm" data-copy="out" title="Copy stdout"><svg class="i"><use href="#i-copy"/></svg> <span>Copy</span></button>
+        <a class="btn btn-ghost btn-icon btn-sm" href="{% url 'execution_log' run.id 'stdout' %}" title="Download stdout"><svg class="i"><use href="#i-download"/></svg></a>
+      </header>
+      <pre class="console" id="out" tabindex="0"></pre>
+    </section>
+    <section class="pane pane-err">
+      <header class="pane-head">
+        <h2><span class="dot"></span>Standard error</h2>
+        <span class="spacer"></span>
+        <button type="button" class="btn btn-ghost btn-sm" data-copy="err" title="Copy stderr"><svg class="i"><use href="#i-copy"/></svg> <span>Copy</span></button>
+        <a class="btn btn-ghost btn-icon btn-sm" href="{% url 'execution_log' run.id 'stderr' %}" title="Download stderr"><svg class="i"><use href="#i-download"/></svg></a>
+      </header>
+      <pre class="console console-err" id="err" tabindex="0"></pre>
+    </section>
+  </div>
 </div>
 
-<div id="console-config" data-status-url="{% url 'execution_status' run.id %}" data-interval="{{ polling_interval }}" data-trace-stop-url="{% url 'execution_trace_stop' run.id %}" data-csrf="{{ csrf_token }}" hidden></div>
+<div id="console-config" data-status-url="{% url 'execution_status' run.id %}" data-interval="{{ polling_interval }}"
+     {% if trace %}data-trace-stop-url="{% url 'execution_trace_stop' run.id %}"{% endif %}
+     {% if debug %}data-debug-url="{% url 'execution_debug' run.id %}"{% endif %}
+     data-csrf="{{ csrf_token }}" hidden></div>
 {% endblock %}
 
 {% block scripts %}

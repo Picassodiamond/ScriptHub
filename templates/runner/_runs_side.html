@@ -1,0 +1,19 @@
+{# Side panel: recent executions (master list for the Jobs area). #}
+<div class="side-head">
+  <span class="side-title">Executions</span>
+  <div class="side-actions">
+    <a class="btn btn-ghost btn-icon btn-sm" href="{% url 'history' %}" title="Full history"><svg class="i"><use href="#i-clock"/></svg></a>
+  </div>
+</div>
+<div class="side-body">
+  <div class="runlist">
+    {% for r in wb_runs %}
+    <a class="run-item{% if r.id == run.id %} is-active{% endif %}" href="{% url 'execution_console' r.id %}">
+      <div class="ri-top"><span class="dot st-{{ r.status }}" title="{{ r.status_label }}"></span><span class="ri-name">{{ r.script_name }}</span></div>
+      <div class="ri-meta"><span>{{ r.id|slice:"4:" }}</span><span>{{ r.duration }}</span>{% if r.host != 'local' %}<span>{{ r.host }}</span>{% endif %}</div>
+    </a>
+    {% empty %}
+    <p class="tree-empty">No executions yet.</p>
+    {% endfor %}
+  </div>
+</div>

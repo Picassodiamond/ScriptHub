@@ -15,7 +15,8 @@ from . import discovery, executor, history, presets, ssh_hosts
 from . import parameter_service as ps
 from .executor import ExecutionError, ExecutionSpec
 from .process_manager import manager
-from .script_views import LANGUAGES
+from .edit_views import editor_context
+from .script_views import LANGUAGES, source_context
 
 
 def client_address(request) -> str:
@@ -31,18 +32,32 @@ def _get_script_or_404(script_id):
     return script
 
 
+RUN_MODES = ("normal", "trace", "debug")
+
+
+def run_mode(post) -> str:
+    """normal | trace | debug from a submitted form (the old ``trace=1`` checkbox still works)."""
+    mode = post.get("mode", "")
+    if mode in RUN_MODES:
+        return mode
+    return "trace" if post.get("trace") == "1" else "normal"
+
+
 def _params_of(script):
     return script.meta.get("parameters", []) if script.meta_valid else []
 
 
 # --------------------------------------------------------------- spec build ---
-def build_spec(script, host, params, values, token=None, trace=False) -> ExecutionSpec:
+def build_spec(script, host, params, values, token=None, trace=False, debug=False) -> ExecutionSpec:
     """Turn validated values into an ExecutionSpec. Raises ExecutionError."""
     cfg = config.load_config()
     interpreter = executor.resolve_interpreter(script.meta.get("interpreter"), script.extension, host, cfg)
     argv, env_from_params = ps.build_arguments(params, values)
     masked_argv, _ = ps.build_arguments(params, values, mask_secrets=True)
     env = {**cfg["environment"], **script.meta.get("environment", {}), **env_from_params}
+    if debug and not executor.debug_supported(script.extension, interpreter):
+        raise ExecutionError(executor.DEBUG_UNSUPPORTED)
+    trace = trace or debug
     if trace and not executor.trace_supported(script.extension, interpreter):
         raise ExecutionError("Line tracing is available for Python and Bash scripts only.")
     if host == ssh_hosts.LOCAL:
@@ -65,6 +80,7 @@ def build_spec(script, host, params, values, token=None, trace=False) -> Executi
         display_command=shown,
         token=token,
         trace={} if trace else None,
+        debug=bool(debug),
     )
 
 
@@ -96,10 +112,71 @@ def _form_context(script, params, raw, errors, hosts, host, host_error):
         "hosts": hosts,
         "host": host,
         "host_error": host_error,
+        **source_context(script),
+        **editor_context(script),
+        "pgrid": presets.grid(script, params),
+        "pfile": presets.file_info(script),
     }
 
 
 # ----------------------------------------------------------------- run form ---
+def _load_saved(script, params, key, hosts, default_host):
+    """Values to put in the run form. ``key``: "" = automatic (last run, else defaults),
+    "-" = defaults, "@<n>" = n-th recent run, otherwise a preset slug.
+    Returns (raw, host, source, warnings); source describes what was loaded."""
+    raw, host, warnings = ps.defaults_raw(params), default_host, []
+    stored, source = None, {"kind": "defaults", "key": "-", "label": "Defaults"}
+    if key == "" or key.startswith("@"):
+        index = 0
+        if key:
+            try:
+                index = int(key[1:])
+            except ValueError:
+                index = -1
+        stored = presets.get_recent(script, index)
+        if stored is not None:
+            when = (stored.get("saved_at") or "").replace("T", " ")[:16]
+            name = "Last run" if index == 0 else (stored.get("run_id") or f"Run {index + 1}")
+            source = {"kind": "recent", "key": f"@{index}", "label": name + (f" · {when}" if when else ""),
+                      "run_id": stored.get("run_id", "")}
+        elif key:
+            warnings.append("Those saved values were not found; showing the defaults.")
+    elif key != "-":
+        stored = presets.get_preset(script, key)
+        if stored is None:
+            warnings.append("That preset was not found; showing the defaults.")
+        else:
+            source = {"kind": "preset", "key": key, "label": stored.get("name", key), "slug": key}
+    if stored is not None:
+        raw, warnings = presets.apply_preset(params, stored)
+        if stored.get("host") in hosts:
+            host = stored["host"]
+    return raw, host, source, warnings
+
+
+def _confirm_response(request, script, params, raw, host, values, spec, source=None):
+    _, env_masked = ps.build_arguments(params, values, mask_secrets=True)
+    mode = run_mode(request.POST)
+    supported = executor.trace_supported(script.extension, spec.interpreter)
+    return render(request, "runner/run_confirm.html", {
+        "script": script,
+        **source_context(script),
+        "host": host,
+        "rows": [{"label": p["label"], "value": _display_value(p, values.get(p["name"])),
+                  "locked": not p.get("editable_at_runtime", True)} for p in params],
+        "command": spec.display_command,
+        "env_rows": sorted(env_masked.items()),
+        "hidden": ps.hidden_pairs(params, raw),
+        "token": uuid.uuid4().hex,
+        "timeout": spec.timeout,
+        "trace_supported": supported,
+        "debug_supported": supported,
+        "trace": mode == "trace",
+        "mode": mode if supported else "normal",
+        "source": source,
+    })
+
+
 def script_run(request, script_id):
     script = _get_script_or_404(script_id)
     if not script.enabled:
@@ -113,50 +190,32 @@ def script_run(request, script_id):
     default_host = script.meta.get("host", ssh_hosts.LOCAL)
     hosts = ssh_hosts.allowed_hosts([default_host])
     errors, host_error, host = {}, None, default_host
-    current_preset, preset_warnings = None, []
+    source, preset_warnings = None, []
+    validate = request.method == "POST" and not request.POST.get("edit")   # "edit" = back from the confirmation page
 
     if request.method == "POST":
         host = request.POST.get("host", default_host)
         raw = ps.raw_from_post(params, request.POST)
-        if not request.POST.get("edit"):          # "edit" = back from the confirmation page
-            host_error = _check_host(script, host, hosts)
-            values, errors = ps.clean_values(params, raw)
-            if not errors and not host_error:
-                try:
-                    spec = build_spec(script, host, params, values)
-                except ExecutionError as exc:
-                    host_error = str(exc)
-                else:
-                    _, env_masked = ps.build_arguments(params, values, mask_secrets=True)
-                    return render(request, "runner/run_confirm.html", {
-                        "script": script,
-                        "host": host,
-                        "rows": [{"label": p["label"], "value": _display_value(p, values.get(p["name"])),
-                                  "locked": not p.get("editable_at_runtime", True)} for p in params],
-                        "command": spec.display_command,
-                        "env_rows": sorted(env_masked.items()),
-                        "hidden": ps.hidden_pairs(params, raw),
-                        "token": uuid.uuid4().hex,
-                        "timeout": spec.timeout,
-                        "trace_supported": executor.trace_supported(script.extension, spec.interpreter),
-                        "trace": request.POST.get("trace") == "1",
-                    })
     else:
-        raw = ps.defaults_raw(params)
-        slug = request.GET.get("preset", "")
-        if slug:
-            preset = presets.get_preset(script.id, slug)
-            if preset is None:
-                preset_warnings.append("That preset was not found; showing the defaults.")
+        raw, host, source, preset_warnings = _load_saved(script, params, request.GET.get("preset", ""), hosts, default_host)
+        validate = request.GET.get("review") == "1"          # "Run with these values": straight to the review step
+
+    if validate:
+        host_error = _check_host(script, host, hosts)
+        values, errors = ps.clean_values(params, raw)
+        if not errors and not host_error:
+            try:
+                spec = build_spec(script, host, params, values)
+            except ExecutionError as exc:
+                host_error = str(exc)
             else:
-                raw, preset_warnings = presets.apply_preset(params, preset)
-                current_preset = {"slug": slug, "name": preset.get("name", slug)}
-                if preset.get("host") in hosts:
-                    host = preset["host"]
+                return _confirm_response(request, script, params, raw, host, values, spec, source)
 
     ctx = _form_context(script, params, raw, errors, hosts, host, host_error)
-    ctx.update(presets=presets.list_presets(script.id), current_preset=current_preset,
-               preset_warnings=preset_warnings, has_password=any(p["type"] == "password" for p in params))
+    current = {"slug": source["slug"], "name": source["label"]} if source and source["kind"] == "preset" else None
+    ctx.update(presets=presets.list_presets(script), recent=presets.recent_runs(script), source=source,
+               current_preset=current, preset_warnings=preset_warnings,
+               has_password=any(p["type"] == "password" for p in params))
     return render(request, "runner/run.html", ctx, status=400 if ctx["has_errors"] else 200)
 
 
@@ -175,16 +234,21 @@ def script_start(request, script_id):
     values, errors = ps.clean_values(params, raw)
     host_error = _check_host(script, host, hosts)
     spec = None
+    mode = run_mode(request.POST)
     if not errors and not host_error:
         try:
             spec = build_spec(script, host, params, values, token=request.POST.get("submit_token") or None,
-                              trace=request.POST.get("trace") == "1")
+                              trace=mode == "trace", debug=mode == "debug")
         except ExecutionError as exc:
             host_error = str(exc)
     if spec is None:
         ctx = _form_context(script, params, raw, errors, hosts, host, host_error)
         return render(request, "runner/run.html", ctx, status=400)
     run_id = manager.submit(spec, initiator=client_address(request))
+    try:                                   # remember the values: "run again with these"
+        presets.record_run(script, params, raw, host, run_id, client_address(request))
+    except (OSError, presets.PresetError):
+        pass
     return redirect("execution_console", run_id=run_id)
 
 
@@ -226,6 +290,7 @@ def execution_console(request, run_id):
     ext = Path(meta.get("script_path", "")).suffix.lower()
     return render(request, "runner/console.html", {
         "trace": trace,
+        "debug": meta.get("debug") or None,
         "trace_lines": trace_lines,
         "trace_lang": LANGUAGES.get(ext, ""),
         "run": meta,
@@ -269,6 +334,7 @@ def execution_status(request, run_id):
         "stdout": out, "stdout_next": out_next,
         "stderr": err, "stderr_next": err_next,
         "trace": _trace_state(run_id, meta),
+        "debug": _debug_state(run_id, meta),
     })
 
 
@@ -282,6 +348,50 @@ def _trace_state(run_id, meta):
     except (OSError, ValueError):
         pass
     return {"line": line, "stopped": bool(trace.get("stopped"))}
+
+
+def _last_line(run_id):
+    try:
+        return int((history.run_dir(run_id) / "trace.last").read_text().strip())
+    except (OSError, ValueError):
+        return None
+
+
+def _debug_state(run_id, meta):
+    """Step-debugger state for the console; None when the run is not a debug run."""
+    if not meta.get("debug"):
+        return None
+    if _is_active(meta):
+        state = manager.debug_state(run_id)
+        if state is not None:
+            return state
+    return {"state": "ended", "line": _last_line(run_id), "scopes": [], "stack": [], "breakpoints": []}
+
+
+@require_POST
+def execution_debug(request, run_id):
+    """Debugger control: action = step | continue | pause | detach | breakpoints (with lines="3,7")."""
+    _get_meta_or_404(run_id)
+    action = request.POST.get("action", "")
+    if action not in ("step", "continue", "pause", "detach", "breakpoints"):
+        return JsonResponse({"ok": False, "error": "Unknown debugger action."}, status=400)
+    lines = None
+    if action == "breakpoints":
+        raw = request.POST.get("lines", "").replace(" ", "")
+        try:
+            lines = sorted({int(x) for x in raw.split(",") if x})
+        except ValueError:
+            lines = None
+        if lines is None or any(n < 1 or n > 10_000_000 for n in lines) or len(lines) > 1000:
+            return JsonResponse({"ok": False, "error": "Breakpoints must be line numbers, e.g. 3,7,12."}, status=400)
+    if manager.debug_state(run_id) is None:
+        return JsonResponse({"ok": False, "error": "This execution is not being debugged, or it has finished.",
+                             "debug": None}, status=409)
+    ok = manager.debug_command(run_id, action, lines)
+    body = {"ok": ok, "debug": manager.debug_state(run_id)}
+    if not ok:
+        body["error"] = "The debugger did not accept the command (the run may be queued, detached or ending)."
+    return JsonResponse(body, status=200 if ok else 409)
 
 
 @require_POST

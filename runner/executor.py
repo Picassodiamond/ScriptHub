@@ -54,6 +54,8 @@ class ExecutionSpec:
     adhoc: dict | None = None
     # Line tracing: {} when requested (the manager adds "stopfile"), None when off.
     trace: dict | None = None
+    # Step debugging (implies tracing): the process reads control lines from stdin.
+    debug: bool = False
 
 
 @dataclass
@@ -63,6 +65,7 @@ class Command:
     env: dict
     cwd: str | None
     remote: bool
+    keep_stdin_open: bool = False    # debugger: stdin stays open as the control channel
 
 
 def _exe_stem(command: str) -> str:
@@ -97,6 +100,13 @@ def trace_supported(extension: str, interpreter: str) -> bool:
     return bool(parts) and tracing.kind(extension, _exe_stem(parts[0])) is not None
 
 
+def debug_supported(extension: str, interpreter: str) -> bool:
+    return trace_supported(extension, interpreter)
+
+
+DEBUG_UNSUPPORTED = "Step debugging is available for Python and Bash scripts only."
+
+
 def _split(command: str):
     return ssh_hosts.split_command(command)
 
@@ -113,11 +123,16 @@ def build_command(spec: ExecutionSpec, cfg: dict) -> Command:
         env_extra.setdefault("PYTHONUNBUFFERED", "1")
         env_extra.setdefault("PYTHONUTF8", "1")
 
-    trace_kind = tracing.kind(spec.extension, stem) if spec.trace is not None else None
-    if spec.trace is not None and trace_kind is None:
+    traced = spec.trace is not None or spec.debug
+    trace_kind = tracing.kind(spec.extension, stem) if traced else None
+    if spec.debug and trace_kind is None:
+        raise ExecutionError(DEBUG_UNSUPPORTED)
+    if traced and trace_kind is None:
         raise ExecutionError("Line tracing is available for Python and Bash scripts only.")
 
     if spec.host == LOCAL:
+        if spec.debug:
+            return _local_debug(spec, path, interp, stem, trace_kind, env_extra)
         if trace_kind:
             return _local_traced(spec, path, interp, stem, trace_kind, env_extra)
         if spec.extension in BATCH_EXTENSIONS:
@@ -147,7 +162,17 @@ def build_command(spec: ExecutionSpec, cfg: dict) -> Command:
     except OSError as exc:
         raise ExecutionError(f"Could not read the script: {exc}") from exc
     flags = STDIN_FLAGS.get(stem, ["-"])
-    if trace_kind == "python":
+    keep_open = False
+    if spec.debug:
+        # stdin = "<N>\n" + N bytes of script, then the debugger's control lines.
+        keep_open = True
+        if trace_kind == "python":
+            flags = ["-c", tracing.PY_DEBUG_LAUNCHER, "-"]
+        else:
+            script_bytes = tracing.bash_debug_prologue(1).encode() + script_bytes
+            flags = ["-c", tracing.BASH_DEBUG_LOADER, "sr-debug"]
+        script_bytes = str(len(script_bytes)).encode() + b"\n" + script_bytes
+    elif trace_kind == "python":
         flags = ["-c", tracing.PY_LAUNCHER, "-"]
     elif trace_kind == "bash":
         script_bytes = tracing.bash_prologue_line() + script_bytes
@@ -155,7 +180,23 @@ def build_command(spec: ExecutionSpec, cfg: dict) -> Command:
     parts = ["sh", "-c", REMOTE_WRAPPER, "sh", spec.cwd or ".", *remote_env, *interp, *flags, *spec.argv]
     remote_command = " ".join(shlex.quote(p) for p in parts)
     args = ssh_hosts.ssh_base(cfg) + ["-T", "--", spec.host, remote_command]
-    return Command(args, script_bytes, dict(os.environ), None, remote=True)
+    return Command(args, script_bytes, dict(os.environ), None, remote=True, keep_stdin_open=keep_open)
+
+
+def _local_debug(spec, path, interp, stem, trace_kind, env_extra) -> Command:
+    stopfile = (spec.trace or {}).get("stopfile") or ""
+    cwd = spec.cwd or str(path.parent)
+    if trace_kind == "python":
+        exe = [sys.executable] if stem in ("python", "python3") else interp
+        args = [*exe, "-c", tracing.PY_DEBUG_LAUNCHER, str(path), *spec.argv]
+    else:
+        folder = Path(stopfile).parent if stopfile else path.parent
+        prologue = folder / "debug_prologue.sh"
+        prologue.write_bytes(tracing.bash_debug_prologue_file().encode())
+        env_extra["BASH_ENV"] = prologue.as_posix() if os.name == "nt" else str(prologue)
+        script_arg = path.as_posix() if os.name == "nt" else str(path)
+        args = [*interp, script_arg, *spec.argv]
+    return Command(args, b"", {**os.environ, **env_extra}, cwd, remote=False, keep_stdin_open=True)
 
 
 def _local_traced(spec, path, interp, stem, trace_kind, env_extra) -> Command:
@@ -241,14 +282,14 @@ def stop(spec: ExecutionSpec, proc: subprocess.Popen, remote_pid, cfg: dict) -> 
         kill_tree(proc)
 
 
-def pump(stream, path: Path, on_marker=None, on_trace=None) -> None:
+def pump(stream, path: Path, on_marker=None, on_trace=None, on_event=None) -> None:
     """Copy ``stream`` into ``path`` as data arrives (unbuffered, so the
     browser sees output live). ``on_marker(pid)`` is called if the very first
     line is the remote PID marker; that line is not written to the log."""
     reader = getattr(stream, "read1", stream.read)
     checking = on_marker is not None
     pending = b""
-    filt = tracing.MarkerFilter(on_trace) if on_trace else None
+    filt = tracing.MarkerFilter(on_trace, on_event) if (on_trace or on_event) else None
     with open(path, "ab", buffering=0) as fh:
         while True:
             try:

@@ -1,23 +1,411 @@
+/* Script Runner 2 — workbench shell: flashes, confirms, theme, side panel,
+   explorer tree, keyboard shortcuts (data-hotkey), command palette (Ctrl+K)
+   and the shortcut sheet (?). Vanilla JS, no dependencies. */
 (function () {
-  // Dismissible flash messages
+  'use strict';
+  var root = document.documentElement;
+  var sr = window.sr = window.sr || {};
+
+  function store(key, value) {
+    try { if (value === undefined) return localStorage.getItem(key); localStorage.setItem(key, value); } catch (e) {}
+    return null;
+  }
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function visible(el) { return !!(el && (el.offsetWidth || el.offsetHeight || el.getClientRects().length)) && !el.closest('[hidden]'); }
+
+  // ------------------------------------------------------------ clipboard --
+  sr.copy = function (text, label) {
+    function done() { if (label) { var old = label.textContent; label.textContent = 'Copied'; setTimeout(function () { label.textContent = old; }, 1400); } }
+    if (navigator.clipboard && window.isSecureContext) { navigator.clipboard.writeText(text).then(done); return; }
+    var ta = document.createElement('textarea'); ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy'); done(); } catch (e) {}
+    ta.remove();
+  };
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest('[data-copy-text]');
+    if (b) sr.copy(b.getAttribute('data-copy-text'), b.querySelector('span'));
+  });
+
+  // -------------------------------------------------------------- flashes --
   document.addEventListener('click', function (e) {
     var b = e.target.closest('[data-dismiss]');
     if (b) b.closest('.flash').remove();
   });
-  // Success messages fade away on their own
   [].forEach.call(document.querySelectorAll('.flash[data-autohide]'), function (el) {
-    setTimeout(function () {
-      el.classList.add('flash-out');
-      setTimeout(function () { el.remove(); }, 400);
-    }, 5000);
+    setTimeout(function () { el.classList.add('flash-out'); setTimeout(function () { el.remove(); }, 350); }, 5000);
   });
-  // Confirm before submitting forms that carry data-confirm
+
+  // ------------------------------------------------ confirm / submit once --
   document.addEventListener('submit', function (e) {
-    var msg = e.target.getAttribute('data-confirm');
+    var form = e.target, msg = form.getAttribute('data-confirm');
     if (msg && !window.confirm(msg)) { e.preventDefault(); return; }
-    // Double-click guard: buttons marked data-once are disabled once submitted
-    [].forEach.call(e.target.querySelectorAll('[data-once]'), function (b) {
-      setTimeout(function () { b.disabled = true; }, 0);
+    // form.elements includes buttons outside the form that point at it with form="…"
+    [].forEach.call(form.elements, function (b) {
+      if (b.hasAttribute && b.hasAttribute('data-once')) setTimeout(function () { b.disabled = true; }, 0);
     });
   });
+
+  // -------------------------------------------------- theme & side panel --
+  function toggleTheme() {
+    var t = root.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+    root.setAttribute('data-theme', t);
+    store('sr.theme', t);
+  }
+  var narrow = window.matchMedia('(max-width: 860px)');
+  function toggleSide(force) {
+    if (narrow.matches) { root.classList.toggle('side-open', force); return; }
+    var off = !root.classList.contains('side-off');
+    if (typeof force === 'boolean') off = !force;
+    root.classList.toggle('side-off', off);
+    store('sr.side', off ? '0' : '1');
+  }
+  document.addEventListener('click', function (e) {
+    var a = e.target.closest('[data-action]');
+    if (!a) return;
+    var act = a.getAttribute('data-action');
+    if (act === 'theme') toggleTheme();
+    else if (act === 'side') toggleSide();
+    else if (act === 'palette') palette.open();
+    else if (act === 'help') help.open();
+  });
+
+  // --------------------------------------------------------------- tree --
+  var tree = document.getElementById('tree');
+  if (tree) {
+    var groups = [].slice.call(tree.querySelectorAll('.tree-group'));
+    var closed = {};
+    try { closed = JSON.parse(store('sr.tree.closed') || '{}') || {}; } catch (e) { closed = {}; }
+    groups.forEach(function (g) {
+      if (closed[g.dataset.group] && !g.querySelector('.is-active')) g.open = false;
+      g.addEventListener('toggle', function () {
+        if (g.dataset.filtering) return;
+        if (g.open) delete closed[g.dataset.group]; else closed[g.dataset.group] = 1;
+        store('sr.tree.closed', JSON.stringify(closed));
+      });
+    });
+    var activeItem = tree.querySelector('.tree-item.is-active');
+    if (activeItem && activeItem.scrollIntoView) activeItem.scrollIntoView({ block: 'center' });
+    var filter = document.getElementById('tree-filter'), noneEl = document.getElementById('tree-none');
+    if (filter) filter.addEventListener('input', function () {
+      var q = filter.value.trim().toLowerCase(), any = false;
+      groups.forEach(function (g) {
+        var hits = 0;
+        [].forEach.call(g.querySelectorAll('.tree-item'), function (it) {
+          var ok = !q || it.dataset.search.indexOf(q) !== -1 || g.dataset.group.toLowerCase().indexOf(q) !== -1;
+          it.hidden = !ok; if (ok) hits++;
+        });
+        g.hidden = hits === 0; any = any || hits > 0;
+        g.dataset.filtering = '1'; if (q) g.open = true; else g.open = !closed[g.dataset.group] || !!g.querySelector('.is-active');
+        delete g.dataset.filtering;
+      });
+      if (noneEl) noneEl.hidden = any || !groups.length;
+    });
+    if (filter) filter.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') { filter.value = ''; filter.dispatchEvent(new Event('input')); filter.blur(); }
+      if (e.key === 'Enter') { var first = tree.querySelector('.tree-item:not([hidden])'); if (first) first.click(); }
+    });
+    var collapse = document.querySelector('[data-tree-collapse]');
+    if (collapse) collapse.addEventListener('click', function () {
+      groups.forEach(function (g) { g.open = false; });
+    });
+  }
+
+  // ------------------------------------------------------------ hotkeys --
+  // Elements declare their own shortcut: data-hotkey="r", "g l" (chord),
+  // "Ctrl+Enter", "Shift+F5", "F10|n" (alternatives). Pressing it clicks the element.
+  function typing(el) {
+    el = el || document.activeElement;
+    if (!el) return false;
+    if (el.isContentEditable || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT') return true;
+    return el.tagName === 'INPUT' && !/^(checkbox|radio|button|submit|reset|range|color|file)$/i.test(el.type);
+  }
+  function keyName(e) {
+    var k = e.key;
+    if (k === ' ') k = 'Space';
+    if (k.length === 1) k = k.toLowerCase();
+    var mods = [];
+    if (e.ctrlKey || e.metaKey) mods.push('Ctrl');
+    if (e.altKey) mods.push('Alt');
+    if (e.shiftKey && (k.length > 1)) mods.push('Shift');   // Shift is implied by "?" etc.
+    return mods.concat([k]).join('+');
+  }
+  function norm(spec) {
+    return spec.split('+').map(function (p, i, a) { return i === a.length - 1 && p.length === 1 ? p.toLowerCase() : p; }).join('+');
+  }
+  function hotkeyTargets() {
+    var list = [];
+    [].forEach.call(document.querySelectorAll('[data-hotkey]'), function (el) {
+      el.getAttribute('data-hotkey').split('|').forEach(function (spec) { list.push({ el: el, spec: norm(spec.trim()) }); });
+    });
+    return list;
+  }
+  function usable(el) { return !el.disabled && !el.classList.contains('btn-disabled') && (visible(el) || el.closest('.activity')); }
+  var pending = null, pendingTimer = null;
+
+  document.addEventListener('keydown', function (e) {
+    if (e.defaultPrevented || e.isComposing) return;
+    var name = keyName(e), inField = typing();
+    if (overlayOpen()) return;                                  // dialogs handle their own keys
+    // Global shortcuts
+    if ((name === 'Ctrl+k') || (name === 'Ctrl+Shift+P') || (e.ctrlKey && e.shiftKey && (e.key === 'P' || e.key === 'p'))) {
+      e.preventDefault(); palette.open(); return;
+    }
+    if (name === 'Ctrl+b') { e.preventDefault(); toggleSide(); return; }
+    var fKey = /^(Shift\+)?F\d+$/.test(name), modded = /^(Ctrl|Alt)\+/.test(name);
+    if (inField && !fKey && !modded && name !== 'Escape') return;
+    if (inField && name === 'Escape') return;
+    if (!inField && !modded && !fKey) {
+      if (e.key === '?') { e.preventDefault(); help.open(); return; }
+      if (e.key === '/') {
+        var s = document.querySelector('[data-page-search]');
+        if (!s || !visible(s)) s = document.getElementById('tree-filter');
+        if (s && narrow.matches && !visible(s)) toggleSide(true);
+        if (s) { e.preventDefault(); s.focus(); s.select && s.select(); }
+        return;
+      }
+    }
+    var targets = hotkeyTargets();
+    var spec = pending ? pending + ' ' + name : name;
+    var exact = targets.filter(function (t) { return t.spec === spec && usable(t.el); });
+    var prefix = !pending && targets.some(function (t) { return t.spec.indexOf(spec + ' ') === 0; });
+    clearTimeout(pendingTimer); pending = null;
+    // F-keys that belong to a (currently disabled) control must not fall through to the browser (F5 = reload).
+    if (!exact.length && fKey && targets.some(function (t) { return t.spec === spec; })) { e.preventDefault(); return; }
+    if (exact.length) {
+      e.preventDefault();
+      exact[0].el.click();
+    } else if (prefix) {
+      e.preventDefault();
+      pending = name; pendingTimer = setTimeout(function () { pending = null; }, 1200);
+    }
+  });
+
+  // ------------------------------------------------------------ overlays --
+  var current = null;
+  function overlayOpen() { return !!current; }
+  function openOverlay(inner, onKey) {
+    closeOverlay();
+    var ov = document.createElement('div');
+    ov.className = 'overlay';
+    ov.appendChild(inner);
+    ov.addEventListener('mousedown', function (e) { if (e.target === ov) closeOverlay(); });
+    ov.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') { e.preventDefault(); closeOverlay(); return; }
+      if (onKey) onKey(e);
+    });
+    document.body.appendChild(ov);
+    current = { el: ov, back: document.activeElement };
+    return ov;
+  }
+  function closeOverlay() {
+    if (!current) return;
+    current.el.remove();
+    try { if (current.back) current.back.focus(); } catch (e) {}
+    current = null;
+  }
+
+  // ---------------------------------------------------- command palette --
+  var urls = {};
+  try { urls = JSON.parse(document.getElementById('wb-urls').textContent); } catch (e) {}
+  function url(kind, id) { return urls[kind] ? urls[kind].replace('XID', encodeURIComponent(id)) : null; }
+  var ICON = function (n) { return '<svg class="i"><use href="#i-' + n + '"/></svg>'; };
+
+  function score(q, text) {
+    // Subsequence fuzzy match. Returns null or {s: score, idx: [positions]}.
+    if (!q) return { s: 0, idx: [] };
+    var t = text.toLowerCase(), qi = 0, s = 0, idx = [], last = -2;
+    for (var i = 0; i < t.length && qi < q.length; i++) {
+      if (t[i] === q[qi]) {
+        idx.push(i);
+        s += 1;
+        if (i === last + 1) s += 3;                                  // consecutive
+        if (i === 0 || /[\s_\-/.]/.test(t[i - 1])) s += 4;           // word start
+        last = i; qi++;
+      }
+    }
+    if (qi < q.length) return null;
+    return { s: s - (t.length * 0.02) - (idx[0] || 0) * 0.1, idx: idx };
+  }
+  function mark(text, idx) {
+    if (!idx || !idx.length) return esc(text);
+    var out = '', set = {};
+    idx.forEach(function (i) { set[i] = 1; });
+    for (var i = 0; i < text.length; i++) out += set[i] ? '<mark>' + esc(text[i]) + '</mark>' : esc(text[i]);
+    return out;
+  }
+
+  function buildItems() {
+    var items = [];
+    var scripts = [];
+    try { scripts = JSON.parse(document.getElementById('wb-palette').textContent) || []; } catch (e) {}
+    scripts.forEach(function (s) {
+      items.push({ group: 'Scripts', text: s.name, hint: s.cat + ' · ' + s.path, icon: '<span class="lang lang-' + esc(s.ext) + '">' + esc(s.ext) + '</span>',
+        href: url('script', s.id), alt: s.run ? url('run', s.id) : null, key: s.name + ' ' + s.path + ' ' + s.cat });
+      if (s.run) items.push({ group: 'Run', text: 'Run ' + s.name, hint: s.path, icon: ICON('play'), href: url('run', s.id), runOnly: true, key: 'run ' + s.name + ' ' + s.path });
+    });
+    [].forEach.call(document.querySelectorAll('.activity a[data-hint]'), function (a) {
+      items.push({ group: 'Go to', text: a.getAttribute('data-hint').replace(/^Go to /, ''), hint: a.getAttribute('data-hotkey'), icon: a.querySelector('svg').outerHTML, href: a.href, key: a.getAttribute('data-hint') });
+    });
+    var seen = {};
+    [].forEach.call(document.querySelectorAll('main [data-hotkey][data-hint]'), function (el) {
+      var hint = el.getAttribute('data-hint');
+      if (seen[hint] || !usable(el)) return;
+      seen[hint] = 1;
+      items.push({ group: 'This page', text: hint, hint: el.getAttribute('data-hotkey').split('|')[0], icon: ICON('zap'), el: el, key: hint });
+    });
+    items.push({ group: 'Commands', text: 'Toggle light / dark theme', icon: ICON('sun'), run: toggleTheme, key: 'theme dark light toggle' });
+    items.push({ group: 'Commands', text: 'Toggle side panel', hint: 'Ctrl+B', icon: ICON('panel'), run: function () { toggleSide(); }, key: 'side panel sidebar explorer toggle' });
+    items.push({ group: 'Commands', text: 'Keyboard shortcuts', hint: '?', icon: ICON('keyboard'), run: function () { setTimeout(help.open, 0); }, key: 'keyboard shortcuts help keys' });
+    var refresh = document.querySelector('form[action$="/scripts/refresh/"]');
+    if (refresh) items.push({ group: 'Commands', text: 'Rescan script directories', icon: ICON('refresh'), run: function () { refresh.submit(); }, key: 'rescan refresh library scan' });
+    return items;
+  }
+
+  var palette = {
+    open: function () {
+      var items = buildItems(), sel = 0, shown = [];
+      var box = document.createElement('div');
+      box.className = 'palette'; box.setAttribute('role', 'dialog'); box.setAttribute('aria-label', 'Command palette');
+      box.innerHTML = '<div class="pal-input">' + ICON('search') + '<input type="text" placeholder="Search scripts, pages and commands…  (type “run ” to run, or a RUN-id)" aria-label="Search" autocomplete="off" spellcheck="false"><kbd>Esc</kbd></div>' +
+        '<ul class="pal-list" role="listbox"></ul>' +
+        '<div class="pal-foot"><span><kbd>↑</kbd><kbd>↓</kbd> move</span><span><kbd>↵</kbd> open</span><span><kbd>Ctrl</kbd><kbd>↵</kbd> run script</span></div>';
+      var input = box.querySelector('input'), list = box.querySelector('.pal-list');
+
+      function render() {
+        var raw = input.value.trim(), q = raw.toLowerCase(), runMode = /^run\s/.test(q);
+        var qq = runMode ? q.replace(/^run\s+/, '') : q;
+        shown = [];
+        var m = /^run-\d{8}-\d{3,}$/i.exec(raw);
+        if (m && urls.execution) shown.push({ item: { group: 'Execution', text: 'Open ' + raw.toUpperCase(), icon: ICON('terminal'), href: url('execution', raw.toUpperCase()) }, idx: [] });
+        items.forEach(function (it) {
+          if (!!it.runOnly !== runMode) return;            // "run …" lists run actions only
+          var hit = score(qq, it.key.toLowerCase());
+          if (!hit) return;
+          var onText = score(qq, it.text);                 // highlight when the visible text matches
+          shown.push({ item: it, idx: onText ? onText.idx : [], s: onText ? onText.s + 5 : hit.s });
+        });
+        if (q) shown.sort(function (a, b) { return (b.s || 0) - (a.s || 0); });
+        shown = shown.slice(0, 60);
+        sel = Math.min(sel, Math.max(0, shown.length - 1));
+        var html = '', lastGroup = null;
+        shown.forEach(function (row, i) {
+          var it = row.item;
+          if (!q && it.group !== lastGroup) { html += '<li class="pal-group">' + esc(it.group) + '</li>'; lastGroup = it.group; }
+          html += '<li class="pal-item' + (i === sel ? ' is-sel' : '') + '" data-i="' + i + '" role="option">' +
+            '<span class="pal-ic">' + (it.icon || '') + '</span><span class="pal-text">' + mark(it.text, row.idx) + '</span>' +
+            (it.hint ? '<span class="pal-hint">' + esc(it.hint) + '</span>' : '') + '</li>';
+        });
+        list.innerHTML = html || '<li class="pal-empty">No matches</li>';
+        var cur = list.querySelector('.is-sel');
+        if (cur) cur.scrollIntoView({ block: 'nearest' });
+      }
+      function choose(i, alt) {
+        var row = shown[i];
+        if (!row) return;
+        var it = row.item;
+        closeOverlay();
+        if (alt && it.alt) location.href = it.alt;
+        else if (it.href) location.href = it.href;
+        else if (it.el) it.el.click();
+        else if (it.run) it.run();
+      }
+      openOverlay(box, function (e) {
+        if (e.key === 'ArrowDown') { e.preventDefault(); sel = Math.min(sel + 1, shown.length - 1); render(); }
+        else if (e.key === 'ArrowUp') { e.preventDefault(); sel = Math.max(sel - 1, 0); render(); }
+        else if (e.key === 'Enter') { e.preventDefault(); choose(sel, e.ctrlKey || e.metaKey); }
+      });
+      input.addEventListener('input', function () { sel = 0; render(); });
+      list.addEventListener('mousemove', function (e) {
+        var li = e.target.closest('.pal-item');
+        if (li && +li.dataset.i !== sel) { sel = +li.dataset.i; [].forEach.call(list.querySelectorAll('.pal-item'), function (x) { x.classList.toggle('is-sel', +x.dataset.i === sel); }); }
+      });
+      list.addEventListener('click', function (e) { var li = e.target.closest('.pal-item'); if (li) choose(+li.dataset.i, e.ctrlKey || e.metaKey); });
+      render();
+      input.focus();
+    }
+  };
+
+  // ------------------------------------------------------- shortcut sheet --
+  var help = {
+    open: function () {
+      var rows = [
+        ['Global', [['Command palette', 'Ctrl K'], ['Toggle side panel', 'Ctrl B'], ['Focus search / explorer filter', '/'], ['This sheet', '?']]],
+        ['Go to', [['Overview', 'g o'], ['Script Library', 'g l'], ['Ad-hoc script', 'g a'], ['Jobs', 'g j'], ['History', 'g h'], ['Settings', 'g s']]],
+        ['Script', [['Overview', 'i'], ['Script: run, view, edit', 'r  or  s'], ['Configure', 'c'], ['Save the script / configuration', 'Ctrl S']]],
+        ['Run & debug', [['Review / launch', 'Ctrl ↵'], ['Back from review', 'Esc'], ['Continue', 'F5'], ['Step to next line', 'F10  or  n'], ['Pause', 'F6'], ['Stop the run', 'Shift F5']]]
+      ];
+      var seen = {}, page = [];
+      [].forEach.call(document.querySelectorAll('main [data-hotkey][data-hint]'), function (el) {
+        var h = el.getAttribute('data-hint');
+        if (seen[h] || !usable(el)) return; seen[h] = 1;
+        page.push([h, el.getAttribute('data-hotkey').replace(/\|/g, '  or  ').replace(/\+/g, ' ')]);
+      });
+      if (page.length) rows.unshift(['On this page', page]);
+      function keys(spec) {
+        return spec.split('  or  ').map(function (alt) {
+          return alt.split(' ').filter(Boolean).map(function (k) { return '<kbd>' + esc(k) + '</kbd>'; }).join(' ');
+        }).join(' <span class="faint">or</span> ');
+      }
+      var html = '<div class="dialog-head"><h2>Keyboard shortcuts</h2><button type="button" class="btn btn-ghost btn-icon btn-sm" data-close aria-label="Close">' + ICON('x') + '</button></div><div class="dialog-body"><table class="keys">';
+      rows.forEach(function (g) {
+        html += '<tr class="k-group"><td colspan="2">' + esc(g[0]) + '</td></tr>';
+        g[1].forEach(function (r) { html += '<tr><td>' + esc(r[0]) + '</td><td>' + keys(r[1]) + '</td></tr>'; });
+      });
+      html += '</table></div>';
+      var box = document.createElement('div');
+      box.className = 'dialog'; box.setAttribute('role', 'dialog'); box.setAttribute('aria-label', 'Keyboard shortcuts'); box.tabIndex = -1;
+      box.innerHTML = html;
+      openOverlay(box);
+      box.querySelector('[data-close]').addEventListener('click', closeOverlay);
+      box.focus();
+    }
+  };
+
+  // ------------------------------------------------------- desktop mode --
+  // Only when started by the desktop launcher (body[data-desktop]).
+  if (document.body.dataset.desktop === '1') {
+    var ping = function () { fetch('/desktop/ping/', { method: 'POST', keepalive: true }).catch(function () {}); };
+    ping();
+    setInterval(ping, 15000);
+    document.addEventListener('visibilitychange', function () { if (!document.hidden) ping(); });
+    window.addEventListener('pagehide', function () { if (navigator.sendBeacon) navigator.sendBeacon('/desktop/bye/'); });
+
+    var csrf = function () {
+      var m = /(?:^|;\s*)csrftoken=([^;]+)/.exec(document.cookie);
+      if (m) return decodeURIComponent(m[1]);
+      var i = document.querySelector('input[name=csrfmiddlewaretoken]');
+      return i ? i.value : '';
+    };
+    var post = function (url, data) {
+      var body = new FormData();
+      Object.keys(data).forEach(function (k) { body.append(k, data[k]); });
+      return fetch(url, { method: 'POST', body: body, headers: { 'X-CSRFToken': csrf() } })
+        .then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { if (!r.ok) throw j; return j; }); });
+    };
+    document.addEventListener('click', function (e) {
+      var pick = e.target.closest('[data-pick-folder]');
+      if (pick) {
+        e.preventDefault();
+        var input = document.querySelector(pick.getAttribute('data-pick-folder'));
+        pick.disabled = true;
+        post('/desktop/pick-folder/', { initial: input ? input.value : '', title: pick.getAttribute('data-title') || '' })
+          .then(function (j) { if (j.path && input) { input.value = j.path; input.dispatchEvent(new Event('input', { bubbles: true })); input.focus(); } })
+          .catch(function (j) { window.alert((j && j.error) || 'The folder dialog is not available.'); })
+          .then(function () { pick.disabled = false; });
+        return;
+      }
+      var reveal = e.target.closest('[data-reveal-script], [data-reveal-run]');
+      if (reveal) {
+        e.preventDefault();
+        post('/desktop/reveal/', reveal.hasAttribute('data-reveal-run') ? { run: reveal.getAttribute('data-reveal-run') }
+          : { script: reveal.getAttribute('data-reveal-script') })
+          .catch(function (j) { window.alert((j && j.error) || 'Could not open the folder.'); });
+      }
+    });
+  }
+
+  sr.palette = palette;
+  sr.help = help;
+  sr.closeOverlay = closeOverlay;
 })();

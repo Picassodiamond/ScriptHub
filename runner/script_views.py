@@ -7,7 +7,7 @@ from django.http import Http404
 from django.shortcuts import redirect, render
 from django.views.decorators.http import require_POST
 
-from . import discovery, history, metadata, ssh_hosts
+from . import discovery, history, metadata, presets, ssh_hosts
 from . import parameter_service as ps
 from .security import is_within
 from .validators import ValidationError
@@ -46,7 +46,10 @@ def script_detail(request, script_id):
         rows.append({"p": p, "default": d, "passed": passed})
     from .execution_views import _decorate
     runs = [_decorate(m) for m in history.list_runs(limit=8, script_id=script.id)]
-    return render(request, "runner/script_detail.html", {"script": script, "rows": rows, "runs": runs})
+    return render(request, "runner/script_detail.html", {"script": script, "rows": rows, "runs": runs,
+                                                         "presets": presets.list_presets(script),
+                                                         "recent": presets.recent_runs(script)[:5],
+                                                         **source_context(script)})
 
 
 # -------------------------------------------------------------- configure ---
@@ -119,6 +122,7 @@ def _configure_response(request, script, *, form, params, raw_text, errors=None,
             "default_platform_labels": ", ".join(
                 discovery.PLATFORM_LABELS[p] for p in discovery.default_platforms(script.extension)),
             "hosts": ssh_hosts.allowed_hosts([form.get("host", "")]),
+            **source_context(script),
         },
         status=status,
     )
@@ -261,6 +265,19 @@ def _read_text_limited(path):
     if b"\x00" in blob:
         return "", False, "This file looks binary and cannot be displayed."
     return blob.decode("utf-8-sig", errors="replace"), truncated, None
+
+
+def source_context(script):
+    """Source lines for the designer-style pages (Run, Configure): script in the body."""
+    if not is_within(script.path, script.root):
+        return {"src_lines": [], "src_error": "Script is outside its configured directory.", "src_lang": ""}
+    text, truncated, error = _read_text_limited(script.path)
+    meta_text = ""
+    if script.meta_source is not None:
+        meta_text, _t, _e = _read_text_limited(script.meta_source)
+    return {"src_lines": text.splitlines() if not error else [], "src_error": error,
+            "src_truncated": truncated, "src_lang": LANGUAGES.get(script.extension, ""),
+            "meta_lines": meta_text.splitlines()}
 
 
 def script_source(request, script_id):

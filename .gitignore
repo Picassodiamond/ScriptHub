@@ -20,3 +20,15 @@ runtime/*/*
 .idea/
 .DS_Store
 Thumbs.db
+
+# Personal notes and downloads (never published)
+IdeasForFuture.tx
+scripts/python_packages/wheelhouse/
+scripts/python_packages/*.zip
+
+# Saved parameters of the bundled example scripts (your own values; see SECURITY.md)
+scripts/**/*.params.json
+scripts/**/*.params.json.bak
+
+# Release builds
+dist/

@@ -1,4 +1,5 @@
-<div class="field{% if f.error %} has-error{% endif %}{% if f.input == 'checkbox' %} field-check{% endif %}">
+<div class="field{% if f.error %} has-error{% endif %}{% if f.input == 'checkbox' %} field-check{% endif %}"
+     data-terms="{{ f.p.name }}{% if f.p.arg %} {{ f.p.arg }}{% endif %}{% if f.p.env_name %} {{ f.p.env_name }}{% endif %}">
   {% if f.input == 'checkbox' %}
     <label class="check">
       <input type="checkbox" name="{{ f.input_name }}" id="id_{{ f.name }}" {% if f.value %}checked{% endif %} {% if f.locked %}disabled{% endif %}>
