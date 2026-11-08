@@ -1,5 +1,5 @@
-"""New script: create a file (from a short starter) in the open script folder, with a
-metadata sidecar, then open it on its Run tab where the editor is."""
+"""New script: create a file (from a short starter, with its metadata block at the top) in
+the open script folder, then open it on its Run tab where the editor is."""
 import re
 from pathlib import Path
 
@@ -43,6 +43,7 @@ def _render(request, cfg, form, errors=None, status=200):
     return render(request, "runner/new_script.html", {
         "form": form, "errors": errors or [], "languages": languages(cfg),
         "folder": workspace.current(), "sub_folders": folders, "categories": categories,
+        "max_depth": discovery.MAX_DEPTH,
     }, status=status)
 
 
@@ -62,12 +63,15 @@ def create(root: Path, ext: str, filename: str, subfolder: str, name: str = "", 
         raise ValueError("Give the sub-folder relative to the script folder (no leading slash or drive).")
     if any(not FOLDER_RE.match(p) or p in (".", "..") for p in parts):
         raise ValueError("The sub-folder may only contain letters, digits, spaces, dots, hyphens and underscores.")
+    if len(parts) > discovery.MAX_DEPTH:
+        raise ValueError(f"The sub-folder may be at most {discovery.MAX_DEPTH} levels deep "
+                         "(deeper folders are not scanned for scripts).")
     root = root.resolve()
     folder = root.joinpath(*parts) if parts else root
     target = folder / f"{filename}{ext}"
     if not root.is_dir() or not is_within(folder, root):
         raise ValueError("That location is outside the script folder.")
-    if target.exists() or metadata.sidecar_path(target).exists():
+    if target.exists():
         raise ValueError(f"{target.name} already exists there; pick another name. Existing files are never overwritten.")
     try:
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -111,7 +115,7 @@ def script_new(request):
         target = create(root, form["language"], form["filename"], form["subfolder"], form["name"], form["category"])
     except ValueError as exc:
         return _render(request, cfg, form, [str(exc)], status=400)
-    discovery.scan(force=True)
+    discovery.update_file(target)
     sid = discovery.script_id(target.resolve())
     messages.success(request, f"Created {target.name}. Write it here (Ctrl+S saves); add parameters in Configure.")
     return redirect("script_run", script_id=sid)

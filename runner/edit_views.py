@@ -56,7 +56,7 @@ def editor_context(script) -> dict:
 
 def _back_to_script(script):
     """After saving or restoring: the merged Script page when the script can run, else the editor."""
-    if script.enabled and script.meta_valid:
+    if script.meta_valid:
         return redirect("script_run", script_id=script.id)
     return redirect("script_edit", script_id=script.id)
 
@@ -89,7 +89,7 @@ def script_edit(request, script_id):
         ctx["base_hash"] = base_hash
         return render(request, "runner/edit.html", ctx, status=400)
 
-    discovery.scan(force=True)
+    discovery.update_file(script.path)
     if result["changed"]:
         messages.success(request, f"Saved {script.path.name}. The previous version is kept as {script.path.name}.bak.")
     else:
@@ -110,6 +110,6 @@ def script_restore(request, script_id):
     except EditError as exc:
         messages.error(request, str(exc))
     else:
-        discovery.scan(force=True)
+        discovery.update_file(script.path)
         messages.success(request, "Restored the previous version. The version you replaced is now the backup, so you can switch back.")
     return _back_to_script(script)

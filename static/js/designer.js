@@ -30,6 +30,12 @@
       try { sessionStorage.setItem(TAB_KEY, t.dataset.docTab); } catch (e) { /* storage unavailable */ }
     });
   });
+  // Buttons elsewhere on the page that open a centre tab (e.g. "Compare" -> saved parameters grid).
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest ? e.target.closest('[data-doc-open]') : null;
+    var t = b && tabs.filter(function (x) { return x.dataset.docTab === b.dataset.docOpen; })[0];
+    if (t) t.click();
+  });
   var docEl = document.querySelector('.doc[data-doc-default]');
   if (docEl && !docEl.getAttribute('data-doc-default')) {
     var saved = null;
@@ -37,26 +43,70 @@
     var pick = tabs.filter(function (t) { return t.dataset.docTab === saved; })[0];
     if (pick) activate(pick, false);
   }
-  // Saved parameters: grid / raw file switch.
-  var pviews = [].slice.call(document.querySelectorAll('[data-pview]'));
-  pviews.forEach(function (b) {
-    b.addEventListener('click', function () {
-      pviews.forEach(function (x) { x.classList.toggle('is-active', x === b); });
-      [].forEach.call(document.querySelectorAll('[data-pview-panel]'), function (p) { p.hidden = p.dataset.pviewPanel !== b.dataset.pview; });
-    });
+
+  // ---------------------------------------------------------- run tabs --
+  // A run started from the script page opens as a centre tab next to the files: the whole
+  // console (output, error, status, Stop, debugger) in a frame. The open run tabs of a
+  // script are remembered for this browser tab; × closes the tab, the run keeps going.
+  var docSection = docEl || document.querySelector('.doc[data-script]');
+  var docBar = docSection ? docSection.querySelector('.doc-bar') : null;
+  var scriptId = docSection ? docSection.getAttribute('data-script') : '';
+  var RUNS_KEY = 'scripthub.runTabs.' + scriptId;
+  var consoleUrl = '/executions/XID/';
+  try { consoleUrl = JSON.parse(document.getElementById('wb-urls').textContent).execution || consoleUrl; } catch (e) { /* default */ }
+  function openRuns() { try { return JSON.parse(sessionStorage.getItem(RUNS_KEY)) || []; } catch (e) { return []; } }
+  function keepRuns(list) { try { sessionStorage.setItem(RUNS_KEY, JSON.stringify(list.slice(-8))); } catch (e) { /* storage unavailable */ } }
+  function runTab(id) { return tabs.filter(function (t) { return t.dataset.run === id; })[0]; }
+  function addRunTab(id, focus) {
+    if (!docBar || !/^RUN-\d{8}-\d{3,}$/.test(id)) return;
+    var tab = runTab(id);
+    if (!tab) {
+      tab = document.createElement('button');
+      tab.type = 'button'; tab.className = 'doc-tab doc-run-tab'; tab.setAttribute('role', 'tab');
+      tab.dataset.run = id; tab.dataset.docTab = 'run-panel-' + id; tab.title = id + ' (output, status, Stop)';
+      tab.innerHTML = '<span class="dot st-queued"></span><span>' + id.replace(/^RUN-\d{8}-/, 'run ') + '</span>' +
+        '<span class="tab-x" role="button" title="Close the tab (the run keeps going)" aria-label="Close">×</span>';
+      var after = [].slice.call(docBar.querySelectorAll('.doc-tab')).pop();
+      after.parentNode.insertBefore(tab, after.nextSibling);
+      var panel = document.createElement('div');
+      panel.className = 'doc-panel doc-run-panel'; panel.id = tab.dataset.docTab; panel.hidden = true;
+      var frame = document.createElement('iframe');
+      frame.title = id; frame.src = consoleUrl.replace('XID', encodeURIComponent(id)) + '?embed=1';
+      panel.appendChild(frame);
+      docSection.appendChild(panel);
+      tabs.push(tab);
+      tab.addEventListener('click', function (e) {
+        if (e.target.closest('.tab-x')) { closeRunTab(id); return; }
+        activate(tab, false);
+      });
+    }
+    if (focus) activate(tab, false);
+  }
+  function closeRunTab(id) {
+    var tab = runTab(id);
+    if (!tab) return;
+    var wasActive = tab.classList.contains('is-active');
+    tabs.splice(tabs.indexOf(tab), 1);
+    var panel = $(tab.dataset.docTab);
+    if (panel) panel.remove();
+    tab.remove();
+    keepRuns(openRuns().filter(function (x) { return x !== id; }));
+    if (wasActive && tabs.length) activate(tabs[0], false);
+  }
+  openRuns().forEach(function (id) { addRunTab(id, false); });
+  var justStarted = new URLSearchParams(location.search).get('open');
+  if (justStarted) {
+    keepRuns(openRuns().filter(function (x) { return x !== justStarted; }).concat([justStarted]));
+    addRunTab(justStarted, true);
+    var clean = new URLSearchParams(location.search); clean.delete('open');
+    history.replaceState(null, '', location.pathname + (clean.toString() ? '?' + clean : ''));
+  }
+  window.addEventListener('message', function (e) {      // the console in a run tab reports its status
+    if (e.origin !== location.origin || !e.data || e.data.sr !== 'run-status') return;
+    var tab = runTab(e.data.run), dot = tab && tab.querySelector('.dot');
+    if (dot) { dot.className = 'dot st-' + e.data.status; tab.title = e.data.run + ' · ' + e.data.label; }
   });
-  // Ctrl+S inside the raw JSON editor (Configure) saves that document, not the side form.
-  [].forEach.call(document.querySelectorAll('.raw-doc'), function (ta) {
-    ta.addEventListener('keydown', function (e) {
-      if ((e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'S')) {
-        e.preventDefault();
-        if (ta.form.requestSubmit) ta.form.requestSubmit(); else ta.form.submit();
-      } else if (e.key === 'Tab' && !e.shiftKey) {
-        e.preventDefault();
-        ta.setRangeText('  ', ta.selectionStart, ta.selectionEnd, 'end');
-      }
-    });
-  });
+
 
   // ------------------------------------------------------------ source --
   var src = $('doc-src'), edRoot = $('script-editor'), edTa = edRoot ? edRoot.querySelector('.ed-input') : null;
@@ -114,10 +164,67 @@
     if (r && !r.contains(e.relatedTarget)) show(sticky && document.contains(sticky) ? sticky : null, false);
   });
 
-  // ----------------------------------------------- save in place (Script) --
-  var editForm = $('edit-form'), runForm = $('run-form');
-  if (!editForm || !edRoot) return;
+  // ----------------------------------------------------------- one Save --
+  // A script page has ONE Save (centre tab bar, Ctrl+S anywhere). It saves everything
+  // changed on the page: the script (in place), then the Overview / Parameters forms.
+  // The metadata is the comment block at the top of the script, so editing that block
+  // AND a form at once is refused (the same settings). After a metadata change the page
+  // reloads so every panel shows it. Errors open the server's explanation.
+  var editForm = $('edit-form'), runForm = $('run-form'), saveBtn = document.querySelector('[data-save-all]');
+  var metaForms = ['configure-form', 'params-form'].map($).filter(Boolean);
   var saving = null;
+
+  function snap(f) {
+    if (f.srSerialize) f.srSerialize();                    // parameter editor -> hidden JSON field
+    return new URLSearchParams(new FormData(f)).toString();
+  }
+  var snaps = metaForms.map(snap);
+  function scriptDirty() { return !!(editForm && edRoot && window.srEditor.isDirty(edRoot)); }
+  // The metadata block in the script text ("# --- scripthub ---" … "# --- end scripthub ---").
+  var MARK = /^\s*(?:#|::|rem\b)\s*--- (end )?scripthub ---\s*$/i;
+  function blockOf(text) {
+    var lines = String(text).split(/\r?\n/), start = -1;
+    for (var i = 0; i < lines.length; i++) {
+      var m = MARK.exec(lines[i]);
+      if (!m) continue;
+      if (!m[1] && start < 0) start = i;
+      else if (m[1] && start >= 0) return lines.slice(start, i + 1).join('\n');
+    }
+    return '';
+  }
+  var savedBlock = edTa ? blockOf(edTa.value) : '';
+  function blockChanged() { return !!edTa && blockOf(edTa.value) !== savedBlock; }
+  function dirtyForms() { return metaForms.filter(function (f, i) { return snap(f) !== snaps[i]; }); }
+  function changes() {
+    var what = [];
+    if (scriptDirty()) what.push(blockChanged() ? 'script (with its metadata)' : 'script');
+    dirtyForms().forEach(function (f) { what.push(f.id === 'params-form' ? 'parameters' : 'settings'); });
+    return what;
+  }
+  function updateDirty() {
+    if (!saveBtn) return;
+    var what = changes();
+    saveBtn.classList.toggle('is-dirty', what.length > 0);
+    saveBtn.title = what.length ? 'Save ' + what.join(', ') + '  (Ctrl+S)' : 'Nothing to save  (Ctrl+S)';
+  }
+  ['input', 'change'].forEach(function (ev) { document.addEventListener(ev, function () { setTimeout(updateDirty, 0); }); });
+  document.addEventListener('click', function (e) {          // parameter editor: add, move, delete
+    if (e.target.closest && e.target.closest('#param-list, #add-param')) setTimeout(updateDirty, 0);
+  });
+  window.addEventListener('beforeunload', function (e) {   // the script editor warns about itself
+    if (!saving && dirtyForms().length) { e.preventDefault(); e.returnValue = ''; }
+  });
+
+  function flash(text, kind) {
+    var body = $('main-body'), box = body.querySelector(':scope > .flashes');
+    if (!box) { box = document.createElement('div'); box.className = 'flashes notes'; body.insertBefore(box, body.firstChild); }
+    var el = document.createElement('div');
+    el.className = 'flash flash-' + (kind || 'success'); el.setAttribute('role', 'alert');
+    el.appendChild(document.createElement('span')).textContent = text;
+    box.textContent = ''; box.appendChild(el);
+    setTimeout(function () { el.classList.add('flash-out'); setTimeout(function () { el.remove(); }, 350); }, 3000);
+  }
+  try { if (sessionStorage.getItem('sr.saved')) { sessionStorage.removeItem('sr.saved'); flash('Saved.'); } } catch (e) { /* storage unavailable */ }
 
   function addFlashes(doc) {
     var body = $('main-body'), box = body.querySelector(':scope > .flashes');
@@ -129,46 +236,83 @@
       if (el.hasAttribute('data-autohide')) setTimeout(function () { el.classList.add('flash-out'); setTimeout(function () { el.remove(); }, 350); }, 4000);
     });
   }
-  function nativeSubmit() {                 // shows the server's explanation (conflict, unreadable file …)
-    editForm.dataset.native = '1';
-    if (editForm.requestSubmit) editForm.requestSubmit(); else editForm.submit();
+  function nativeSubmit(f) {                // shows the server's explanation (conflict, invalid data …)
+    f.dataset.native = '1';
+    saving = 'leaving';
+    HTMLFormElement.prototype.submit.call(f);
   }
-  function save() {
-    if (saving) return saving;
+  function saveScript() {
     var fd = new FormData(editForm);
     fd.set('action', 'save');
-    var btn = document.querySelector('[data-save][form="edit-form"]');
-    if (btn) btn.disabled = true;
-    saving = fetch(editForm.action, { method: 'POST', body: fd, credentials: 'same-origin' })
+    return fetch(editForm.action, { method: 'POST', body: fd, credentials: 'same-origin' })
       .then(function (r) { return r.text().then(function (html) { return { ok: r.ok && r.redirected, html: html }; }); })
       .then(function (res) {
         var doc = new DOMParser().parseFromString(res.html, 'text/html');
         var hash = doc.querySelector('#edit-form [name="base_hash"]');
-        if (!res.ok || !hash) { nativeSubmit(); return false; }
+        if (!res.ok || !hash) { nativeSubmit(editForm); return false; }
         editForm.querySelector('[name="base_hash"]').value = hash.value;
         var theirs = doc.getElementById('restore-form'), mine = $('restore-form');
         if (theirs && mine) mine.hidden = theirs.hidden;
         window.srEditor.markSaved(edRoot);
+        savedBlock = blockOf(edTa.value);
         addFlashes(doc);
         return true;
       })
-      .catch(function () { nativeSubmit(); return false; })
-      .then(function (ok) { saving = null; if (btn) btn.disabled = false; return ok; });
+      .catch(function () { nativeSubmit(editForm); return false; });
+  }
+  function saveForm(f) {                    // a metadata form, in the background
+    if (f.srSerialize) f.srSerialize();
+    return fetch(f.action, { method: 'POST', body: new FormData(f), credentials: 'same-origin' })
+      .then(function (r) { if (r.ok && r.redirected) return true; nativeSubmit(f); return false; })
+      .catch(function () { nativeSubmit(f); return false; });
+  }
+  function saveAll() {
+    if (saving) return saving;
+    var meta = dirtyForms(), script = scriptDirty(), block = blockChanged();
+    if (block && meta.length) {
+      window.alert('The metadata block at the top of the script and the ' +
+        meta.map(function (f) { return f.id === 'params-form' ? 'Parameters' : 'Overview'; }).join(' / ') +
+        ' form were both changed. They are the same settings: undo one of them, then save.');
+      return Promise.resolve(false);
+    }
+    if (!script && !meta.length) { flash('Nothing to save.', 'info'); return Promise.resolve(true); }
+    if (saveBtn) saveBtn.disabled = true;
+    var chain = Promise.resolve(true);
+    if (script) chain = chain.then(function (ok) { return ok && saveScript(); });
+    meta.forEach(function (f) { chain = chain.then(function (ok) { return ok && saveForm(f); }); });
+    saving = chain.then(function (ok) {
+      if (ok && (meta.length || block)) {     // metadata changed: reload so every panel shows it
+        saving = 'leaving';
+        try { sessionStorage.setItem('sr.saved', '1'); } catch (e) { /* storage unavailable */ }
+        location.replace(location.pathname + location.search);
+        return ok;
+      }
+      if (saving !== 'leaving') saving = null;
+      if (saveBtn) saveBtn.disabled = false;
+      updateDirty();
+      return ok;
+    });
     return saving;
   }
-  editForm.addEventListener('submit', function (e) {
-    if (editForm.dataset.native) return;
-    e.preventDefault();
-    save();
+  if (saveBtn) saveBtn.addEventListener('click', function (e) { e.preventDefault(); saveAll(); });
+  // Forms that would post on Enter save through the same path.
+  metaForms.concat(editForm ? [editForm] : []).forEach(function (f) {
+    f.addEventListener('submit', function (e) {
+      if (f.dataset.native) return;
+      e.preventDefault();
+      saveAll();
+    });
   });
-  if (runForm) runForm.addEventListener('submit', function (e) {
+  // Run with unsaved script edits: save the script first.
+  if (runForm && editForm && edRoot) runForm.addEventListener('submit', function (e) {
     if (!window.srEditor.isDirty(edRoot)) return;
     e.preventDefault();
     var submitter = e.submitter;
-    save().then(function (ok) {
+    saveScript().then(function (ok) {
       if (!ok) return;
       if (runForm.requestSubmit) runForm.requestSubmit(submitter && submitter.form === runForm ? submitter : undefined);
       else runForm.submit();
     });
   });
+  updateDirty();
 })();

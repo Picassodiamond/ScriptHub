@@ -5,11 +5,12 @@ random port and sets SCRIPTHUB_DESKTOP_TOKEN. Then:
 
 * every request must carry the token (a cookie set from the launch URL), so
   other local users, other browser tabs and web pages cannot use the app;
-* two desktop-only endpoints exist: a native folder picker (tkinter, part of
-  Python) and "Show in folder" (Explorer). They answer 404 in server mode, and
-  "Show in folder" only takes a script id or run id, never a path.
+* "Show in folder" (Explorer) is desktop-only (404 in server mode) and only takes
+  a script id or run id, never a path.
 
-Nothing here is active when the app runs as a normal web server.
+The native folder picker (tkinter, part of Python) opens on the machine running
+ScriptHub: it is available in desktop mode and, in server mode, to requests from
+that same machine (loopback). Nothing else here is active in server mode.
 """
 import hmac
 import os
@@ -69,6 +70,15 @@ def _require_desktop():
         raise Http404("Only available in desktop mode")
 
 
+LOOPBACK = {"127.0.0.1", "::1", "::ffff:127.0.0.1"}
+
+
+def can_pick_folder(request) -> bool:
+    """The native folder dialog opens on the machine running ScriptHub, so it is offered
+    in desktop mode and to a browser on that same machine, never to remote clients."""
+    return enabled() or request.META.get("REMOTE_ADDR", "") in LOOPBACK
+
+
 # ------------------------------------------------------------- folder picker --
 def ask_directory(initial: str = "", title: str = "Choose a folder") -> str:
     """Native folder dialog (tkinter). Returns '' when cancelled or unavailable."""
@@ -87,7 +97,8 @@ def ask_directory(initial: str = "", title: str = "Choose a folder") -> str:
 
 @require_POST
 def pick_folder(request):
-    _require_desktop()
+    if not can_pick_folder(request):
+        raise Http404("Only available on the machine running ScriptHub")
     try:
         path = ask_directory(request.POST.get("initial", ""), request.POST.get("title", "") or "Choose a folder")
     except Exception as exc:                 # no tkinter, no display, ...

@@ -1,14 +1,5 @@
 {% extends "base.html" %}
 {% block title %}Open folder{% endblock %}
-{% block crumbs %}<span>Workbench</span>{% endblock %}
-{% block heading %}<span class="t">Open folder</span>{% endblock %}
-{% block actions %}
-{% if ws.folder %}
-<form method="post" action="{% url 'folder_close' %}">{% csrf_token %}
-  <button class="btn btn-ghost btn-sm" type="submit" title="Close {{ ws.folder.path }}"><svg class="i"><use href="#i-x"/></svg> Close folder</button>
-</form>
-{% endif %}
-{% endblock %}
 {% block content %}
 <div class="page page-narrow">
 
@@ -17,7 +8,7 @@
   <div class="panel-body">
     <form method="post" action="{% url 'folder_open' %}" class="inline-form" id="open-form">{% csrf_token %}
       <input class="input mono" type="text" name="path" id="folder-path" value="{{ browser.path }}" placeholder="C:\scripts   or   /home/me/scripts" required aria-label="Folder path">
-      {% if desktop %}<button type="button" class="btn" data-pick-folder="#folder-path" data-pick-submit data-title="Open a script folder"><svg class="i"><use href="#i-folder"/></svg> Browse…</button>{% endif %}
+      {% if folder_picker %}<button type="button" class="btn" data-pick-folder="#folder-path" data-pick-submit data-title="Open a script folder"><svg class="i"><use href="#i-folder"/></svg> Browse…</button>{% endif %}
       <button class="btn btn-primary" type="submit">Open</button>
     </form>
     <p class="help" style="margin:8px 0 0">The folder is scanned recursively for scripts; nothing runs during the scan. It is reopened the next time ScriptHub starts.</p>

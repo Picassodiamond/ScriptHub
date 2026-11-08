@@ -1,3 +1,17 @@
+# --- scripthub ---
+# {
+#   "name": "Pip: Offline Install",
+#   "description": "Install a requirements file from a local wheelhouse with no internet. Verifies checksums, can create the virtual environment, and runs pip check afterwards.",
+#   "category": "Python packages",
+#   "parameters": [
+#     {"name": "wheelhouse", "label": "Wheelhouse folder", "type": "directory", "required": true, "placeholder": "/srv/wheelhouse", "help": "The folder made by 'Pip: Download Wheelhouse' (unzipped)."},
+#     {"name": "requirements", "label": "Requirements file", "type": "file", "required": true, "placeholder": "/srv/app/requirements.txt"},
+#     {"name": "venv", "label": "Virtual environment", "type": "directory", "placeholder": "/srv/app/venv", "help": "Created if it does not exist. Leave empty to install into the Python that runs this script."},
+#     {"name": "dry_run", "label": "Dry run (check only)", "type": "boolean", "default": false, "help": "Checks that everything is available without installing it."},
+#     {"name": "skip_verify", "label": "Skip checksum verification", "type": "boolean", "default": false}
+#   ]
+# }
+# --- end scripthub ---
 """Install packages from a local wheelhouse folder - with NO internet access.
 
 Pairs with "Pip: Download Wheelhouse". Before installing it verifies the

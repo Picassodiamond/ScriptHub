@@ -24,7 +24,7 @@ MIT licensed — see [Licence and contributing](#licence-and-contributing).
 3. [Configuration](#configuration)
 4. [Script folder](#script-folder)
 5. [Writing scripts](#writing-scripts)
-6. [Metadata JSON reference](#metadata-json-reference)
+6. [Metadata reference](#metadata-reference)
 7. [Defining parameters](#defining-parameters)
 8. [Running a script, hosts and presets](#running-a-script-hosts-and-presets)
 9. [Creating and editing scripts](#creating-and-editing-scripts)
@@ -67,7 +67,7 @@ Then either:
 * To use another port: `python manage.py runserver 8080 --noreload`.
 
 Try it: open **Script Library**, press **Run** on *System Information*, then
-**Run now** on the confirmation page. The live console opens.
+**Run**. The run opens as a tab next to the script.
 
 ### Desktop app
 
@@ -95,7 +95,7 @@ python manage.py desktop --background   # tray only, no window
 * **Start with Windows** (tray menu) writes `ScriptHub.cmd` into your Startup folder,
   which starts the app in the tray at sign-in; untick it to remove the file.
 * **Native extras:** *Browse…* buttons (folder dialogs) on Open folder and next to
-  directory fields in Configure, and *Show in folder* for scripts and run folders.
+  directory fields on a script's Overview, and *Show in folder* for scripts and run folders.
 * Launching it again while it runs just opens another window.
 * Log: `runtime/desktop.log`. As with `runserver`, runs live inside the app's process.
 
@@ -109,28 +109,29 @@ For SSH hosts, `ssh` must already work for you from a terminal (see
 Version 2 is laid out like an IDE workbench (dark theme by default; **Theme** in the
 status bar or the moon/sun icon switches to light, remembered per browser):
 
-* **Activity bar** (far left): Overview, Library, Jobs (with a live count),
-  History, Settings, plus the command palette and theme switch.
+* **Activity bar** (far left): Home (the app icon), Library, **Runs** (what is running
+  now, with a live count, and the history), Settings, plus the side-panel toggle,
+  the command palette and the theme switch.
 * **Side panel**: the **Explorer** (every script grouped by category, with a dot for its
-  last result and a filter box) on most pages; the list of executions on Jobs and in the
+  last result and a filter box) on most pages; the list of executions in the
   console; the filters on History; the section list on Settings. **Ctrl+B** hides it.
-* **Main area**: breadcrumb, title and actions on top; script pages have tabs
-  **Overview · Script · Configure**.
+* **Main area**: no page header (the activity bar shows the section, the explorer the
+  script); script pages have the tabs **Overview · Parameters · Run** on top of a right
+  column that **Ctrl+Alt+B** (or its ◧ button) hides and shows.
 * **Status bar**: running/queued count, command palette, shortcuts, theme.
 
 | Page | What it does |
 |---|---|
-| **Overview** (`/`) | Counts of scripts, running, successful and failed executions; recent executions; **Quick run** and most-used scripts. |
-| **Script Library** (`/scripts/`) | Every script as a dense table (or cards). Search (`/` focuses it), filter by **category, platform and language**, enable/disable with a switch. |
-| **Open folder** (`/folder/`) | Choose the script folder: type a path, **Browse…** (desktop app) or click through the folder list; favourites (star) and recent folders. The explorer's folder name is a quick switcher with the same lists. |
-| **Script pages** | The centre is the same on Overview, Run and Configure: the script (an editor with syntax colours, line numbers, auto-indent, **Ctrl+S** saves in place, or read-only when editing is off), its metadata JSON (editable) and its saved parameters (`.params.json`, compare grid or raw file), plus copy, download, **Restore previous** and a full-screen editor. The **Overview / Run / Configure** tabs head the right column, so switching only changes that column. |
-| **Script › Overview** | On the right: saved parameters, details, parameters (hover one to see where the script uses it) and recent executions, plus the enable switch. |
-| **Script › Run** | On the right the **Run configuration** (target host, parameters) and **Presets**; focusing a parameter marks the lines that use it. **Review & confirm** (Ctrl+Enter) saves unsaved edits first. |
-| **Review** | Step 2 of the run. The script in the body; on the right the **run mode** (Normal, Trace lines, Debug), the exact command (passwords masked) and every value. **Run now** (Ctrl+Enter) starts it, **Esc** goes back. |
-| **Script › Configure** | On the right name, category, interpreter, timeout, concurrency, default host, working directory, environment, platforms and the **parameter editor**. |
+| **Home** (`/`, the app icon) | Counts of scripts, running, successful and failed executions; recent executions; **Quick run** and most-used scripts. |
+| **Script Library** (`/scripts/`) | Every script as a dense table (or cards). Search (`/` focuses it), filter by **category, platform and language**. |
+| **Open folder** (`/folder/`) | Fallback when the system folder dialog is not available (browser on another machine): type a path or click through the folder list; favourites (star) and recent folders. The explorer's folder name is a quick switcher with the same lists. |
+| **Script pages** | The centre is the same on Overview and Run: the script (an editor with syntax colours, line numbers, auto-indent, **Ctrl+S** saves in place, or read-only when editing is off), its metadata JSON (editable) and its saved parameters (`.params.json`, compare grid or raw file), plus copy, download, **Restore previous** and a full-screen editor. The **Overview / Parameters / Run** tabs head the right column, so switching only changes that column. A script page has **one Save** (centre tab bar, **Ctrl+S** anywhere): it saves whatever changed — the script, the metadata JSON, the Overview settings, the parameter definitions (the JSON tab and a form changed together is refused, as they edit the same file); a dot marks unsaved changes. |
+| **Script › Overview** | The script's settings on the right: name, category, description, interpreter, default host, working directory, environment, platforms; below, recent runs. (The old `/configure/` URL opens this page.) |
+| **Script › Parameters** | The **parameter definitions** the run form is built from (click a row to edit; hover to see where the script uses it) and the **saved values** (presets and recent runs, ▶ runs one straight away, *Compare* opens the grid in the centre). |
+| **Script › Run** | On the right: where the values come from (defaults, a recent run or a preset), the host and the parameters (focusing one marks the lines that use it), and *+ Save current values as preset…* at the end of the values list. **Run** (Ctrl+Enter) in the bottom bar, with the mode **Normal · Trace · Debug** next to it, starts the script straight away (unsaved script edits are saved first) and opens the run as a tab next to the script; **Reset** loads the defaults. |
 | **New script** (`/scripts/new/`, **+** in the explorer header) | Name, language, optional sub-folder and category; creates the file (with a short starter) and its metadata in the open folder, then opens it in the editor. |
 | **Console** (`/executions/RUN-…/`) | Step 3. Live status, duration, exit code, stdout and stderr (side by side, stacked or stdout only), auto-scroll, copy, download, stop; the running line (trace) or the **debugger** (debug). |
-| **Jobs** (`/executions/`) | What is running, queued and finished recently (refreshes by itself). |
+| **Runs** (`/history/`; `/executions/` redirects here) | What is running or queued on top (refreshes by itself while something runs), then every execution with search, filters, paging, delete and retention. |
 | **History** | Search and filter every past execution, open or download logs, delete runs, apply retention. |
 | **Settings** | Features, concurrency limits, timeouts, polling, retention, interpreters (local and SSH), SSH command, environment variables, SSH host test. |
 
@@ -145,11 +146,11 @@ Ctrl+Enter runs it), type `run ` to list run actions only, paste a run id such a
 | `Ctrl+K` | Command palette |
 | `Ctrl+B` | Toggle the side panel |
 | `/` | Focus the page search (or the explorer filter) |
-| `g o` `g l` `g j` `g h` `g s` | Go to Overview, Library, Jobs, History, Settings |
+| `g o` `g l` `g h` `g s` | Go to Home, Library, Runs, Settings |
+| `g n` `g f` | New script, Open folder (explorer header) |
 | `g n` | New script (in the open folder) |
-| `i` `r` `c` | On a script: Overview, Script (run / view / edit), Configure |
-| `Ctrl+Enter` | Review (Run step), Run now (Review step), Create (New script) |
-| `Esc` | Back from Review to the parameters |
+| `i` (or `c`) `r` | On a script: Overview (configuration), Run (run / view / edit) |
+| `Ctrl+Enter` | Run (Run tab), Create (New script) |
 | `F5` `F10`/`n` `F6` `Shift+F5` | Debugger: continue, step, pause, stop |
 
 
@@ -189,7 +190,7 @@ restart.
 | `enable_script_editing` | Allow creating and editing script files from the browser (`false` blocks New script, editing and restoring). |
 | `max_concurrent_executions` | Runs beyond this wait in the queue. |
 | `max_concurrent_per_host` | Same limit, applied to this computer and to each SSH host separately. |
-| `default_timeout` | Seconds, for scripts that set no timeout of their own. |
+| `default_timeout` | Seconds before any run is stopped (status *Timed out*). |
 | `history_retention_days` | Finished executions older than this are deleted. |
 | `log_retention_days` | After this many days only the record stays; stdout/stderr are removed. |
 | `polling_interval` | Milliseconds between console polls. |
@@ -211,9 +212,14 @@ ScriptHub works on **one folder at a time**, like an editor's *Open Folder*. It 
 not a setting: on first start the Overview asks you to open one (or the bundled
 `./scripts` examples), and the folder you open is reopened on the next start.
 
-* **Open folder** (`/folder/`, or the folder name at the top of the explorer):
-  type a path, use **Browse…** (native dialog, desktop app only) or click through
-  the drives and sub-folders.
+* **Open folder…** (explorer folder menu, Overview, Ctrl+K) shows the system
+  folder dialog and opens the folder you pick. The dialog appears on the machine
+  running ScriptHub, so it is offered in the desktop app and in a browser on that
+  same machine. From another machine, the `/folder/` page is used instead: type a
+  path or click through the drives and sub-folders.
+* A large folder (a whole drive, say) is scanned in the background: the app stays
+  usable, the status bar shows the folders and scripts counted so far, and the
+  Overview / Library reload when the scan is done.
 * **Recent** keeps the last 10 folders; **favourites** (star) stay until you
   unstar them. Both are in the explorer's folder menu and the command palette
   (Ctrl+K), so switching is one click.
@@ -221,7 +227,7 @@ not a setting: on first start the Overview asks you to open one (or the bundled
   list in `config.json` is used once to fill it (first existing folder is opened,
   all of them become recent).
 
-The folder is scanned **recursively**, and new files appear without a restart
+The folder is scanned **recursively, up to 3 sub-folder levels deep** (deeper folders are skipped, with a warning in the Library), and new files appear without a restart
 (press **Refresh** to rescan immediately). Switching folders does not stop runs
 that are in progress, and history keeps runs of scripts from other folders.
 
@@ -232,8 +238,9 @@ Rules that keep this safe:
 * Hidden folders, `__pycache__`, `venv`, `node_modules` and `site-packages` are skipped.
 * Symlinks that point outside the open folder are skipped.
 * Nothing is executed during discovery.
-* Disable a script with its switch (stored in its metadata); a disabled script
-  cannot be run.
+* Every script with valid metadata can be run. A run is stopped after the
+  **default timeout** from Settings, and a script runs one at a time (a second
+  run of the same script waits in the queue).
 
 ---
 
@@ -258,19 +265,22 @@ print(f"Backing up {args.database}")
 print(f"Destination: {args.backup_path}")
 ```
 
-Matching metadata (`backup.json` next to `backup.py`):
+Its metadata is a comment block at the top of the script itself (ScriptHub writes
+it when you save the Overview or Parameters tab; you can also edit it in the code):
 
-```json
-{
-  "name": "Database Backup",
-  "category": "Database",
-  "parameters": [
-    {"name": "database", "type": "text", "required": true},
-    {"name": "backup_path", "type": "directory", "required": true},
-    {"name": "compress", "type": "boolean", "default": true},
-    {"name": "retention_days", "type": "number", "default": 30, "min": 1, "max": 365}
-  ]
-}
+```python
+# --- scripthub ---
+# {
+#   "name": "Database Backup",
+#   "category": "Database",
+#   "parameters": [
+#     {"name": "database", "type": "text", "required": true},
+#     {"name": "backup_path", "type": "directory", "required": true},
+#     {"name": "compress", "type": "boolean", "default": true},
+#     {"name": "retention_days", "type": "number", "default": 30, "min": 1, "max": 365}
+#   ]
+# }
+# --- end scripthub ---
 ```
 
 By default a parameter named `backup_path` becomes the option `--backup-path`
@@ -321,34 +331,39 @@ backtick in any value, because `cmd.exe` would treat them as commands. Add a
 
 ---
 
-## Metadata JSON reference
+## Metadata reference
 
 Metadata is optional. Without it a script is listed with a name made from its
-file name, the folder as its category, and no parameters. To add metadata, put a
-JSON file with the same name next to the script (`backup.py` → `backup.json`).
-If that folder is read-only, the file is stored under
-`runtime/metadata_overrides/` instead.
+file name, the folder as its category, and no parameters. It lives **in the script
+itself**: a JSON object in a comment block between `# --- scripthub ---` and
+`# --- end scripthub ---` (`:: --- scripthub ---` in `.bat` / `.cmd` files), at the
+top of the file, after a `#!` line, a Python encoding line or `@echo off`. One file
+to copy, move or commit. The Overview and Parameters tabs write the block for you;
+you can also edit it in the script. Scripts from older versions may still have a
+`<stem>.json` next to them: it is read until the first save, which moves it into the
+script. If the script cannot be written, the metadata goes to
+`runtime/metadata_overrides/<script id>.json` instead.
 
 | Field | Type | Meaning |
 |---|---|---|
 | `name` | text | Display name. |
 | `description` | text | Shown on cards and details. |
 | `category` | text | Groups scripts; default is the first sub-folder name. |
-| `enabled` | true/false | `false` hides the Run button and blocks execution. |
 | `interpreter` | text | Overrides the interpreter (a command or full path) on every host. |
-| `timeout` | seconds | Stops the run after this long (status *Timed out*). |
-| `allow_concurrent` | true/false | `false` = at most one run of this script at a time. |
 | `host` | `local` or an SSH alias | Default host (can be changed on the run form). |
 | `working_directory` | path | Working directory for the run. Default: the script's folder (local) or the login directory (SSH). |
 | `environment` | object | Extra environment variables `{"NAME": "value"}`. |
 | `platforms` | list | Any of `windows`, `linux`, `macos`; used by the Library's Platform filter. Defaults come from the file type (`.bat` → Windows, `.sh` → Linux/macOS, `.py` → all). |
 | `parameters` | list | See below. |
 
-Unknown fields are kept untouched, so metadata can grow without breaking.
+Unknown fields are kept untouched, so metadata can grow without breaking. The
+old `enabled`, `timeout` and `allow_concurrent` fields are ignored and dropped
+the next time the metadata is saved.
 
-When you save in the Configure page the metadata is **validated first**; invalid
-data is never written, every problem is listed, and the last valid file is kept
-as `<name>.json.bak`.
+When you save on the Overview or Parameters tab the metadata is **validated
+first**; invalid data is never written and every problem is listed. Only the
+block is rewritten (line endings and a BOM are kept), and the previous version of
+the script is kept as `<name>.bak` (**Restore previous** in the editor).
 
 ---
 
@@ -407,7 +422,7 @@ New types can be added in `runner/parameter_service.py` (`register_type`).
 
 ### Step debugging
 
-Choose the run mode **Debug — step through** on the Review step for a Python or
+Choose the run mode **Debug** next to the **Run** button for a Python or
 Bash script, on this computer or an SSH host. The run pauses
 on the script's first line and the console turns into a debugger:
 
@@ -429,48 +444,60 @@ on the script's first line and the console turns into a debugger:
 
 ## Running a script, hosts and presets
 
-1. The **Script** tab shows the script with a form on the right, built from the metadata with the defaults filled in.
-2. Choose the **Target host**: *This computer* or any SSH host.
-3. Optionally load a **preset**.
-4. **Review & confirm** validates every value and shows the exact command.
+1. The **Run** tab shows the script with a form on the right, built from the metadata (it opens with the last run's values).
+2. Choose the **Host**: `local` or any SSH host.
+3. Optionally load a **preset** or an earlier run from the list above the form.
+4. **Run** (Ctrl+Enter) validates every value and starts the script; it opens as a tab
+   next to the script in the centre (the exact command is under *Parameters & command*).
 5. Pick the **run mode** (Normal, Trace lines or Debug — the last two for Python and Bash)
-   and press **Run now**; you land in the live console.
+   and press **Run**; the run opens as a tab next to the script.
 
 Values are validated for type, range, choices and pattern, on the server.
 
 ### Saved parameters (presets and recent runs)
 
-Run the same script with different, remembered sets of values. Everything is kept
-**next to the script**, in one file per script:
+Run the same script with different, remembered sets of values. They are kept in
+`runtime/`, **one YAML file per saved set**, not in the script folder:
 
 ```
-scripts/system/directory_backup.py
-scripts/system/directory_backup.json          metadata
-scripts/system/directory_backup.params.json   saved parameters
+runtime/presets/<script id>/production-backup.yaml        a preset
+runtime/presets/<script id>/recent/RUN-20261108-005.yaml  the values of a recent run
 ```
 
-so the values travel with the script (move it, copy it, commit it to git).
+```yaml
+# Preset for C:\scripts\system\directory_backup.py (ScriptHub). Passwords are never stored.
+name: Production backup
+host: local
+saved_at: 2026-11-08T20:44:13
+values:
+  source: /data/project
+  compress: true
+```
+
+The script id comes from the script's path, so moving or renaming a script starts
+it without saved values. The files use a small YAML subset (written by ScriptHub,
+fine to edit by hand).
 
 * **Recent runs** are remembered automatically: every started run stores the values it
-  used (the last 10 distinct sets, newest first). The **Script** tab opens with the
-  **last run's values**; **Defaults** in the header (or *Script defaults* in the list)
-  goes back to the script's defaults.
-* **Presets** are named sets: **Save current values as** (an existing name updates it),
+  used (the last 10 distinct sets, newest first). The **Run** tab opens with the
+  **last run's values**; **Reset** (or *Defaults* in the list) goes back to the
+  script's defaults.
+* **Presets** are named sets: *Save values as preset…* (an existing name updates it),
   load, rename, delete.
 * **Run with saved values:** every preset and recent run has a **▶ Run** button (on the
-  Overview tab and in the comparison grid) that opens the Review step with those values
+  Parameters tab and in the comparison grid) that starts the script with those values
   already filled in and validated; **Ctrl+Enter** launches.
-* **Compare:** the **Saved parameters** tab in the centre of the Script tab (`p`) shows a
-  grid, rows = parameters, columns = presets and recent runs; values that differ from the
-  script's default are highlighted. **File** shows the raw `.params.json`.
+* **Compare:** the **saved values** tab in the centre of a script page shows a grid,
+  rows = parameters, columns = presets and recent runs; values that differ from the
+  script's default are highlighted.
 * Values are **re-validated against the current metadata** each time they load: removed
   parameters are ignored, new ones get defaults, values that are no longer valid are
   reset, and each case shows a warning.
 * **Passwords and fixed parameters are never saved.**
-* If the script folder is read-only, the file is kept in `runtime/presets/<script id>.json`
-  and moved next to the script as soon as the folder can be written. Presets from
-  version 1 (`runtime/presets/<script id>/<name>.json`) are moved over automatically.
-  A `.params.json` that is not valid JSON is never overwritten; saving reports it instead.
+* Older layouts are converted on first use and then removed: `<stem>.params.json`
+  next to the script, `runtime/presets/<script id>.json` and
+  `runtime/presets/<script id>/<name>.json`.
+* A file that cannot be read is skipped and never overwritten.
 
 ---
 
@@ -481,7 +508,7 @@ so the values travel with the script (move it, copy it, commit it to git).
 **New script** (the **+** in the explorer header, `g n`, or Ctrl+K → *New script*)
 creates a file in the **open folder**: give a file name, language, and optionally a
 sub-folder (created if needed; existing ones are suggested) and a category. The file
-starts with a few lines of example code and gets a metadata file next to it, then
+starts with its metadata block and a few lines of example code, then
 opens on its **Run** tab with the editor in the centre. Opened from a script page,
 the form starts in that script's folder, language and category.
 
@@ -530,7 +557,7 @@ accounts' on remote hosts). The application has no login, so:
 
 ### Seeing which line is running
 
-Choose the run mode **Trace lines** on the Review step for
+Choose the run mode **Trace** next to the **Run** button for
 a Python or Bash script. The console then shows the script's source next to the
 output with the current line highlighted and scrolled into view. The source shown is a
 copy taken when the run started, so later edits do not shift the highlight.
@@ -608,7 +635,7 @@ ScriptHub uses your system `ssh` and does **no SSH configuration of its own**.
    (key or agent). Host aliases come from `Host` entries in `~/.ssh/config`
    (wildcards are ignored; `Include` files are followed).
 2. **Settings → SSH hosts → Test connection** checks the login.
-3. Choose the host on the run form (or set a default in **Configure**).
+3. Choose the host on the run form (or set a default on the script's **Overview**).
 
 How a remote run works:
 
@@ -629,7 +656,7 @@ How a remote run works:
 
 ## Bundled scripts
 
-Examples you can run, copy and adapt (all editable in **Configure**):
+Examples you can run, copy and adapt (all editable on their **Overview**):
 
 | Script | Language | What it does |
 |---|---|---|
@@ -841,7 +868,7 @@ ScriptHub/
 │   ├── workspace.py          open folder, recent and favourite folders
 │   ├── script_editor.py      safe saving of script files (backup, conflicts, line endings)
 │   ├── discovery.py          approved-script catalogue
-│   ├── metadata.py           sidecar JSON read/write, backups
+│   ├── metadata.py           the metadata block in the script: read/write, backups
 │   ├── parameter_service.py  types, validation, argument building
 │   ├── executor.py           builds and supervises one process (local / SSH)
 │   ├── process_manager.py    queue, limits, threads, cancel, recovery
@@ -865,7 +892,7 @@ there are no sessions, and the queue lives in memory.)
 | Symptom | Likely cause / fix |
 |---|---|
 | A script is missing from the library | Its extension is not under **Interpreters**, it is in an unconfigured folder, or press **Refresh**. |
-| *Fix metadata* instead of **Run** | The script's JSON is invalid; open **Configure** (the Raw JSON editor shows the error). |
+| *Fix metadata* instead of **Run** | The metadata block at the top of the script is not valid JSON; the error names the lines. Fix it in the editor. |
 | Status **Failed**, error *SSH connection failed* | Run `ssh <host>` in a terminal: accept the host key, confirm key login works without a password. |
 | `Could not start the process` | The interpreter is not installed or not on `PATH`. Set the full path under **Settings → Interpreters**. |
 | `.sh` scripts fail on Windows locally | Local `.sh` needs Bash (Git Bash or WSL) on `PATH`; or run them on a Linux host over SSH. |

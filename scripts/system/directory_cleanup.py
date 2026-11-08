@@ -1,3 +1,17 @@
+# --- scripthub ---
+# {
+#   "name": "Directory Cleanup",
+#   "description": "Delete files older than N days. Runs as a dry run (list only) until you type DELETE in the confirmation field.",
+#   "category": "Maintenance",
+#   "parameters": [
+#     {"name": "target", "label": "Target directory", "type": "directory", "required": true, "placeholder": "/var/tmp/uploads", "help": "Files are only removed inside this directory. Filesystem roots and home folders are refused."},
+#     {"name": "days", "label": "Older than (days)", "type": "number", "default": 30, "required": true, "min": 1, "max": 3650, "help": "Files not modified for at least this many days."},
+#     {"name": "pattern", "label": "File pattern", "type": "text", "default": "*", "help": "Glob pattern, e.g. *.log or backup-*.zip"},
+#     {"name": "recursive", "label": "Include sub-directories", "type": "boolean", "default": false},
+#     {"name": "confirm", "label": "Confirmation", "type": "text", "placeholder": "Type DELETE to really delete", "pattern": "DELETE", "help": "Leave empty for a dry run that only lists the files. Type DELETE (capitals) to delete them."}
+#   ]
+# }
+# --- end scripthub ---
 """Delete old files from a directory - safely.
 
 Without --confirm DELETE this is a DRY RUN: it only lists what would be

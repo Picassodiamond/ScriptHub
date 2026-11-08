@@ -8,6 +8,7 @@ import uuid
 from django.contrib import messages
 from django.http import FileResponse, Http404, JsonResponse
 from django.shortcuts import redirect, render
+from django.urls import reverse
 from django.views.decorators.http import require_POST
 
 import config
@@ -15,7 +16,7 @@ from . import discovery, executor, history, presets, ssh_hosts
 from . import parameter_service as ps
 from .executor import ExecutionError, ExecutionSpec
 from .process_manager import manager
-from .script_views import LANGUAGES, doc_context, source_context
+from .script_views import LANGUAGES, doc_context
 
 
 def client_address(request) -> str:
@@ -73,26 +74,13 @@ def build_spec(script, host, params, values, token=None, trace=False, debug=Fals
         argv=argv,
         env=env,
         cwd=script.meta.get("working_directory") or None,
-        timeout=script.meta.get("timeout") or cfg["default_timeout"],
-        allow_concurrent=bool(script.meta.get("allow_concurrent", False)),
+        timeout=cfg["default_timeout"],
         parameters=ps.redact(params, values),
         display_command=shown,
         token=token,
         trace={} if trace else None,
         debug=bool(debug),
     )
-
-
-def _display_value(p, value):
-    if value is None or value == "" or value == []:
-        return "—"
-    if p["type"] == "password":
-        return ps.SECRET_MASK
-    if isinstance(value, bool):
-        return "Yes" if value else "No"
-    if isinstance(value, list):
-        return ", ".join(value)
-    return str(value)
 
 
 def _check_host(script, host, hosts):
@@ -150,83 +138,62 @@ def _load_saved(script, params, key, hosts, default_host):
     return raw, host, source, warnings
 
 
-def _confirm_response(request, script, params, raw, host, values, spec, source=None):
-    _, env_masked = ps.build_arguments(params, values, mask_secrets=True)
-    mode = run_mode(request.POST)
-    supported = executor.trace_supported(script.extension, spec.interpreter)
-    return render(request, "runner/run_confirm.html", {
-        "script": script,
-        **source_context(script),
-        "host": host,
-        "rows": [{"label": p["label"], "value": _display_value(p, values.get(p["name"])),
-                  "locked": not p.get("editable_at_runtime", True)} for p in params],
-        "command": spec.display_command,
-        "env_rows": sorted(env_masked.items()),
-        "hidden": ps.hidden_pairs(params, raw),
-        "token": uuid.uuid4().hex,
-        "timeout": spec.timeout,
-        "trace_supported": supported,
-        "debug_supported": supported,
-        "trace": mode == "trace",
-        "mode": mode if supported else "normal",
-        "source": source,
-    })
+def _modes_supported(script) -> bool:
+    """Trace / Debug are offered for Python and Bash scripts (with their default interpreter)."""
+    try:
+        interp = executor.resolve_interpreter(script.meta.get("interpreter"), script.extension,
+                                              script.meta.get("host", ssh_hosts.LOCAL), config.load_config())
+    except ExecutionError:
+        return False
+    return executor.trace_supported(script.extension, interp)
+
+
+def _run_page(request, script, params, raw, host, hosts, *, errors=None, host_error=None, source=None,
+              warnings=(), status=200):
+    ctx = _form_context(script, params, raw, errors or {}, hosts, host, host_error)
+    current = {"slug": source["slug"], "name": source["label"]} if source and source["kind"] == "preset" else None
+    ctx.update(presets=presets.list_presets(script), recent=presets.recent_runs(script), source=source,
+               current_preset=current, preset_warnings=list(warnings),
+               has_password=any(p["type"] == "password" for p in params),
+               token=uuid.uuid4().hex, modes_supported=_modes_supported(script), mode=run_mode(request.POST))
+    return render(request, "runner/run.html", ctx, status=400 if ctx["has_errors"] else status)
 
 
 def script_run(request, script_id):
+    """The Run tab: the run form (values from the last run, a preset or the defaults).
+    It posts to script_start, which runs the script straight away."""
     script = _get_script_or_404(script_id)
-    if not script.enabled:
-        return render(request, "runner/run.html", {
-            "script": script,
-            "blocked": "This script is disabled. Enable it from the Script Library to run it."})
     if not script.meta_valid:
         return render(request, "runner/run.html", {"script": script, "blocked": script.meta_error})
-
+    if request.method == "POST":                     # older forms posted here first (Review step)
+        return script_start(request, script_id)
     params = _params_of(script)
     default_host = script.meta.get("host", ssh_hosts.LOCAL)
     hosts = ssh_hosts.allowed_hosts([default_host])
-    errors, host_error, host = {}, None, default_host
-    source, preset_warnings = None, []
-    validate = request.method == "POST" and not request.POST.get("edit")   # "edit" = back from the confirmation page
-
-    if request.method == "POST":
-        host = request.POST.get("host", default_host)
-        raw = ps.raw_from_post(params, request.POST)
-    else:
-        raw, host, source, preset_warnings = _load_saved(script, params, request.GET.get("preset", ""), hosts, default_host)
-        validate = request.GET.get("review") == "1"          # "Run with these values": straight to the review step
-
-    if validate:
-        host_error = _check_host(script, host, hosts)
-        values, errors = ps.clean_values(params, raw)
-        if not errors and not host_error:
-            try:
-                spec = build_spec(script, host, params, values)
-            except ExecutionError as exc:
-                host_error = str(exc)
-            else:
-                return _confirm_response(request, script, params, raw, host, values, spec, source)
-
-    ctx = _form_context(script, params, raw, errors, hosts, host, host_error)
-    current = {"slug": source["slug"], "name": source["label"]} if source and source["kind"] == "preset" else None
-    ctx.update(presets=presets.list_presets(script), recent=presets.recent_runs(script), source=source,
-               current_preset=current, preset_warnings=preset_warnings,
-               has_password=any(p["type"] == "password" for p in params))
-    return render(request, "runner/run.html", ctx, status=400 if ctx["has_errors"] else 200)
+    raw, host, source, warnings = _load_saved(script, params, request.GET.get("preset", ""), hosts, default_host)
+    return _run_page(request, script, params, raw, host, hosts, source=source, warnings=warnings)
 
 
 @require_POST
 def script_start(request, script_id):
-    """Second step: validate again and hand the run to the manager."""
+    """Validate and hand the run to the manager; back to the script page, where the run
+    opens as a tab. ``from_preset`` (a preset slug or "@<n>") runs saved values as they are."""
     script = _get_script_or_404(script_id)
-    if not script.enabled or not script.meta_valid:
-        messages.error(request, "This script cannot be run right now.")
+    if not script.meta_valid:
+        messages.error(request, "This script cannot be run until its metadata is fixed.")
         return redirect("script_detail", script_id=script.id)
     params = _params_of(script)
     default_host = script.meta.get("host", ssh_hosts.LOCAL)
     hosts = ssh_hosts.allowed_hosts([default_host])
-    host = request.POST.get("host", default_host)
-    raw = ps.raw_from_post(params, request.POST)
+    source, warnings = None, []
+    saved = request.POST.get("from_preset", "")
+    if saved:
+        raw, host, source, warnings = _load_saved(script, params, saved, hosts, default_host)
+        if warnings:                                 # not found: show the form instead of running defaults
+            return _run_page(request, script, params, raw, host, hosts, source=source, warnings=warnings)
+    else:
+        host = request.POST.get("host", default_host)
+        raw = ps.raw_from_post(params, request.POST)
     values, errors = ps.clean_values(params, raw)
     host_error = _check_host(script, host, hosts)
     spec = None
@@ -238,14 +205,15 @@ def script_start(request, script_id):
         except ExecutionError as exc:
             host_error = str(exc)
     if spec is None:
-        ctx = _form_context(script, params, raw, errors, hosts, host, host_error)
-        return render(request, "runner/run.html", ctx, status=400)
+        return _run_page(request, script, params, raw, host, hosts, errors=errors, host_error=host_error,
+                         source=source, warnings=warnings)
     run_id = manager.submit(spec, initiator=client_address(request))
     try:                                   # remember the values: "run again with these"
         presets.record_run(script, params, raw, host, run_id, client_address(request))
     except (OSError, presets.PresetError):
         pass
-    return redirect("execution_console", run_id=run_id)
+    # Back to the script page; the run opens as a tab next to the script (designer.js).
+    return redirect(reverse("script_run", args=[script.id]) + f"?open={run_id}")
 
 
 # ------------------------------------------------------------------ console ---
@@ -284,7 +252,10 @@ def execution_console(request, run_id):
         except OSError:
             trace_lines = None
     ext = Path(meta.get("script_path", "")).suffix.lower()
+    embed = request.GET.get("embed") == "1"       # shown as a run tab inside a script page
     return render(request, "runner/console.html", {
+        "embed": embed,
+        "base_template": "base_embed.html" if embed else "base.html",
         "trace": trace,
         "debug": meta.get("debug") or None,
         "trace_lines": trace_lines,
@@ -406,6 +377,8 @@ def execution_stop(request, run_id):
         messages.warning(request, "This run is not managed by this application instance, so it cannot be stopped from here.")
     else:
         messages.info(request, "This run has already finished.")
+    if request.POST.get("embed") == "1":            # stopped from a run tab: stay in the tab
+        return redirect(reverse("execution_console", args=[run_id]) + "?embed=1")
     return redirect("execution_console", run_id=run_id)
 
 
@@ -445,10 +418,16 @@ def _decorate(meta):
     return meta
 
 
-def executions_list(request):
-    runs = history.list_runs(limit=60)
-    active = [_decorate(m) for m in runs if _is_active(m)]
+def active_runs():
+    """Running and queued executions, running first."""
+    active = [_decorate(m) for m in history.list_runs(limit=60) if _is_active(m)]
     active.sort(key=lambda m: (m["status"] != history.RUNNING, m["id"]))
-    recent = [_decorate(m) for m in runs if not _is_active(m)][:25]
-    template = "runner/_runs_table.html" if request.GET.get("partial") else "runner/executions.html"
-    return render(request, template, {"active": active, "recent": recent})
+    return active
+
+
+def executions_list(request):
+    """Jobs is part of History now (the Running panel on top); ?partial=1 is that panel,
+    which History polls while something runs."""
+    if request.GET.get("partial"):
+        return render(request, "runner/_active_runs.html", {"active": active_runs()})
+    return redirect("history")

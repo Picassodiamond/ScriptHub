@@ -42,11 +42,9 @@
   </div>
 </div>
 {% endblock %}
-{% block crumbs %}<span>Workbench</span>{% endblock %}
-{% block heading %}<span class="t">History</span><span class="count-pill">{{ total }}</span>{% endblock %}
-{% block actions %}{% if filtered %}<a class="btn btn-ghost btn-sm" href="{% url 'history' %}"><svg class="i"><use href="#i-x"/></svg> Clear filters</a>{% endif %}{% endblock %}
 {% block content %}
 <div class="page">
+<div id="active-runs" data-url="{% url 'executions' %}?partial=1" data-interval="{{ polling_interval }}">{% include "runner/_active_runs.html" %}</div>
 <section class="panel">
   {% if runs %}
   <div class="table-wrap">
@@ -100,4 +98,26 @@
   {% endif %}
 </section>
 </div>
+{% endblock %}
+{% block scripts %}
+<script>
+/* Running panel: refreshed while something runs; when the last run ends the page reloads so
+   the table below shows how it finished. */
+(function () {
+  var box = document.getElementById('active-runs');
+  if (!box || !box.querySelector('[data-active-count]')) return;
+  var every = Math.max(1000, parseInt(box.dataset.interval, 10) || 2000);
+  var timer = setInterval(function () {
+    if (document.hidden) return;
+    fetch(box.dataset.url, { cache: 'no-store', credentials: 'same-origin' })
+      .then(function (r) { return r.ok ? r.text() : null; })
+      .then(function (html) {
+        if (html === null) return;
+        box.innerHTML = html;
+        if (!box.querySelector('[data-active-count]')) { clearInterval(timer); location.reload(); }
+      })
+      .catch(function () { /* try again next time */ });
+  }, every);
+})();
+</script>
 {% endblock %}

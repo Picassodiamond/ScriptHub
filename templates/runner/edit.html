@@ -2,19 +2,6 @@
 {% load static %}
 {% block title %}Edit {{ script.path.name }}{% endblock %}
 {% block body_mod %}{% if not blocked %}fill{% endif %}{% endblock %}
-{% block actions %}
-{% if not blocked %}
-{% if has_backup %}
-<form method="post" action="{% url 'script_restore' script.id %}" data-confirm="Swap this file with its previous version ({{ script.path.name }}.bak)? What you have now becomes the backup.">{% csrf_token %}
-  <button class="btn btn-ghost btn-sm" type="submit" title="Swap with the previous saved version"><svg class="i"><use href="#i-refresh"/></svg> Restore previous</button>
-</form>
-{% endif %}
-{% if not conflict %}
-<button class="btn btn-sm" type="submit" form="edit-form" name="action" value="save" data-save><svg class="i"><use href="#i-save"/></svg> Save <kbd>Ctrl</kbd><kbd>S</kbd></button>
-{% if script.enabled and script.meta_valid %}<button class="btn btn-primary btn-sm play" type="submit" form="edit-form" name="action" value="save_run"><svg class="i"><use href="#i-play"/></svg> Save &amp; run</button>{% endif %}
-{% endif %}
-{% endif %}
-{% endblock %}
 {% block content %}
 {% if blocked %}
 <div class="flash flash-error"><span>{{ blocked }}</span></div>
@@ -26,7 +13,15 @@
 <div class="subtabs">
   <span class="mono small strong">{{ script.path.name }}</span>
   <span class="spacer"></span>
-  <span class="muted small mono wrap-anywhere">{{ size }} bytes · line endings {{ newline }}{% if not writable %} · <span class="error-text">read-only file</span>{% endif %}</span>
+  <span class="muted small mono wrap-anywhere hide-sm">{{ size }} bytes · {{ newline }}{% if not writable %} · <span class="error-text">read-only file</span>{% endif %}</span>
+  {% if has_backup %}
+  <form method="post" action="{% url 'script_restore' script.id %}" data-confirm="Swap this file with its previous version ({{ script.path.name }}.bak)? What you have now becomes the backup.">{% csrf_token %}
+    <button class="btn btn-ghost btn-sm" type="submit" title="Swap with the previous saved version (.bak)"><svg class="i"><use href="#i-refresh"/></svg> Restore previous</button>
+  </form>
+  {% endif %}
+  {% if not conflict %}
+  <button class="btn btn-primary btn-sm" type="submit" form="edit-form" name="action" value="save" data-save data-hotkey="Ctrl+s" data-hint="Save the script"><svg class="i"><use href="#i-save"/></svg> Save <kbd>Ctrl</kbd><kbd>S</kbd></button>
+  {% endif %}
 </div>
 <form method="post" id="edit-form" class="editor-fill" novalidate>{% csrf_token %}
   <input type="hidden" name="base_hash" value="{{ base_hash }}">
@@ -38,7 +33,6 @@
   </div>
   {% endif %}
 </form>
-<p class="muted small" style="margin:8px 0 0">Saving keeps the previous version as <span class="mono">{{ script.path.name }}.bak</span>, checks the syntax (without running anything) and keeps the file's line-ending style. The change applies to the next run.</p>
 {% endif %}
 {% endblock %}
 

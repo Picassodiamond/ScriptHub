@@ -1,3 +1,15 @@
+# --- scripthub ---
+# {
+#   "name": "Pip: Freeze Requirements",
+#   "description": "List the exact installed package versions of a Python environment and optionally save them as a requirements file.",
+#   "category": "Python packages",
+#   "parameters": [
+#     {"name": "python", "label": "Python interpreter", "type": "file", "placeholder": "/srv/app/venv/bin/python", "help": "The environment to read. Leave empty for the interpreter that runs this script."},
+#     {"name": "output", "label": "Save to file", "type": "file", "placeholder": "/srv/app/requirements.lock.txt", "help": "Optional. Leave empty to only print the list."},
+#     {"name": "include_editable", "label": "Include editable installs", "type": "boolean", "default": false}
+#   ]
+# }
+# --- end scripthub ---
 """Write the exact package versions of a Python environment to a requirements file.
 
 Use this on a working installation, then feed the file to

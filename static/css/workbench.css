@@ -177,20 +177,6 @@ kbd {
 .side-scrim { display: none; }
 
 .main { grid-area: main; display: flex; flex-direction: column; min-width: 0; min-height: 0; background: var(--bg); }
-.main-head {
-  display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 8px 20px 8px 12px; flex: none;
-  border-bottom: 1px solid var(--line); background: var(--bg);
-}
-.head-text { flex: 1; min-width: 0; }
-.crumbs { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; font-size: 12px; color: var(--muted); line-height: 1.3; }
-.crumbs a { color: var(--muted); }
-.crumbs a:hover { color: var(--text); }
-.crumbs .sep { color: var(--faint); }
-.head-title { font-size: 17px; line-height: 1.35; display: flex; align-items: center; gap: 10px; min-width: 0; }
-.head-title .t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.head-actions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
-.head-actions form { margin: 0; }
-.side-toggle { color: var(--muted); }
 
 .wb-tabs {
   display: flex; gap: 2px; padding: 0 16px; flex: none; overflow-x: auto;
@@ -247,7 +233,6 @@ a.sb-item:hover, button.sb-item:hover { background: var(--hover); color: var(--t
 }
 .tree-item:hover { background: var(--hover); color: var(--text); text-decoration: none; }
 .tree-item.is-active { background: var(--accent-soft); color: var(--text); box-shadow: inset 2px 0 0 var(--accent); }
-.tree-item.is-off { opacity: .5; }
 .tree-item .ti-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tree-empty { padding: 10px 16px; color: var(--muted); font-size: 12.5px; }
 
@@ -362,7 +347,6 @@ a.st:hover { text-decoration: none; filter: brightness(1.15); }
 }
 .badge-accent { color: var(--accent-2); background: var(--accent-soft); border-color: var(--accent-line); }
 .badge-ok { color: var(--ok); background: var(--ok-soft); border-color: transparent; }
-.badge-off { color: var(--off); background: var(--off-soft); border-color: transparent; }
 .badge-warn { color: var(--warn); background: var(--warn-soft); border-color: transparent; }
 .badge-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 
@@ -380,7 +364,6 @@ a.st:hover { text-decoration: none; filter: brightness(1.15); }
 .table .num { text-align: right; font-variant-numeric: tabular-nums; }
 .table td.actions { text-align: right; white-space: nowrap; width: 1%; }
 .table td.actions .btn-row { flex-wrap: nowrap; justify-content: flex-end; }
-.table tr.is-off > td:not(.actions) { opacity: .5; }
 .table .th-row { width: 220px; text-transform: none; letter-spacing: 0; font-size: 12.5px; font-weight: 600; color: var(--muted); position: static; background: none; border-bottom: 1px solid var(--line); }
 .row-name { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .row-text { min-width: 0; }
@@ -449,14 +432,6 @@ select.input { padding-right: 28px; appearance: none; cursor: pointer;
 .seg-btn.is-active { background: var(--raised); color: var(--text); box-shadow: 0 1px 2px rgba(0,0,0,.25); }
 [data-theme="light"] .seg-btn.is-active { background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line-2); }
 
-.switch {
-  position: relative; width: 30px; height: 17px; flex: none; border: 0; border-radius: 10px; padding: 0; cursor: pointer;
-  background: var(--line-2); transition: background .15s;
-}
-.switch span { position: absolute; left: 2px; top: 2px; width: 13px; height: 13px; border-radius: 50%; background: #fff; transition: transform .15s var(--ease); box-shadow: 0 1px 2px rgba(0,0,0,.3); }
-.switch.on { background: var(--ok); }
-.switch.on span { transform: translateX(13px); }
-.toggle-form { margin: 0; display: inline-flex; }
 
 .toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
 .toolbar .searchbox { flex: 1 1 260px; max-width: 420px; }
@@ -526,7 +501,6 @@ a.stat:hover { border-color: var(--line-2); text-decoration: none; background: v
   background: var(--panel); min-width: 0; transition: border-color .12s;
 }
 .sc:hover { border-color: var(--line-2); }
-.sc.is-off { opacity: .6; }
 .sc-head { display: flex; align-items: flex-start; gap: 10px; }
 .sc-title { flex: 1; min-width: 0; }
 .sc-title h2 { font-size: 14px; font-weight: 650; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -536,19 +510,7 @@ a.stat:hover { border-color: var(--line-2); text-decoration: none; background: v
 .sc-foot { display: flex; align-items: center; gap: 6px; padding-top: 10px; border-top: 1px solid var(--line); margin-top: auto; }
 .sc-foot .spacer { flex: 1; }
 
-/* ---------------------------------------------------- stepper / run ---- */
-.stepper { display: flex; align-items: center; gap: 0; margin: 0 0 18px; padding: 0; list-style: none; counter-reset: step; }
-.stepper li { display: flex; align-items: center; gap: 8px; color: var(--faint); font-weight: 600; font-size: 12.5px; white-space: nowrap; }
-.stepper li + li::before { content: ""; width: 44px; height: 1px; background: var(--line-2); margin: 0 12px; }
-.stepper .n {
-  display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; font-size: 11.5px; font-weight: 700;
-  border: 1px solid var(--line-2); color: var(--muted); background: var(--panel);
-}
-.stepper .is-done { color: var(--text-2); }
-.stepper .is-done .n { background: var(--ok-soft); border-color: transparent; color: var(--ok); }
-.stepper .is-current { color: var(--text); }
-.stepper .is-current .n { background: var(--accent); border-color: var(--accent); color: var(--on-accent); box-shadow: 0 0 0 4px var(--accent-soft); }
-.stepper a { color: inherit; }
+/* ------------------------------------------------------------- run ---- */
 
 .cmd {
   position: relative; margin: 0; padding: 14px 16px; border-radius: var(--r-lg); border: 1px solid var(--line);
@@ -753,11 +715,6 @@ a.stat:hover { border-color: var(--line-2); text-decoration: none; background: v
 /* Script pages: Overview / Run / Configure head the right column (only that column changes) */
 .split-side > .side-tabs { position: sticky; top: 0; z-index: 2; padding: 0; margin: 0 0 12px; gap: 0; background: var(--bg); }
 .split-side > .side-tabs .tab { flex: 1; justify-content: center; padding-left: 8px; padding-right: 8px; }
-.save-box > summary { cursor: pointer; font-weight: 650; list-style: none; display: flex; align-items: center; gap: 8px; }
-.save-box > summary::-webkit-details-marker { display: none; }
-.save-box > summary::before { content: ""; border-left: 4px solid currentColor; border-top: 4px solid transparent; border-bottom: 4px solid transparent; transition: transform .12s; }
-.save-box[open] > summary::before { transform: rotate(90deg); }
-.save-box[open] > summary { margin-bottom: 12px; }
 
 /* --------------------------------------- script in the body (run/review) */
 .doc { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: hidden;
@@ -769,8 +726,6 @@ a.stat:hover { border-color: var(--line-2); text-decoration: none; background: v
 .doc-src { flex: 1; min-height: 0; border: 0; border-radius: 0; }
 .doc-msg { padding: 14px; color: var(--muted); font-size: 13px; }
 .source .ln.is-ref { background: var(--accent-soft); box-shadow: inset 3px 0 0 var(--accent); }
-.split-side > .stepper { margin: 2px 0 12px; }
-.split-side .stepper li + li::before { width: 18px; margin: 0 8px; }
 .split-side .table .th-row { width: 42%; }
 .split-main > .doc { flex: 1; }
 
@@ -802,14 +757,6 @@ button.doc-tab.is-active { background: var(--code-bg); color: var(--text); box-s
 .kv-stack { grid-template-columns: minmax(0, 1fr); }
 .kv-stack dt { padding: 7px 0 0; border-bottom: 0; font-size: 11.5px; }
 .kv-stack dd { padding: 1px 0 7px; font-size: 12.5px; }
-.param-list { padding: 4px 0; }
-.param-item { padding: 7px 14px; border-top: 1px solid var(--line); cursor: default; outline: none; }
-.param-item:first-child { border-top: 0; }
-.param-item:hover, .param-item:focus { background: var(--hover); }
-.param-item:focus-visible { box-shadow: inset 2px 0 0 var(--accent); }
-.pi-top { display: flex; align-items: center; gap: 6px; min-width: 0; }
-.pi-top .strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pi-meta { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 2px; font-size: 11.5px; color: var(--muted); overflow-wrap: anywhere; }
 
 /* Script tab: the editor inside the code pane */
 .doc .editor-fill { flex: 1; min-height: 0; }
@@ -917,8 +864,6 @@ button.doc-tab.is-active { background: var(--code-bg); color: var(--text); box-s
   }
   .side-open .side { transform: none; }
   .side-open .side-scrim { display: block; position: fixed; inset: 0 0 54px 0; z-index: 39; background: rgba(0,0,0,.4); }
-  .main-head { padding: 8px 12px; flex-wrap: wrap; }
-  .head-actions { width: 100%; justify-content: flex-start; }
   .main-body { padding: 14px 12px 24px; }
   .main-body.fill { overflow: auto; display: block; }
   .workspace, .workspace.has-source { display: block; }
@@ -934,9 +879,6 @@ button.doc-tab.is-active { background: var(--code-bg); color: var(--text); box-s
   .kv { grid-template-columns: minmax(0, 1fr); }
   .kv dt { border-bottom: 0; padding-bottom: 0; }
   .sticky-actions { margin: 0 -12px; padding: 10px 12px; bottom: -24px; }
-  .stepper li + li::before { width: 18px; margin: 0 6px; }
-  .stepper .s-label { display: none; }
-  .stepper .is-current .s-label { display: inline; }
   .table .th-row { width: 40%; }
   .hide-sm { display: none !important; }
   .wb-tabs { padding: 0 8px; }
@@ -991,3 +933,87 @@ button.doc-tab.is-active { background: var(--code-bg); color: var(--text); box-s
 .star { color: var(--faint); }
 .star.is-on { color: var(--warn); }
 .star.is-on .i, .folder-current .i[data-fav] { fill: currentColor; }
+
+/* ----------------------------------------- script pages: right column ---- */
+/* Overview (configuration) and Run share one look: compact fields, the primary
+   action in a bar stuck to the bottom of the column. */
+.split-side .cfg .form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.split-side .field { margin-bottom: 12px; }
+.split-side .field.field-last, .split-side .panel-body > .field:last-child { margin-bottom: 0; }
+.split-side .inline-form { flex-wrap: nowrap; }
+.split-side .inline-form .input { min-width: 0; }
+.side-bar {
+  position: sticky; bottom: 0; z-index: 2; display: flex; align-items: center; gap: 10px;
+  margin: 0 -2px; padding: 10px 2px 12px; background: var(--bg); border-top: 1px solid var(--line);
+}
+.side-bar .faint { min-width: 0; margin-left: auto; }
+.values-bar { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; padding: 0 2px; }
+.values-bar .input { flex: 1; min-width: 0; width: auto; }
+.preset-box { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; }
+.preset-box .inline-form { gap: 6px; }
+.preset-box form { margin: 0; }
+.inline-form.grow, .preset-box form.grow { flex: 1; min-width: 0; }
+.btn-del:hover { color: var(--bad); background: var(--bad-soft); }
+.quick .btn-icon { flex: none; }
+/* parameter definitions: one compact clickable row each */
+.split-side .pe-table .pe-row { cursor: pointer; }
+.split-side .pe-table .pe-row.is-open > td { background: var(--hover); }
+.split-side .pe-table td.pe-c-num { width: 26px; }
+.split-side .pe-table td.pe-actions .btn-row { gap: 0; }
+.split-side .pe-table td.pe-actions .btn { opacity: .55; }
+.split-side .pe-table .pe-row:hover td.pe-actions .btn, .split-side .pe-table td.pe-actions .btn.is-on,
+.split-side .pe-table td.pe-actions .btn:focus-visible { opacity: 1; }
+
+/* console: its own top bar replaces the old page header */
+.console-head { gap: 10px; flex-wrap: nowrap; min-width: 0; padding-bottom: 10px; margin-bottom: 10px; border-bottom: 1px solid var(--line); }
+.console-head form { margin: 0; }
+.console-head .strong { min-width: 0; font-size: 14px; }
+@media (max-width: 860px) { .console-head { flex-wrap: wrap; } }
+
+/* right column of the script pages: collapsible (Ctrl+Alt+B, state in localStorage sr.side2) */
+.i-flip { transform: scaleX(-1); }
+.split-side > .side-tabs .tab-collapse { flex: none; align-self: center; margin-left: 2px; }
+.side2-open { display: none; }
+.side2-off .split, .side2-off .split.split-wide { grid-template-columns: minmax(0, 1fr); }
+.side2-off .split-side { display: none; }
+.side2-off .side2-open { display: inline-flex; }
+
+/* the one Save of a script page: highlighted with a dot while something is unsaved */
+.dirty-dot { display: none; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+.btn-save.is-dirty { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.btn-save.is-dirty .dirty-dot { display: inline-block; }
+
+/* centre tab bar: file tabs shrink (names clip) so the tools and the one Save stay visible */
+.doc-bar { overflow: hidden; }
+.doc-bar > .doc-tab { flex: 0 1 auto; min-width: 56px; overflow: hidden; }
+.doc-bar > :not(.doc-tab):not(.spacer):not(#doc-refs) { flex: none; }
+.doc-bar > #doc-refs { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* run tabs: a run's console as a centre tab of the script page (iframe of /executions/<id>/?embed=1) */
+.doc-run-tab { gap: 6px; }
+.doc-run-tab .dot { flex: none; }
+.doc-run-tab .tab-x { margin-left: 2px; padding: 0 3px; border-radius: 4px; color: var(--faint); font-family: var(--sans, inherit); line-height: 1; }
+.doc-run-tab .tab-x:hover { color: var(--text); background: var(--hover); }
+.doc-run-panel[hidden] { display: none; }
+.doc-run-panel iframe { flex: 1; width: 100%; min-height: 0; border: 0; display: block; background: var(--bg); }
+/* the embedded console page itself */
+.wb-embed { display: flex; flex-direction: column; height: 100%; margin: 0; background: var(--bg); }
+.wb-embed > .embed-body { flex: 1; padding: 10px 12px 10px; }
+
+.doc-bar > .doc-run-tab { flex-shrink: 0; }   /* keep its status dot and close button visible */
+
+/* Run tab: run mode next to the Run button (radios styled as a segmented control) */
+.run-modes input { position: absolute; opacity: 0; width: 0; height: 0; pointer-events: none; }
+.run-modes .seg-btn:has(input:checked) { background: var(--raised); color: var(--text); box-shadow: 0 1px 2px rgba(0,0,0,.25); }
+[data-theme="light"] .run-modes .seg-btn:has(input:checked) { background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line-2); }
+.run-modes .seg-btn:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 1px; }
+.side-bar .run-modes { flex: none; }
+
+.run-saved { margin: 0; display: inline-flex; flex: none; }
+
+/* explorer header: the open folder's name as a folder (not a section title) */
+.folder-current { font-size: 12.5px; font-weight: 650; letter-spacing: 0; text-transform: none; color: var(--text-2); }
+.folder-current .fav-mark { width: 10px; height: 10px; margin-left: -9px; margin-top: -10px; color: var(--warn); fill: currentColor; }
+
+/* activity bar: the side-panel toggle sits at the top, under the app icon, set apart from the sections */
+.act-toggle { margin-bottom: 6px; }

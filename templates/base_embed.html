@@ -1,0 +1,38 @@
+{% load static %}<!doctype html>
+{# A page shown inside a script page (a run tab in the centre, iframe): no shell, only the content. Links leave the frame (target _top) unless they say otherwise. #}
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}ScriptHub{% endblock %}</title>
+  <base target="_top">
+  <script>
+    (function () {
+      var d = document.documentElement, t = null;
+      try { t = (window.parent !== window && window.parent.document.documentElement.getAttribute('data-theme')) || localStorage.getItem('sr.theme'); } catch (e) {}
+      if (t !== 'light' && t !== 'dark') t = (window.matchMedia && matchMedia('(prefers-color-scheme: light)').matches) ? 'light' : 'dark';
+      d.setAttribute('data-theme', t);
+      d.classList.add('embedded');
+    })();
+  </script>
+  <link rel="stylesheet" href="{% static 'css/workbench.css' %}">
+</head>
+<body class="wb-embed">
+  {% include "_icons.html" %}
+  <div class="main-body embed-body {% block body_mod %}{% endblock %}" id="main-body">
+    {% if messages %}
+    <div class="flashes">
+      {% for m in messages %}
+      <div class="flash flash-{{ m.level_tag }}" role="alert" {% if m.level_tag == 'success' %}data-autohide{% endif %}>
+        <span>{{ m }}</span>
+        <button type="button" class="flash-x" aria-label="Dismiss" data-dismiss>×</button>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+    {% block content %}{% endblock %}
+  </div>
+  <script src="{% static 'js/app.js' %}"></script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

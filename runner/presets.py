@@ -1,41 +1,43 @@
 """Saved parameters: named presets and the values of recent runs.
 
-They live next to the script, in one file per script:
+One YAML file per saved set, under runtime/ (not in the script folder):
 
-    scripts/system/directory_backup.py
-    scripts/system/directory_backup.json          <- metadata
-    scripts/system/directory_backup.params.json   <- saved parameters (this module)
+    runtime/presets/<script id>/<preset slug>.yaml        a named preset
+    runtime/presets/<script id>/recent/<run id>.yaml      the values of a recent run (last 10 distinct)
 
-    {
-      "presets": {"<slug>": {"name", "host", "values", "saved_at"}},
-      "recent":  [{"host", "values", "saved_at", "run_id", "initiator"}, ...]   newest first
-    }
+    # Preset for C:\\scripts\\system\\directory_backup.py (ScriptHub). Passwords are never stored.
+    name: Production backup
+    host: local
+    saved_at: 2026-11-08T20:44:13
+    values:
+      source: /data/project
+      compress: true
 
-So the values travel with the script (moving it, or committing it to git, keeps
-them). If the script folder cannot be written, the file goes to
-runtime/presets/<script_id>.json instead and is moved next to the script by the
-next save that can write there. Presets from version 1
-(runtime/presets/<script_id>/<slug>.json) are migrated on first use.
+The YAML is a small subset (runner/yamlish.py) so ScriptHub keeps no dependency
+besides Django. Saved values belong to the script's id (its path): moving or
+renaming the script starts with none. Older layouts are migrated on first use and
+then removed: <stem>.params.json next to the script, runtime/presets/<id>.json and
+runtime/presets/<id>/<slug>.json.
 
 Values are raw form values, re-validated against the *current* metadata every
 time they are loaded, so removed or renamed parameters are handled gracefully.
 Password parameters are never written; parameters that are fixed at run time
-are skipped too.
+are skipped too. A file that cannot be read is never overwritten.
 """
 import json
 import re
-import shutil
 import threading
 from pathlib import Path
 
 import config
-from . import history
+from . import history, yamlish
 from . import parameter_service as ps
-from .fsutil import atomic_write_json, read_json
+from .fsutil import atomic_write_text, read_json
 
 NAME_MAX = 60
 RECENT_MAX = 10
-SUFFIX = ".params.json"
+EXT = ".yaml"
+LEGACY_SUFFIX = ".params.json"
 SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,63}$")
 SID_RE = re.compile(r"^[0-9a-f]{6,64}$")
 _lock = threading.RLock()
@@ -72,111 +74,138 @@ def _check_slug(slug):
         raise PresetError("Invalid preset.")
 
 
-def file_next_to(script) -> Path:
-    """<folder>/<stem>.params.json next to the script."""
-    path = Path(script.path)
-    return path.with_name(path.stem + SUFFIX)
-
-
-def _fallback(script) -> Path:
-    return config.PRESETS_DIR / f"{script.id}.json"
-
-
-def _legacy_dir(script) -> Path:
+def folder(script) -> Path:
+    """runtime/presets/<script id>/: one YAML file per preset, recent/ for recent runs."""
     return config.PRESETS_DIR / script.id
 
 
-def _empty():
-    return {"presets": {}, "recent": []}
+def _preset_file(script, slug) -> Path:
+    return folder(script) / f"{slug}{EXT}"
 
 
-def _read(path: Path, strict: bool = False):
-    """Parsed file, None if missing. A broken file reads as empty, but with ``strict``
-    (before writing) it raises, so a hand-edited file is never silently overwritten."""
+def _recent_dir(script) -> Path:
+    return folder(script) / "recent"
+
+
+def _header(script, what) -> str:
+    return f"{what} for {script.path} (ScriptHub). Passwords are never stored."
+
+
+def _read_set(path: Path, strict: bool = False):
+    """One saved set (a dict with a ``values`` mapping), None when missing or unusable.
+    With ``strict`` (before overwriting it) an unreadable file raises PresetError."""
     try:
-        data = read_json(path)
+        data = yamlish.load(path.read_text(encoding="utf-8-sig"))
     except FileNotFoundError:
         return None
     except (OSError, ValueError) as exc:
         if strict:
             raise PresetError(f"{path.name} could not be read ({exc}); fix or delete it first.") from exc
-        return _empty()
-    if not isinstance(data, dict):
+        return None
+    if not isinstance(data.get("values", {}), dict):
         if strict:
-            raise PresetError(f"{path.name} is not a saved-parameters file; fix or delete it first.")
-        return _empty()
-    out = _empty()
-    for slug, p in (data.get("presets") or {}).items() if isinstance(data.get("presets"), dict) else []:
-        if SLUG_RE.match(str(slug)) and isinstance(p, dict) and isinstance(p.get("name"), str) \
-                and isinstance(p.get("values", {}), dict):
-            out["presets"][slug] = p
-    for r in data.get("recent") or [] if isinstance(data.get("recent"), list) else []:
-        if isinstance(r, dict) and isinstance(r.get("values", {}), dict):
-            out["recent"].append(r)
-    return out
+            raise PresetError(f"{path.name} is not a saved-values file; fix or delete it first.")
+        return None
+    data.setdefault("values", {})
+    return data
 
 
-def _load(script, strict: bool = False):
-    """The current saved parameters (merged from every place they may be). Returns (data, dirty).
-    ``strict`` is used before writing: an unreadable file raises PresetError."""
-    _check(script)
-    data = _read(file_next_to(script), strict)
-    dirty = False
-    if data is None:
-        data = _read(_fallback(script), strict)
-        dirty = data is not None          # move it next to the script on the next save
-        data = data or _empty()
-    else:
-        extra = _read(_fallback(script))
-        if extra is not None:             # left over from a time the folder was read-only
-            for slug, p in extra["presets"].items():
-                data["presets"].setdefault(slug, p)
-            dirty = True
-    legacy = _legacy_dir(script)
-    if legacy.is_dir():                   # version 1: one file per preset
-        for f in legacy.glob("*.json"):
-            try:
-                p = read_json(f)
-            except (OSError, ValueError):
-                continue
-            if isinstance(p, dict) and isinstance(p.get("name"), str) and SLUG_RE.match(f.stem):
-                p.pop("script_id", None)
-                data["presets"].setdefault(f.stem, p)
-        dirty = True
-    return data, dirty
+def _write_set(script, path: Path, data: dict, what: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    atomic_write_text(path, yamlish.dump(data, header=_header(script, what)))
 
 
-def _save(script, data) -> Path:
-    """Write next to the script; fall back to runtime/ when the folder is read-only."""
-    payload = {
-        "_comment": f"Saved parameters for {Path(script.path).name} (ScriptHub). Passwords are never stored.",
-        "presets": data["presets"],
-        "recent": data["recent"][:RECENT_MAX],
-    }
-    target = file_next_to(script)
+# ------------------------------------------------------------ migration ---
+def file_next_to(script) -> Path:
+    """Old location (before version 2.1): <folder>/<stem>.params.json next to the script."""
+    path = Path(script.path)
+    return path.with_name(path.stem + LEGACY_SUFFIX)
+
+
+def _read_old(path: Path):
+    """An old JSON file ({"presets": {...}, "recent": [...]}); None when missing or unreadable."""
     try:
-        atomic_write_json(target, payload)
-    except OSError:
-        target = _fallback(script)
-        target.parent.mkdir(parents=True, exist_ok=True)
-        atomic_write_json(target, payload)
-    else:
+        data = read_json(path)
+    except (OSError, ValueError):
+        return None
+    if not isinstance(data, dict):
+        return None
+    presets = {s: p for s, p in (data.get("presets") or {}).items()
+               if SLUG_RE.match(str(s)) and isinstance(p, dict) and isinstance(p.get("name"), str)
+               and isinstance(p.get("values", {}), dict)} if isinstance(data.get("presets"), dict) else {}
+    recent = [r for r in data.get("recent") or [] if isinstance(r, dict) and isinstance(r.get("values", {}), dict)] \
+        if isinstance(data.get("recent"), list) else []
+    return {"presets": presets, "recent": recent}
+
+
+def _migrate(script) -> None:
+    """Move saved values from the older layouts into the YAML files (then remove the old files)."""
+    old_files = [file_next_to(script), config.PRESETS_DIR / f"{script.id}.json"]
+    v1 = sorted(folder(script).glob("*.json")) if folder(script).is_dir() else []
+    if not any(p.is_file() for p in old_files) and not v1:
+        return
+    done = []
+    for path in old_files:
+        old = _read_old(path) if path.is_file() else None
+        if old is None:
+            continue
+        for slug, p in old["presets"].items():
+            target = _preset_file(script, slug)
+            if not target.exists():
+                _write_set(script, target, {k: p[k] for k in ("name", "host", "saved_at", "values") if k in p}, "Preset")
+        for i, r in enumerate(old["recent"][:RECENT_MAX]):
+            rid = r.get("run_id") if history.valid_run_id(str(r.get("run_id", ""))) else f"migrated-{i:02d}"
+            target = _recent_dir(script) / f"{rid}{EXT}"
+            if not target.exists():
+                _write_set(script, target, {k: r[k] for k in ("host", "saved_at", "run_id", "initiator", "values") if k in r},
+                           "Values of a recent run")
+        done.append(path)
+    for f in v1:                                   # version 1: one JSON file per preset
         try:
-            _fallback(script).unlink()
+            p = read_json(f)
+        except (OSError, ValueError):
+            continue
+        if isinstance(p, dict) and isinstance(p.get("name"), str) and SLUG_RE.match(f.stem):
+            if not _preset_file(script, f.stem).exists():
+                _write_set(script, _preset_file(script, f.stem),
+                           {k: p[k] for k in ("name", "host", "saved_at", "values") if k in p}, "Preset")
+            done.append(f)
+    for path in done:
+        try:
+            path.unlink()
         except OSError:
             pass
-    shutil.rmtree(_legacy_dir(script), ignore_errors=True)
-    return target
 
 
-def _loaded(script):
-    data, dirty = _load(script)
-    if dirty:                              # migrate / move next to the script, but never over a broken file
+def _load(script) -> dict:
+    """{"presets": {slug: set}, "recent": [set, ...] newest first}. Unreadable files are skipped."""
+    _check(script)
+    with _lock:
         try:
-            _save(script, _load(script, strict=True)[0])
-        except (OSError, PresetError):
+            _migrate(script)
+        except OSError:
             pass
-    return data
+        presets, recent = {}, []
+        base = folder(script)
+        if base.is_dir():
+            for f in sorted(base.glob(f"*{EXT}")):
+                p = _read_set(f)
+                if SLUG_RE.match(f.stem) and p is not None and isinstance(p.get("name"), str):
+                    presets[f.stem] = p
+        rdir = _recent_dir(script)
+        if rdir.is_dir():
+            for f in rdir.glob(f"*{EXT}"):
+                r = _read_set(f)
+                if r is not None:
+                    r["_file"] = f
+                    try:
+                        r["_mtime"] = f.stat().st_mtime_ns
+                    except OSError:
+                        r["_mtime"] = 0
+                    recent.append(r)
+        # newest first: saved_at has seconds only, the file time breaks ties within a second
+        recent.sort(key=lambda r: (str(r.get("saved_at") or ""), r["_mtime"]), reverse=True)
+        return {"presets": presets, "recent": recent}
 
 
 def savable_values(params, raw: dict) -> dict:
@@ -191,12 +220,15 @@ def savable_values(params, raw: dict) -> dict:
     return out
 
 
+def _public(entry: dict) -> dict:
+    return {k: v for k, v in entry.items() if not k.startswith("_")}
+
+
 # -------------------------------------------------------------- presets ---
 def list_presets(script) -> list:
     """[{'slug', 'name', 'saved_at', 'host'}] sorted by name."""
     try:
-        with _lock:
-            data = _loaded(script)
+        data = _load(script)
     except PresetError:
         return []
     out = [{"slug": s, "name": p["name"], "saved_at": p.get("saved_at", ""), "host": p.get("host", "")}
@@ -207,31 +239,32 @@ def list_presets(script) -> list:
 def get_preset(script, slug: str):
     try:
         _check_slug(slug)
-        with _lock:
-            p = _loaded(script)["presets"].get(slug)
+        p = _load(script)["presets"].get(slug)
     except PresetError:
         return None
-    return dict(p) if p else None
+    return _public(p) if p else None
 
 
 def save_preset(script, name: str, params, raw: dict, host: str, overwrite: bool = True) -> str:
-    """Create or overwrite a preset; returns its slug."""
+    """Create or overwrite a preset (its own file); returns its slug."""
     name = clean_name(name)
     with _lock:
-        data, _dirty = _load(script, strict=True)
+        data = _load(script)
         existing = {p["name"].lower(): s for s, p in data["presets"].items()}
         if not overwrite and name.lower() in existing:
             raise PresetError(f"A preset named '{name}' already exists.")
         slug = existing.get(name.lower())
-        if slug is None:                    # keep slugs unique for different names
+        if slug is None:                    # a new name: a free slug (also not taken by an unreadable file)
             base = slug = slugify(name)
             n = 2
-            while slug in data["presets"]:
+            while slug in data["presets"] or _preset_file(script, slug).exists():
                 slug = f"{base}-{n}"
                 n += 1
-        data["presets"][slug] = {"name": name, "host": host, "values": savable_values(params, raw),
-                                 "saved_at": history.now_iso()}
-        _save(script, data)
+        target = _preset_file(script, slug)
+        if target.exists():
+            _read_set(target, strict=True)   # never overwrite a file that cannot be read
+        _write_set(script, target, {"name": name, "host": host, "saved_at": history.now_iso(),
+                                    "values": savable_values(params, raw)}, "Preset")
     return slug
 
 
@@ -239,56 +272,66 @@ def rename_preset(script, slug: str, new_name: str) -> str:
     new_name = clean_name(new_name)
     _check_slug(slug)
     with _lock:
-        data, _dirty = _load(script, strict=True)
-        if slug not in data["presets"]:
+        data = _load(script)
+        target = _preset_file(script, slug)
+        p = _read_set(target, strict=True)
+        if p is None:
             raise PresetError("That preset no longer exists.")
-        for s, p in data["presets"].items():
-            if s != slug and p["name"].lower() == new_name.lower():
+        for s, other in data["presets"].items():
+            if s != slug and other["name"].lower() == new_name.lower():
                 raise PresetError(f"A preset named '{new_name}' already exists.")
-        data["presets"][slug]["name"] = new_name
-        _save(script, data)
+        p["name"] = new_name
+        _write_set(script, target, p, "Preset")
     return slug
 
 
 def delete_preset(script, slug: str) -> bool:
     _check_slug(slug)
     with _lock:
-        data, dirty = _load(script, strict=True)
-        if data["presets"].pop(slug, None) is None:
-            if dirty:
-                _save(script, data)
+        _load(script)                        # migrates old files first
+        try:
+            _preset_file(script, slug).unlink()
+        except FileNotFoundError:
             return False
-        _save(script, data)
+        except OSError as exc:
+            raise PresetError(f"Could not delete the preset: {exc}") from exc
     return True
 
 
 # --------------------------------------------------------- recent runs ---
+def _same(a: dict, host, values) -> bool:
+    return json.dumps([a.get("host"), a.get("values", {})], sort_keys=True) == json.dumps([host, values], sort_keys=True)
+
+
 def record_run(script, params, raw: dict, host: str, run_id: str, initiator: str = "") -> None:
-    """Remember the values a run was started with (newest first, duplicates collapse)."""
+    """Remember the values a run was started with: one file per run, the newest
+    RECENT_MAX distinct sets are kept (an identical earlier set is replaced)."""
     values = savable_values(params, raw)
-    key = json.dumps([host, values], sort_keys=True)
+    name = run_id if history.valid_run_id(run_id or "") else "run-" + history.now_iso().replace(":", "")
     with _lock:
-        data, _dirty = _load(script, strict=True)
-        data["recent"] = [r for r in data["recent"]
-                          if json.dumps([r.get("host"), r.get("values", {})], sort_keys=True) != key]
-        data["recent"].insert(0, {"host": host, "values": values, "saved_at": history.now_iso(),
-                                  "run_id": run_id, "initiator": initiator})
-        _save(script, data)
+        data = _load(script)
+        for r in data["recent"]:
+            if _same(r, host, values):
+                r["_file"].unlink(missing_ok=True)
+        _write_set(script, _recent_dir(script) / f"{name}{EXT}",
+                   {"host": host, "saved_at": history.now_iso(), "run_id": run_id, "initiator": initiator,
+                    "values": values}, "Values of a recent run")
+        for r in _load(script)["recent"][RECENT_MAX:]:
+            r["_file"].unlink(missing_ok=True)
 
 
 def recent_runs(script) -> list:
     """Newest first; each entry also carries ``key`` ("@<n>", for ?preset=), ``label`` and ``when``."""
     try:
-        with _lock:
-            runs = _loaded(script)["recent"][:RECENT_MAX]
+        runs = _load(script)["recent"][:RECENT_MAX]
     except PresetError:
         return []
     out = []
     for i, r in enumerate(runs):
-        d = dict(r)
+        d = _public(r)
         d["key"] = f"@{i}"
         d["label"] = "Last run" if i == 0 else (r.get("run_id") or f"Run {i + 1}")
-        d["when"] = (r.get("saved_at") or "").replace("T", " ")[:16]
+        d["when"] = str(r.get("saved_at") or "").replace("T", " ")[:16]
         out.append(d)
     return out
 
@@ -310,17 +353,16 @@ def _fmt(v):
 def grid(script, params) -> dict:
     """Comparison of all saved parameter sets: rows = parameters, columns = presets + recent runs."""
     try:
-        with _lock:
-            data = _loaded(script)
+        data = _load(script)
     except PresetError:
         return {"columns": [], "rows": []}
     cols = [{"kind": "preset", "key": s, "name": p["name"], "host": p.get("host", ""),
-             "saved_at": (p.get("saved_at") or "").replace("T", " "), "values": p.get("values") or {}}
+             "saved_at": str(p.get("saved_at") or "").replace("T", " "), "values": p.get("values") or {}}
             for s, p in sorted(data["presets"].items(), key=lambda kv: kv[1]["name"].lower())]
     for i, r in enumerate(data["recent"][:RECENT_MAX]):
         cols.append({"kind": "recent", "key": f"@{i}", "name": "Last run" if i == 0 else (r.get("run_id") or f"Run {i + 1}"),
                      "run_id": r.get("run_id", ""), "host": r.get("host", ""),
-                     "saved_at": (r.get("saved_at") or "").replace("T", " "), "values": r.get("values") or {}})
+                     "saved_at": str(r.get("saved_at") or "").replace("T", " "), "values": r.get("values") or {}})
     defaults = ps.defaults_raw(params)
     default_host = (getattr(script, "meta", None) or {}).get("host", "local")
     rows = []
@@ -347,19 +389,12 @@ def grid(script, params) -> dict:
 
 
 def file_info(script) -> dict:
-    """Where the saved parameters live, and the file's text (for the raw view)."""
+    """Where the saved values of a script live (shown as a tooltip)."""
     try:
         _check(script)
     except PresetError:
         return {}
-    for path, where in ((file_next_to(script), "next to the script"), (_fallback(script), "in runtime/ (script folder is read-only)")):
-        if path.is_file():
-            try:
-                text = path.read_text(encoding="utf-8-sig")
-            except OSError:
-                text = ""
-            return {"path": str(path), "name": path.name, "where": where, "text": text}
-    return {"path": str(file_next_to(script)), "name": file_next_to(script).name, "where": "not created yet", "text": ""}
+    return {"path": str(folder(script)), "name": "saved values"}
 
 
 def apply_preset(params, preset: dict):

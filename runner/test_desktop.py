@@ -34,8 +34,21 @@ class TokenGateTests(DesktopCase):
     def test_server_mode_is_unchanged(self):
         self.assertEqual(self.client.get("/").status_code, 200)
         self.assertNotContains(self.client.get("/"), 'data-desktop="1"')
-        for url in ("/desktop/pick-folder/", "/desktop/reveal/", "/desktop/ping/", "/desktop/bye/"):
+        for url in ("/desktop/reveal/", "/desktop/ping/", "/desktop/bye/"):
             self.assertEqual(self.client.post(url).status_code, 404, url)       # desktop-only endpoints do not exist
+
+    def test_folder_dialog_only_for_a_browser_on_this_machine(self):
+        remote = {"REMOTE_ADDR": "10.1.2.3"}
+        with mock.patch.object(desktop, "ask_directory") as ask:
+            self.assertEqual(self.client.post("/desktop/pick-folder/", **remote).status_code, 404)
+            page = self.client.get("/", **remote)
+            self.assertNotContains(page, "data-folder-picker")
+            self.assertNotContains(self.client.get("/folder/", **remote), "data-pick-folder")
+            ask.assert_not_called()
+            ask.return_value = "C:/picked"
+            self.assertContains(self.client.get("/"), 'data-folder-picker="1"')      # test client = 127.0.0.1
+            self.assertContains(self.client.get("/"), "data-open-folder")
+            self.assertEqual(self.client.post("/desktop/pick-folder/").json()["path"], os.path.normpath("C:/picked"))
 
     def test_every_request_needs_the_launch_token(self):
         with desktop_on():

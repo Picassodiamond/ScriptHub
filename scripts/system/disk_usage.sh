@@ -1,9 +1,20 @@
 #!/usr/bin/env bash
+# --- scripthub ---
+# {
+#   "name": "Disk Usage (shell)",
+#   "description": "Bash example: list the largest entries in a directory using du, sort and df. Meant for Linux hosts.",
+#   "category": "System",
+#   "parameters": [
+#     {"name": "path", "label": "Directory", "type": "directory", "default": "/var/log", "required": true, "help": "Directory to analyse (on the target host)"},
+#     {"name": "top", "label": "Entries to show", "type": "number", "default": 10, "required": true, "min": 1, "max": 100}
+#   ]
+# }
+# --- end scripthub ---
 # Show the largest entries under a directory, plus free space.
 #
 # Usage: disk_usage.sh --path DIR [--top N]
 #
-# Parameters arrive as normal command-line options (see disk_usage.json:
+# Parameters arrive as normal command-line options (see the metadata block above:
 # "pass_as": "flag"), so a shell script can parse them with a simple loop.
 set -u
 

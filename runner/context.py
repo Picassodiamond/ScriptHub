@@ -23,8 +23,7 @@ def _tree():
             "ext": s.extension[1:],
             "relative": s.relative,
             "category": s.category,
-            "enabled": s.enabled,
-            "runnable": s.enabled and s.meta_valid,
+            "runnable": s.meta_valid,
             "status": status,
             "status_label": history.STATUS_LABELS.get(status, status) if status else "",
         }
@@ -65,6 +64,8 @@ def common(request):
     from . import desktop
     from .process_manager import manager
 
+    from . import discovery
+
     match = getattr(request, "resolver_match", None)
     counts = manager.counts()
     cfg = config.load_config()
@@ -73,6 +74,7 @@ def common(request):
     return {
         "app_version": APP_VERSION,
         "desktop": desktop.enabled(),
+        "folder_picker": desktop.can_pick_folder(request),   # "Open folder…" = system dialog
         "editing_enabled": cfg["enable_script_editing"],
         "nav_active": (match.url_name or "").split("_")[0] if match else "",
         "url_name": (match.url_name or "") if match else "",
@@ -84,6 +86,8 @@ def common(request):
         "wb_runs": SimpleLazyObject(_runs),
         "wb_folder": folder,                         # open script folder, favourites, recent
         "wb_folder_palette": lambda: _folder_palette(folder),
+        # Background folder scan progress; read late in the page (after the tree started it).
+        "wb_scan": SimpleLazyObject(discovery.status),
         # A plain callable: templates call it, and json_script then gets a real list.
         "wb_palette": lambda: _palette(tree),
     }

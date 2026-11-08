@@ -17,6 +17,7 @@ import unittest
 import zipfile
 from pathlib import Path
 from types import SimpleNamespace
+from unittest import mock
 
 from django.test import SimpleTestCase
 
@@ -520,8 +521,11 @@ class DatabaseBackupTests(BashScriptCase):
 
 class BundledMetadataTests(SimpleTestCase):
     def test_every_bundled_script_has_valid_metadata_and_a_description(self):
-        from runner import discovery
-        scripts = discovery.scan(force=True)[0]
+        from runner import discovery, workspace
+        bundled = Path(__file__).resolve().parent.parent / "scripts"
+        with mock.patch.object(workspace, "roots", return_value=[bundled]):   # not the folder open in real use
+            scripts = discovery.scan(force=True)[0]
+        self.addCleanup(discovery.scan, True)
         self.assertGreaterEqual(len(scripts), 15)
         for s in scripts:
             with self.subTest(script=s.name):
@@ -532,18 +536,18 @@ class BundledMetadataTests(SimpleTestCase):
             self.assertIn(needed, categories)
 
     def test_password_parameter_uses_environment_not_arguments(self):
-        import json
         from runner import parameter_service as ps
-        meta = json.loads((SCRIPTS / "database" / "db_backup.json").read_text())
+        from runner import metadata
+        meta = metadata.load_raw(SCRIPTS / "database" / "db_backup.sh", "0" * 12)[0]
         params = ps.validate_metadata(meta)["parameters"]
         argv, env = ps.build_arguments(params, {"type": "postgres", "database": "d", "keep": 3, "password": "s3cret"})
         self.assertNotIn("s3cret", argv)
         self.assertEqual(env, {"PGPASSWORD": "s3cret"})
 
     def test_cleanup_requires_the_exact_confirmation_word(self):
-        import json
         from runner import parameter_service as ps
-        meta = json.loads((SCRIPTS / "system" / "directory_cleanup.json").read_text())
+        from runner import metadata
+        meta = metadata.load_raw(SCRIPTS / "system" / "directory_cleanup.py", "0" * 12)[0]
         params = ps.validate_metadata(meta)["parameters"]
         _v, errors = ps.clean_values(params, {"target": "/tmp/x", "days": "30", "confirm": "delete"})
         self.assertIn("confirm", errors)

@@ -1,6 +1,7 @@
 """Open folder page: open / close the script folder, recent and favourite folders,
 and an in-page folder browser (the native dialog is only there in desktop mode)."""
 from django.contrib import messages
+from django.http import JsonResponse
 from django.shortcuts import redirect, render
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
@@ -30,17 +31,21 @@ def folder_open(request):
     except ValueError as exc:
         messages.error(request, str(exc))
         return redirect("folder")
-    scripts, problems = discovery.scan(force=True)
-    messages.success(request, f"Opened {path} — {len(scripts)} script{'' if len(scripts) == 1 else 's'} found.")
-    for p in problems:
-        messages.warning(request, p)
+    scripts, problems, finished = discovery.rescan()
+    if finished:
+        messages.success(request, f"Opened {path} — {len(scripts)} script{'' if len(scripts) == 1 else 's'} found.")
+        for p in problems:
+            messages.warning(request, p)
+    else:
+        messages.info(request, f"Opened {path}. It is still being scanned for scripts; "
+                               "the progress is shown at the bottom and the list fills in as they are found.")
     return _next(request)
 
 
 @require_POST
 def folder_close(request):
     workspace.close_folder()
-    discovery.scan(force=True)
+    discovery.rescan()
     messages.success(request, "Folder closed.")
     return redirect("folder")
 
@@ -53,6 +58,11 @@ def folder_favorite(request):
         workspace.set_favorite(path, on)
         messages.success(request, "Added to favourites." if on else "Removed from favourites.")
     return _next(request, "folder")
+
+
+def folder_scan(request):
+    """Progress of the background folder scan (polled by the status bar while it runs)."""
+    return JsonResponse(discovery.status())
 
 
 @require_POST

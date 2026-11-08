@@ -1,0 +1,68 @@
+{% extends "runner/_script_base.html" %}
+{% load static %}
+{% block title %}Parameters · {{ script.name }}{% endblock %}
+{% comment %}Parameters tab: the parameter definitions (the run form is built from them; click a row
+to edit it) and the saved values (presets and recent runs, ▶ runs one straight away).{% endcomment %}
+{% block body_mod %}fill split-page{% endblock %}
+{% block tabs %}{% endblock %}
+{% block content %}
+{% if errors %}
+<div class="flash flash-error notes"><div><strong>Not saved.</strong><ul class="err-list">{% for e in errors %}<li>{{ e }}</li>{% endfor %}</ul></div></div>
+{% endif %}
+
+<div class="split split-wide">
+  <div class="split-main">{% include "runner/_script_doc.html" with back="script_parameters" %}</div>
+
+  <aside class="split-side">
+    {% include "runner/_script_tabs.html" with side=True %}
+    <form method="post" action="{% url 'script_parameters' script.id %}" id="params-form" novalidate>{% csrf_token %}
+      <section class="panel">
+        <div class="panel-head"><h2>Definitions <span class="count-pill">{{ params|length }}</span></h2><span class="spacer"></span>
+          <button type="button" class="btn btn-ghost btn-icon btn-sm" id="add-param" title="Add a parameter"><svg class="i"><use href="#i-plus"/></svg></button></div>
+        <table id="param-list" class="table pe-table"></table>
+        <div id="param-empty" class="panel-body muted small" hidden>None.</div>
+        <input type="hidden" name="parameters_json" id="parameters_json" value="[]">
+      </section>
+    </form>
+
+    <section class="panel">
+      <div class="panel-head"><h2>Saved values <span class="count-pill">{{ saved_count }}</span></h2><span class="spacer"></span>
+        {% if presets or recent %}<button type="button" class="btn btn-ghost btn-sm" data-doc-open="doc-params-panel" title="Compare every set side by side in the centre">Compare</button>{% endif %}</div>
+      {% if not script.meta_valid %}
+      <div class="panel-body muted small">Fix the metadata to use saved values.</div>
+      {% elif presets or recent %}
+      <ul class="quick">
+        {% for p in presets %}
+        <li>
+          <svg class="i i-sm faint"><use href="#i-save"/></svg>
+          <a class="q-name plain" href="{% url 'script_run' script.id %}?preset={{ p.slug }}" title="Load into the run form">{{ p.name }}</a>
+          <span class="faint small mono">{{ p.host }}</span>
+          {% include "runner/_run_saved.html" with key=p.slug %}
+        </li>
+        {% endfor %}
+        {% for r in recent %}
+        <li>
+          <svg class="i i-sm faint"><use href="#i-clock"/></svg>
+          <a class="q-name plain" href="{% url 'script_run' script.id %}?preset={{ r.key|urlencode }}" title="Load into the run form">{{ r.label }}</a>
+          <span class="faint small nowrap">{{ r.when|slice:"5:" }}</span>
+          {% include "runner/_run_saved.html" with key=r.key %}
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <div class="panel-body muted small">None yet: every run is remembered, presets are saved on the Run tab.</div>
+      {% endif %}
+    </section>
+  </aside>
+</div>
+
+{{ params|json_script:"params-data" }}
+{{ type_info|json_script:"type-info" }}
+{% endblock %}
+
+{% block scripts %}
+<script src="{% static 'js/highlight.js' %}"></script>
+{% if ed %}<script src="{% static 'js/editor.js' %}"></script>{% endif %}
+<script src="{% static 'js/param_editor.js' %}"></script>
+<script src="{% static 'js/designer.js' %}"></script>
+{% endblock %}

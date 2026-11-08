@@ -1,4 +1,21 @@
 #!/usr/bin/env bash
+# --- scripthub ---
+# {
+#   "name": "Database Backup (SQLite / PostgreSQL)",
+#   "description": "Back up a SQLite file or a PostgreSQL database into a timestamped file and keep only the newest N backups. The PostgreSQL password is passed as an environment variable.",
+#   "category": "Database",
+#   "parameters": [
+#     {"name": "type", "label": "Database type", "type": "select", "required": true, "default": "sqlite", "choices": [{"value": "sqlite", "label": "SQLite (file)"}, {"value": "postgres", "label": "PostgreSQL"}]},
+#     {"name": "database", "label": "Database file or name", "type": "text", "required": true, "placeholder": "/srv/myapp/db.sqlite3  or  myapp_db", "help": "SQLite: the full path of the file. PostgreSQL: the database name."},
+#     {"name": "dest_dir", "label": "Backup folder", "type": "directory", "required": true, "default": "/var/backups/db"},
+#     {"name": "keep", "label": "Backups to keep", "type": "number", "default": 7, "required": true, "min": 1, "max": 3650, "help": "Older backups of the same database are deleted."},
+#     {"name": "host", "label": "PostgreSQL host", "type": "text", "placeholder": "localhost", "pattern": "[A-Za-z0-9._-]+"},
+#     {"name": "port", "label": "PostgreSQL port", "type": "number", "min": 1, "max": 65535, "placeholder": "5432"},
+#     {"name": "user", "label": "PostgreSQL user", "type": "text", "placeholder": "postgres", "pattern": "[A-Za-z0-9._@-]+"},
+#     {"name": "password", "label": "PostgreSQL password", "type": "password", "pass_as": "env", "env_name": "PGPASSWORD", "help": "Sent as the PGPASSWORD environment variable, not on the command line. Not saved in presets."}
+#   ]
+# }
+# --- end scripthub ---
 # Back up a SQLite or PostgreSQL database to a timestamped file and keep only
 # the newest N backups.
 #

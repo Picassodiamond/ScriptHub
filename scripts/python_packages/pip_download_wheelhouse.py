@@ -1,3 +1,19 @@
+# --- scripthub ---
+# {
+#   "name": "Pip: Download Wheelhouse",
+#   "description": "Download a requirements file and all dependencies into a folder (a wheelhouse) for installing offline later. Can target another OS/Python, writes a SHA-256 manifest, and can zip it for transfer.",
+#   "category": "Python packages",
+#   "parameters": [
+#     {"name": "requirements", "label": "Requirements file", "type": "file", "required": true, "placeholder": "/srv/app/requirements.txt", "help": "Path to requirements.txt on the machine that runs this script."},
+#     {"name": "dest", "label": "Wheelhouse folder", "type": "directory", "required": true, "default": "./wheelhouse", "help": "Created if missing."},
+#     {"name": "platform", "label": "Target platform", "type": "select", "choices": [{"value": "manylinux2014_x86_64", "label": "Linux x86-64"}, {"value": "manylinux2014_aarch64", "label": "Linux ARM64"}, {"value": "win_amd64", "label": "Windows 64-bit"}, {"value": "macosx_11_0_arm64", "label": "macOS Apple Silicon"}, {"value": "macosx_10_9_x86_64", "label": "macOS Intel"}], "help": "Leave “none” to download for this machine. Pick the OS of the offline machine if it differs; only binary wheels can be fetched for another platform."},
+#     {"name": "python_version", "label": "Target Python version", "type": "text", "placeholder": "3.11", "pattern": "\\d+(\\.\\d+){0,2}", "help": "Python on the offline machine, e.g. 3.11. Leave empty to use this interpreter's version."},
+#     {"name": "index_url", "label": "Package index URL", "type": "text", "placeholder": "https://pypi.org/simple", "pattern": "https?://\\S+", "help": "Optional: an internal mirror."},
+#     {"name": "only_binary", "label": "Binary wheels only", "type": "boolean", "default": false, "help": "Refuse source packages (they would need compilers offline)."},
+#     {"name": "bundle", "label": "Also create a .zip for transfer", "type": "boolean", "default": true}
+#   ]
+# }
+# --- end scripthub ---
 """Download every package in a requirements file (with its dependencies) into a
 "wheelhouse" folder so it can be installed later on a machine WITHOUT internet.
 

@@ -1,4 +1,5 @@
-"""History page: search, filters, paging, delete and retention."""
+"""History page (Runs): what is running now, then every execution with search, filters,
+paging, delete and retention."""
 import urllib.parse
 
 from django.contrib import messages
@@ -8,7 +9,7 @@ from django.views.decorators.http import require_POST
 
 import config
 from . import history, history_ops
-from .execution_views import _decorate
+from .execution_views import _decorate, active_runs
 
 PER_PAGE = 20
 
@@ -59,6 +60,7 @@ def history_list(request):
         "history_days": cfg["history_retention_days"],
         "log_days": cfg["log_retention_days"],
         "return_query": urllib.parse.urlencode({**keep, "page": page}),
+        "active": active_runs(),                     # the Running panel on top (Jobs merged in)
     })
 
 

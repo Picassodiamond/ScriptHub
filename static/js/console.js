@@ -233,6 +233,10 @@
   function render(d) {
     renderTrace(d.trace, d);
     if (badge) { badge.className = 'st st-' + d.status; badge.textContent = d.status_label; }
+    // Shown as a tab of a script page (iframe): tell it, so the tab shows the status.
+    if (window.parent !== window) {
+      try { window.parent.postMessage({ sr: 'run-status', run: d.id || cfg.dataset.runId, status: d.status, label: d.status_label }, location.origin); } catch (e) { /* not same-origin */ }
+    }
     exitEl.textContent = d.exit_code === null || d.exit_code === undefined ? '—' : d.exit_code;
     startedEl.textContent = d.started_at ? d.started_at.replace('T', ' ') : '—';
     finishedEl.textContent = d.finished_at ? d.finished_at.replace('T', ' ') : '—';

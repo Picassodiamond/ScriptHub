@@ -219,7 +219,8 @@ class WebCase(TempCase):
 
     @staticmethod
     def run_id_of(response):
-        return response["Location"].rstrip("/").split("/")[-1]
+        # Starting a run goes back to the script page, which opens the run as a tab (?open=RUN-…).
+        return response["Location"].split("open=", 1)[1].split("&")[0]
 
     _n = 0
 
@@ -256,7 +257,7 @@ class WebEditTests(WebCase):
         self.assertContains(r, "print(&#x27;v1&#x27;)")
         self.assertContains(r, 'class="editor"')
         self.assertContains(r, 'data-lang="python"')
-        self.assertContains(r, "line endings LF")
+        self.assertContains(r, "bytes · LF")
 
     def test_save_updates_the_file_and_creates_a_backup(self):
         r = self.client.post(self.url(), {"content": "print('v2')\r\n", "base_hash": self.hash_on_page(), "action": "save"}, follow=True)

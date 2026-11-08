@@ -412,6 +412,11 @@ def _check_default(p):
     return None
 
 
+# Former per-script options: every script is runnable, uses the default timeout from
+# Settings and runs one at a time. Old metadata files may still contain them.
+REMOVED_KEYS = ("enabled", "timeout", "allow_concurrent")
+
+
 def validate_metadata(data):
     """Validate a whole metadata document. Returns the cleaned dict or raises
     ValidationError with every problem found."""
@@ -458,14 +463,8 @@ def validate_metadata(data):
             elif not isinstance(v, str) or "\x00" in v:
                 errors.append(f"'environment' value for {k} must be text.")
 
-    for key in ("enabled", "allow_concurrent"):
-        if key in clean and not isinstance(clean[key], bool):
-            errors.append(f"'{key}' must be true or false.")
-    t = clean.get("timeout")
-    if t is None:
-        clean.pop("timeout", None)
-    elif isinstance(t, bool) or not isinstance(t, int) or not 1 <= t <= 7 * 86400:
-        errors.append("'timeout' must be a whole number of seconds between 1 and 604800.")
+    for key in REMOVED_KEYS:          # old per-script options; dropped on the next save
+        clean.pop(key, None)
 
     params, perrors = validate_parameters(clean.get("parameters", []))
     errors.extend(perrors)

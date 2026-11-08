@@ -1,4 +1,16 @@
 #!/usr/bin/env bash
+# --- scripthub ---
+# {
+#   "name": "Service: Status / Restart",
+#   "description": "Check, start, stop, restart or reload a systemd service (gunicorn, nginx, celery...) and read its recent log.",
+#   "category": "Deployment",
+#   "parameters": [
+#     {"name": "service1", "label": "Service name", "type": "text", "required": true, "editable_at_runtime": true, "help": "As used with systemctl, e.g. nginx or gunicorn-myapp.", "placeholder": "gunicorn-myapp", "pattern": "[A-Za-z0-9][A-Za-z0-9@._-]*", "pass_as": "flag"},
+#     {"name": "action", "label": "Action", "type": "select", "default": "status", "required": true, "editable_at_runtime": true, "choices": [{"value": "status", "label": "Status"}, {"value": "logs", "label": "Show recent log"}, {"value": "restart", "label": "Restart"}, {"value": "reload", "label": "Reload (graceful)"}, {"value": "start", "label": "Start"}, {"value": "stop", "label": "Stop"}], "pass_as": "flag"},
+#     {"name": "lines", "label": "Log lines", "type": "number", "default": 50, "required": false, "editable_at_runtime": true, "help": "Used by “Show recent log”.", "min": 1, "max": 5000, "pass_as": "flag"}
+#   ]
+# }
+# --- end scripthub ---
 # Status / start / stop / restart / reload a systemd service, or show its log.
 #
 # Usage: service_control.sh --service NAME --action ACTION [--lines N]

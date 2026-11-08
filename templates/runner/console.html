@@ -1,24 +1,29 @@
-{% extends "base.html" %}
+{% extends base_template|default:"base.html" %}
 {% load static %}
 {% block title %}{{ run.id }}{% endblock %}
 {% block side %}{% include "runner/_runs_side.html" %}{% endblock %}
 {% block body_mod %}fill{% endblock %}
-{% block crumbs %}<a href="{% url 'executions' %}">Jobs</a><span class="sep">/</span><span class="mono">{{ run.id }}</span>{% if run.script_id and not run.adhoc %}<span class="sep">·</span><a href="{% url 'script_detail' run.script_id %}">script</a>{% endif %}{% endblock %}
-{% block heading %}<span class="t">{{ run.script_name }}</span><span id="status-badge" class="st st-{{ run.status }}">{{ status_label }}</span>{% if debug %}<span class="badge badge-warn"><svg class="i i-sm"><use href="#i-bug"/></svg> debug</span>{% elif trace %}<span class="badge"><svg class="i i-sm"><use href="#i-eye"/></svg> trace</span>{% endif %}{% endblock %}
-{% block actions %}
-{% if desktop %}<button type="button" class="btn btn-ghost btn-icon btn-sm" data-reveal-run="{{ run.id }}" title="Show the run folder (logs, metadata)"><svg class="i"><use href="#i-folder"/></svg></button>{% endif %}
-<button type="button" class="btn btn-ghost btn-icon btn-sm" id="refresh-now" title="Refresh now"><svg class="i"><use href="#i-refresh"/></svg></button>
-{% if run.script_id and not run.adhoc %}<a class="btn btn-sm" href="{% url 'script_run' run.script_id %}" data-hotkey="r" data-hint="Run this script again"><svg class="i"><use href="#i-play"/></svg> Run again</a>{% endif %}
-<form method="post" action="{% url 'history_delete' run.id %}" id="delete-form" data-confirm="Delete {{ run.id }} and its logs?" {% if active %}hidden{% endif %}>{% csrf_token %}
-  <input type="hidden" name="from" value="console">
-  <button class="btn btn-ghost btn-sm" type="submit"><svg class="i"><use href="#i-trash"/></svg> Delete</button>
-</form>
-<form method="post" action="{% url 'execution_stop' run.id %}" id="stop-form" data-confirm="Stop this execution?" {% if not active %}hidden{% endif %}>{% csrf_token %}
-  <button class="btn btn-danger btn-sm" type="submit" id="stop-btn"><svg class="i i-fill"><use href="#i-stop"/></svg> Stop</button>
-</form>
-{% endblock %}
 
 {% block content %}
+<div class="console-bar console-head">
+  <span id="status-badge" class="st st-{{ run.status }}">{{ status_label }}</span>
+  {% if run.script_id and not run.adhoc and not embed %}<a class="strong plain clamp-1" href="{% url 'script_detail' run.script_id %}" title="Open the script">{{ run.script_name }}</a>{% else %}<span class="strong clamp-1">{{ run.script_name }}</span>{% endif %}
+  <span class="faint small mono">{{ run.id }}</span>
+  {% if debug %}<span class="badge badge-warn"><svg class="i i-sm"><use href="#i-bug"/></svg> debug</span>{% elif trace %}<span class="badge"><svg class="i i-sm"><use href="#i-eye"/></svg> trace</span>{% endif %}
+  <span class="spacer"></span>
+  <span class="live" id="live"><span class="sb-dot"></span><span id="live-note">Connecting…</span></span>
+  {% if desktop %}<button type="button" class="btn btn-ghost btn-icon btn-sm" data-reveal-run="{{ run.id }}" title="Show the run folder (logs, metadata)"><svg class="i"><use href="#i-folder"/></svg></button>{% endif %}
+  {% if embed %}<a class="btn btn-ghost btn-icon btn-sm" href="{% url 'execution_console' run.id %}" title="Open as a full page"><svg class="i"><use href="#i-external"/></svg></a>{% endif %}<button type="button" class="btn btn-ghost btn-icon btn-sm" id="refresh-now" title="Refresh now"><svg class="i"><use href="#i-refresh"/></svg></button>
+  <form method="post" action="{% url 'history_delete' run.id %}" id="delete-form" data-confirm="Delete {{ run.id }} and its logs?" {% if active %}hidden{% endif %}>{% csrf_token %}
+    <input type="hidden" name="from" value="console">
+    <button class="btn btn-ghost btn-icon btn-sm btn-del" type="submit" title="Delete this run and its logs"><svg class="i"><use href="#i-trash"/></svg></button>
+  </form>
+  {% if run.script_id and not run.adhoc and not embed %}<a class="btn btn-sm" href="{% url 'script_run' run.script_id %}" data-hotkey="r" data-hint="Run this script again"><svg class="i"><use href="#i-play"/></svg> Run again</a>{% endif %}
+  <form method="post" action="{% url 'execution_stop' run.id %}" id="stop-form" target="_self" data-confirm="Stop this execution?" {% if not active %}hidden{% endif %}>{% csrf_token %}{% if embed %}<input type="hidden" name="embed" value="1">{% endif %}
+    <button class="btn btn-danger btn-sm" type="submit" id="stop-btn"><svg class="i i-fill"><use href="#i-stop"/></svg> Stop</button>
+  </form>
+</div>
+
 <div class="run-summary" id="console-summary">
   <div class="rs-item"><div class="rs-label">Duration</div><div id="duration" class="rs-val">—</div></div>
   <div class="rs-item"><div class="rs-label">Exit code</div><div id="exit-code" class="rs-val">{% if run.exit_code is None %}—{% else %}{{ run.exit_code }}{% endif %}</div></div>
@@ -52,7 +57,6 @@
 </details>
 
 <div class="console-bar">
-  <span class="live" id="live"><span class="sb-dot"></span><span id="live-note">Connecting…</span></span>
   <span class="spacer"></span>
   <label class="check small"><input type="checkbox" id="autoscroll" checked><span>Auto-scroll</span></label>
   <div class="seg" role="group" aria-label="Output layout">
@@ -127,7 +131,7 @@
   </div>
 </div>
 
-<div id="console-config" data-status-url="{% url 'execution_status' run.id %}" data-interval="{{ polling_interval }}"
+<div id="console-config" data-run-id="{{ run.id }}" data-status-url="{% url 'execution_status' run.id %}" data-interval="{{ polling_interval }}"
      {% if trace %}data-trace-stop-url="{% url 'execution_trace_stop' run.id %}"{% endif %}
      {% if debug %}data-debug-url="{% url 'execution_debug' run.id %}"{% endif %}
      data-csrf="{{ csrf_token }}" hidden></div>

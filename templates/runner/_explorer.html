@@ -2,13 +2,13 @@
 <div class="side-head">
   {% with f=wb_folder.folder %}
   <details class="folder-menu" data-menu>
-    <summary class="folder-current" title="{% if f %}{{ f.path }} — switch folder{% else %}Open a script folder{% endif %}">
-      <svg class="i i-sm"><use href="#i-{% if f and f.favorite %}star{% else %}folder{% endif %}"/></svg>
+    <summary class="folder-current" title="{% if f %}{{ f.path }}  — recent and favourite folders{% else %}Open a script folder{% endif %}">
+      <svg class="i i-sm"><use href="#i-folder"/></svg>{% if f and f.favorite %}<svg class="i i-xs fav-mark" aria-label="favourite"><use href="#i-star"/></svg>{% endif %}
       <span class="clamp-1">{% if f %}{{ f.name }}{% else %}No folder open{% endif %}</span>
       <span class="caret" aria-hidden="true"></span>
     </summary>
     <div class="menu" role="menu">
-      <a class="menu-item" href="{% url 'folder' %}" role="menuitem"><svg class="i i-sm"><use href="#i-folder"/></svg><span>Open folder…</span></a>
+      <a class="menu-item" href="{% url 'folder' %}" role="menuitem" data-open-folder><svg class="i i-sm"><use href="#i-folder"/></svg><span>Open folder…</span></a>
       {% if wb_folder.favorites %}<div class="menu-label">Favourites</div>
       {% for x in wb_folder.favorites %}{% include "runner/_folder_menu_item.html" %}{% endfor %}{% endif %}
       {% if wb_folder.recent %}<div class="menu-label">Recent</div>
@@ -27,7 +27,8 @@
   </details>
   {% endwith %}
   <div class="side-actions">
-    {% if editing_enabled and wb_folder.folder %}<a class="btn btn-ghost btn-icon btn-sm" href="{% url 'script_new' %}{% if script.id %}?from={{ script.id }}{% endif %}" data-new-script data-hotkey="g n" data-hint="New script" title="New script in this folder  (g n)"><svg class="i"><use href="#i-plus"/></svg></a>{% endif %}
+    {% if editing_enabled and wb_folder.folder %}<a class="btn btn-ghost btn-icon btn-sm" href="{% url 'script_new' %}{% if script.id %}?from={{ script.id }}{% endif %}" data-new-script data-hotkey="g n" data-hint="New script" title="New script in this folder  (g n)" aria-label="New script"><svg class="i"><use href="#i-plus"/></svg></a>{% endif %}
+    <a class="btn btn-ghost btn-icon btn-sm" href="{% url 'folder' %}" data-open-folder data-hotkey="g f" data-hint="Open folder" title="Open folder…  (g f)" aria-label="Open folder"><svg class="i"><use href="#i-folder-open"/></svg></a>
     <button type="button" class="btn btn-ghost btn-icon btn-sm" data-tree-collapse title="Collapse all"><svg class="i"><use href="#i-collapse"/></svg></button>
     <form method="post" action="{% url 'library_refresh' %}">{% csrf_token %}
       <button class="btn btn-ghost btn-icon btn-sm" type="submit" title="Rescan the folder"><svg class="i"><use href="#i-refresh"/></svg></button>
@@ -48,8 +49,8 @@
       <summary>{{ g.name }}<span class="tree-count">{{ g.scripts|length }}</span></summary>
       <div class="tree-items">
         {% for s in g.scripts %}
-        <a class="tree-item{% if s.id == current %} is-active{% endif %}{% if not s.enabled %} is-off{% endif %}" href="{% url 'script_detail' s.id %}"
-           data-search="{{ s.name|lower }} {{ s.relative|lower }} {{ s.category|lower }}" title="{{ s.relative }}{% if not s.enabled %} (disabled){% endif %}">
+        <a class="tree-item{% if s.id == current %} is-active{% endif %}" href="{% url 'script_detail' s.id %}"
+           data-search="{{ s.name|lower }} {{ s.relative|lower }} {{ s.category|lower }}" title="{{ s.relative }}">
           <span class="lang lang-{{ s.ext }}">{{ s.ext }}</span>
           <span class="ti-name">{{ s.name }}</span>
           {% if s.status %}<span class="dot st-{{ s.status }}" title="Last run: {{ s.status_label }}"></span>{% endif %}
@@ -58,9 +59,11 @@
       </div>
     </details>
     {% empty %}
-    {% if wb_folder.folder %}<p class="tree-empty">No scripts in this folder. Files with an extension listed under Settings → Interpreters are shown.</p>
-    {% else %}<div class="tree-empty"><p>No folder open.</p><a class="btn btn-primary btn-sm" href="{% url 'folder' %}"><svg class="i"><use href="#i-folder"/></svg> Open folder…</a></div>{% endif %}
+    {% if wb_folder.folder and wb_scan.scanning %}<p class="tree-empty">Scanning the folder for scripts… progress is shown at the bottom.</p>
+    {% elif wb_folder.folder %}<p class="tree-empty">No scripts in this folder. Files with an extension listed under Settings → Interpreters are shown.</p>
+    {% else %}<div class="tree-empty"><p>No folder open.</p><a class="btn btn-primary btn-sm" href="{% url 'folder' %}" data-open-folder><svg class="i"><use href="#i-folder"/></svg> Open folder…</a></div>{% endif %}
     {% endfor %}
+    {% if wb_tree and wb_scan.scanning and wb_scan.first %}<p class="tree-empty">Still scanning; more scripts may appear.</p>{% endif %}
     <p class="tree-empty" id="tree-none" hidden>No match.</p>
   </div>
 </div>

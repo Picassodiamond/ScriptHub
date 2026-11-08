@@ -1,13 +1,12 @@
-{% comment %}Shared centre of the script pages (Overview, Run, Configure): the same three tabs everywhere,
-   only the right column changes between pages. Needs doc_context() in the view; `back` = the page's
-   url name, where saving the metadata JSON returns to. Active tab: ?tab=params, a failed JSON save,
-   otherwise the one picked last (designer.js).{% endcomment %}
+{% comment %}Shared centre of the script pages (Overview, Parameters, Run): the script (its metadata is
+   the comment block at the top) and its saved values, plus a tab per run started here (designer.js).
+   Only the right column changes between pages. Needs doc_context() in the view. Active tab:
+   ?tab=params, otherwise the one picked last.{% endcomment %}
 {% with ptab=request.GET.tab %}
-<section class="doc" aria-label="Script, metadata and saved parameters" data-doc-default="{% if raw_errors %}doc-meta-panel{% elif ptab == 'params' %}doc-params-panel{% endif %}">
+<section class="doc" aria-label="Script, saved values and runs" data-script="{{ script.id }}" data-doc-default="{% if ptab == 'params' %}doc-params-panel{% endif %}">
   <div class="doc-bar" role="tablist">
-    <button type="button" class="doc-tab{% if not raw_errors and ptab != 'params' %} is-active{% endif %}" data-doc-tab="doc-code-panel" role="tab"><span class="lang lang-{{ script.extension|slice:'1:' }}">{{ script.extension|slice:'1:' }}</span>{{ script.path.name }}</button>
-    <button type="button" class="doc-tab{% if raw_errors %} is-active{% endif %}" data-doc-tab="doc-meta-panel" role="tab"><span class="lang">json</span>{% if script.meta_source %}{{ script.meta_source.name }}{% else %}metadata (new){% endif %}</button>
-    <button type="button" class="doc-tab{% if ptab == 'params' and not raw_errors %} is-active{% endif %}" data-doc-tab="doc-params-panel" role="tab" data-hotkey="p" data-hint="Saved parameters"><span class="lang">json</span>{{ pfile.name|default:"saved parameters" }} <span class="count-pill">{{ pgrid.columns|length }}</span></button>
+    <button type="button" class="doc-tab{% if ptab != 'params' %} is-active{% endif %}" data-doc-tab="doc-code-panel" role="tab" title="{{ script.path.name }}"><span class="lang lang-{{ script.extension|slice:'1:' }}">{{ script.extension|slice:'1:' }}</span>{{ script.path.name }}</button>
+    <button type="button" class="doc-tab{% if ptab == 'params' %} is-active{% endif %}" data-doc-tab="doc-params-panel" role="tab" title="Saved values ({{ pfile.path }})"><span class="lang">yaml</span>saved values <span class="count-pill">{{ pgrid.columns|length }}</span></button>
     <span class="spacer"></span>
     <span class="faint small mono hide-sm" id="doc-refs"></span>
     {% if ed %}
@@ -21,11 +20,13 @@
     <a class="btn btn-ghost btn-icon btn-sm" href="{% url 'script_source' script.id %}?download=1" title="Download the script"><svg class="i"><use href="#i-download"/></svg></a>
     {% if ed %}
     <a class="btn btn-ghost btn-icon btn-sm" href="{% url 'script_edit' script.id %}" title="Full-screen editor"><svg class="i"><use href="#i-external"/></svg></a>
-    <button class="btn btn-sm" type="submit" form="edit-form" name="action" value="save" data-save data-hotkey="Ctrl+s" data-hint="Save the script" title="Save the script (Ctrl+S)"><svg class="i"><use href="#i-save"/></svg> Save</button>
     {% endif %}
+    {# The page's one Save: the script, the Overview settings, the parameter definitions (designer.js). #}
+    <button class="btn btn-sm btn-save" type="button" data-save data-save-all{% if ed %} form="edit-form"{% endif %} data-hotkey="Ctrl+s" data-hint="Save" title="Save  (Ctrl+S)"><svg class="i"><use href="#i-save"/></svg> Save <span class="dirty-dot" aria-hidden="true"></span></button>
+    {% include "runner/_side2_open.html" %}
   </div>
 
-  <div class="doc-panel" id="doc-code-panel"{% if raw_errors or ptab == 'params' %} hidden{% endif %}>
+  <div class="doc-panel" id="doc-code-panel"{% if ptab == 'params' %} hidden{% endif %}>
     {% if ed %}
     <form method="post" action="{% url 'script_edit' script.id %}" id="edit-form" class="editor-fill" novalidate>{% csrf_token %}
       <input type="hidden" name="base_hash" value="{{ ed.hash }}">
@@ -39,29 +40,10 @@
     {% endif %}
   </div>
 
-  <form class="doc-panel" id="doc-meta-panel" method="post" action="{% url 'script_configure_raw' script.id %}"{% if not raw_errors %} hidden{% endif %}>{% csrf_token %}
-    <input type="hidden" name="back" value="{{ back|default:'script_configure' }}">
-    {% if raw_errors %}
-    <div class="flash flash-error" style="margin:10px 10px 0"><div><strong>Not saved.</strong><ul class="err-list">{% for e in raw_errors %}<li>{{ e }}</li>{% endfor %}</ul></div></div>
-    {% endif %}
-    <textarea class="raw-doc" name="raw_json" spellcheck="false" aria-label="Metadata JSON">{{ raw_text }}</textarea>
-    <div class="doc-foot">
-      <span class="muted small">The whole metadata document, validated before saving (Ctrl+S). Use it to repair invalid JSON.</span>
-      <span class="spacer"></span>
-      <button class="btn btn-sm" type="submit">Validate &amp; save JSON</button>
-    </div>
-  </form>
-
-  <div class="doc-panel" id="doc-params-panel"{% if ptab != 'params' or raw_errors %} hidden{% endif %}>
+  <div class="doc-panel" id="doc-params-panel"{% if ptab != 'params' %} hidden{% endif %}>
     <div class="pg-toolbar">
-      <span class="mono small" title="{{ pfile.path }}">{{ pfile.name }}</span>
-      <span class="faint small hide-sm">{{ pfile.where }}</span>
       <span class="spacer"></span>
       <span class="faint small hide-sm">Highlighted = differs from the script's default</span>
-      <div class="seg" role="group" aria-label="View">
-        <button type="button" class="seg-btn is-active" data-pview="grid">Compare</button>
-        <button type="button" class="seg-btn" data-pview="raw">File</button>
-      </div>
     </div>
     <div class="pgrid-wrap" data-pview-panel="grid">
       {% if pgrid.columns %}
@@ -74,8 +56,8 @@
               <div class="pgc-name"><svg class="i i-sm"><use href="#i-{% if c.kind == 'recent' %}clock{% else %}save{% endif %}"/></svg><span class="clamp-1" title="{{ c.name }}">{{ c.name }}</span></div>
               <div class="pgc-when">{% if c.kind == 'recent' and c.run_id and c.name != c.run_id %}{{ c.run_id }} · {% endif %}{{ c.saved_at|slice:":16" }}</div>
               <div class="pgc-actions">
-                {% if script.enabled and script.meta_valid %}
-                <a class="btn btn-primary btn-sm play" href="{% url 'script_run' script.id %}?preset={{ c.key|urlencode }}&amp;review=1" title="Review and run with these values"><svg class="i"><use href="#i-play"/></svg> Run</a>
+                {% if script.meta_valid %}
+                {% include "runner/_run_saved.html" with key=c.key label="Run" %}
                 <a class="btn btn-ghost btn-sm" href="{% url 'script_run' script.id %}?preset={{ c.key|urlencode }}" title="Load into the run form to change them first">Load</a>
                 {% endif %}
                 {% if c.kind == 'preset' %}
@@ -102,11 +84,10 @@
       <div class="empty">
         <svg class="i"><use href="#i-sliders"/></svg>
         <h2>Nothing saved yet</h2>
-        <p>Every run remembers the values it was started with, and you can name a set with<br>“Save current values as” on the Run tab. They are kept in <span class="mono">{{ pfile.name|default:"a .params.json file" }}</span> next to the script.</p>
+        <p>Every run remembers its values; name a set with “+ Save current values as preset…” on the Run tab.</p>
       </div>
       {% endif %}
     </div>
-    <pre class="source doc-src pg-raw" data-pview-panel="raw" data-lang="json" hidden><code>{% for line in pfile.text.splitlines %}<span class="ln">{{ line }}</span>{% empty %}<span class="ln">(the file does not exist yet)</span>{% endfor %}</code></pre>
   </div>
 </section>
 {% endwith %}

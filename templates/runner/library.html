@@ -1,12 +1,5 @@
 {% extends "base.html" %}
 {% block title %}Script Library{% endblock %}
-{% block crumbs %}<span>Workbench</span>{% endblock %}
-{% block heading %}<span class="t">Script Library</span><span class="count-pill" id="head-count">{{ scripts|length }}</span>{% endblock %}
-{% block actions %}
-<form method="post" action="{% url 'library_refresh' %}">{% csrf_token %}
-  <button class="btn" type="submit" title="Rescan the folder"><svg class="i"><use href="#i-refresh"/></svg> Rescan</button>
-</form>
-{% endblock %}
 {% block content %}
 <div class="page">
 {% for p in problems %}<div class="flash flash-warning"><span>{{ p }}</span></div>{% endfor %}
@@ -32,7 +25,7 @@
   </select>
   <button type="button" class="btn btn-ghost btn-sm" id="clear-filters" hidden>Clear</button>
   <span class="spacer"></span>
-  <span class="muted small" id="match-count">{{ enabled_count }} of {{ scripts|length }} enabled</span>
+  <span class="muted small" id="match-count">{{ scripts|length }} script{{ scripts|length|pluralize }}</span>
   <div class="seg" role="group" aria-label="Layout">
     <button type="button" class="seg-btn" data-view="table" title="Table"><svg class="i"><use href="#i-list"/></svg></button>
     <button type="button" class="seg-btn" data-view="cards" title="Cards"><svg class="i"><use href="#i-grid"/></svg></button>
@@ -43,10 +36,10 @@
   <section class="panel" id="view-table">
     <div class="table-wrap">
     <table class="table">
-      <thead><tr><th>Script</th><th>Category</th><th class="hide-sm">Interpreter</th><th class="hide-sm">Platform</th><th class="hide-sm">Params</th><th>Last run</th><th>On</th><th></th></tr></thead>
+      <thead><tr><th>Script</th><th>Category</th><th class="hide-sm">Interpreter</th><th class="hide-sm">Platform</th><th class="hide-sm">Params</th><th>Last run</th><th></th></tr></thead>
       <tbody>
         {% for s in scripts %}
-        <tr class="{% if not s.enabled %}is-off{% endif %}" data-item data-category="{{ s.category }}"
+        <tr data-item data-category="{{ s.category }}"
             data-platform="{{ s.platforms|join:' ' }}" data-language="{{ s.language }}"
             data-search="{{ s.name }} {{ s.description }} {{ s.relative }} {{ s.category }} {{ s.interpreter }} {{ s.language_label }} {{ s.platform_labels|join:' ' }}">
           <td>
@@ -61,19 +54,12 @@
           <td class="small muted hide-sm">{{ s.platform_labels|join:", " }}</td>
           <td class="mono small muted hide-sm">{{ s.parameter_count }}</td>
           <td>{% if s.last_run %}<a class="st st-sm st-{{ s.last_run.status }}" href="{% url 'execution_console' s.last_run.id %}" title="Last run {{ s.last_run.ago }}">{{ s.last_run.label }}</a>{% else %}<span class="faint small">—</span>{% endif %}</td>
-          <td>
-            <form method="post" action="{% url 'script_toggle' s.id %}" class="toggle-form">{% csrf_token %}
-              <input type="hidden" name="enabled" value="{% if s.enabled %}0{% else %}1{% endif %}">
-              <button class="switch {% if s.enabled %}on{% endif %}" type="submit" role="switch" aria-checked="{% if s.enabled %}true{% else %}false{% endif %}" title="{% if s.enabled %}Enabled — click to disable{% else %}Disabled — click to enable{% endif %}"><span></span></button>
-            </form>
-          </td>
           <td class="actions">
             <div class="btn-row">
               <a class="btn btn-ghost btn-icon btn-sm" href="{% url 'script_source' s.id %}" title="View source"><svg class="i"><use href="#i-eye"/></svg></a>
               {% if editing_enabled %}<a class="btn btn-ghost btn-icon btn-sm" href="{% url 'script_edit' s.id %}" title="Edit the script"><svg class="i"><use href="#i-edit"/></svg></a>{% endif %}
-              <a class="btn btn-ghost btn-icon btn-sm" href="{% url 'script_configure' s.id %}" title="Configure"><svg class="i"><use href="#i-sliders"/></svg></a>
-              {% if s.enabled and s.meta_valid %}<a class="btn btn-sm play" href="{% url 'script_run' s.id %}"><svg class="i"><use href="#i-play"/></svg> Run</a>
-              {% else %}<span class="btn btn-sm btn-disabled" aria-disabled="true">{% if not s.enabled %}Off{% else %}Fix{% endif %}</span>{% endif %}
+              {% if s.meta_valid %}<a class="btn btn-sm play" href="{% url 'script_run' s.id %}"><svg class="i"><use href="#i-play"/></svg> Run</a>
+              {% else %}<span class="btn btn-sm btn-disabled" aria-disabled="true">Fix</span>{% endif %}
             </div>
           </td>
         </tr>
@@ -85,19 +71,15 @@
 
   <div class="cards" id="view-cards" hidden>
     {% for s in scripts %}
-    <article class="sc {% if not s.enabled %}is-off{% endif %}" data-item
+    <article class="sc" data-item
              data-category="{{ s.category }}" data-platform="{{ s.platforms|join:' ' }}" data-language="{{ s.language }}"
              data-search="{{ s.name }} {{ s.description }} {{ s.relative }} {{ s.category }} {{ s.interpreter }} {{ s.language_label }} {{ s.platform_labels|join:' ' }}">
       <div class="sc-head">
         <span class="lang lang-lg lang-{{ s.extension|slice:'1:' }}">{{ s.extension|slice:'1:' }}</span>
         <div class="sc-title">
           <h2><a class="plain" href="{% url 'script_detail' s.id %}" title="{{ s.name }}">{{ s.name }}</a></h2>
-          <div class="sc-sub">{{ s.category }} · {{ s.language_label }}</div>
+          <div class="sc-sub">{{ s.category }}</div>
         </div>
-        <form method="post" action="{% url 'script_toggle' s.id %}" class="toggle-form">{% csrf_token %}
-          <input type="hidden" name="enabled" value="{% if s.enabled %}0{% else %}1{% endif %}">
-          <button class="switch {% if s.enabled %}on{% endif %}" type="submit" role="switch" aria-checked="{% if s.enabled %}true{% else %}false{% endif %}" title="{% if s.enabled %}Enabled — click to disable{% else %}Disabled — click to enable{% endif %}"><span></span></button>
-        </form>
       </div>
       <p class="desc">{% if s.description %}{{ s.description }}{% else %}<span class="faint">No description.</span>{% endif %}</p>
       {% if s.meta_error %}<p class="error-text small clamp-1" title="{{ s.meta_error }}">⚠ {{ s.meta_error }}</p>{% endif %}
@@ -109,10 +91,9 @@
       <div class="sc-foot">
         <a class="btn btn-ghost btn-icon btn-sm" href="{% url 'script_source' s.id %}" title="View source"><svg class="i"><use href="#i-eye"/></svg></a>
         {% if editing_enabled %}<a class="btn btn-ghost btn-icon btn-sm" href="{% url 'script_edit' s.id %}" title="Edit the script"><svg class="i"><use href="#i-edit"/></svg></a>{% endif %}
-        <a class="btn btn-ghost btn-icon btn-sm" href="{% url 'script_configure' s.id %}" title="Configure"><svg class="i"><use href="#i-sliders"/></svg></a>
         <span class="spacer"></span>
-        {% if s.enabled and s.meta_valid %}<a class="btn btn-primary btn-sm play" href="{% url 'script_run' s.id %}"><svg class="i"><use href="#i-play"/></svg> Run</a>
-        {% else %}<span class="btn btn-sm btn-disabled" aria-disabled="true">{% if not s.enabled %}Disabled{% else %}Fix metadata{% endif %}</span>{% endif %}
+        {% if s.meta_valid %}<a class="btn btn-primary btn-sm play" href="{% url 'script_run' s.id %}"><svg class="i"><use href="#i-play"/></svg> Run</a>
+        {% else %}<span class="btn btn-sm btn-disabled" aria-disabled="true">Fix metadata</span>{% endif %}
       </div>
     </article>
     {% endfor %}
@@ -125,8 +106,8 @@
   <div class="empty">
     <svg class="i"><use href="#i-folder"/></svg>
     <h2>No scripts found</h2>
-    {% if wb_folder.folder %}<p>Nothing with a known extension in <span class="mono">{{ wb_folder.folder.path }}</span>. {% if editing_enabled %}<a href="{% url 'script_new' %}">Create a new script</a>, drop{% else %}Drop{% endif %} a <code>.py</code> / <code>.sh</code> / <code>.bat</code> file into it and rescan, or <a href="{% url 'folder' %}">open another folder</a>.</p>
-    {% else %}<p>No folder is open. <a href="{% url 'folder' %}">Open a script folder</a> to see its scripts.</p>{% endif %}
+    {% if wb_folder.folder %}<p>Nothing with a known extension in <span class="mono">{{ wb_folder.folder.path }}</span>. {% if editing_enabled %}<a href="{% url 'script_new' %}">Create a new script</a>, drop{% else %}Drop{% endif %} a <code>.py</code> / <code>.sh</code> / <code>.bat</code> file into it and rescan, or <a href="{% url 'folder' %}" data-open-folder>open another folder</a>.</p>
+    {% else %}<p>No folder is open. <a href="{% url 'folder' %}" data-open-folder>Open a script folder</a> to see its scripts.</p>{% endif %}
   </div>
 </section>
 {% endif %}

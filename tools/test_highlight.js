@@ -4,9 +4,15 @@ eval(fs.readFileSync('static/js/highlight.js', 'utf8'));
 const h = window.highlight;
 let fail = 0;
 function check(name, ok) { if (!ok) fail++; console.log((ok ? 'ok   ' : 'FAIL ') + name); }
-const files = { python: 'scripts/system/directory_backup.py', bash: 'scripts/deployment/health_check.sh', batch: 'scripts/system/ping_host.bat', json: 'scripts/system/directory_backup.json' };
+const files = { python: 'scripts/system/directory_backup.py', bash: 'scripts/deployment/health_check.sh', batch: 'scripts/system/ping_host.bat', json: 'scripts/system/directory_backup.py' };
+// JSON sample: the metadata block at the top of directory_backup.py, without its "# " prefixes.
+function metadataJson(src) {
+  const lines = src.split('\n'), s = lines.findIndex(l => /--- scripthub ---/.test(l)), e = lines.findIndex(l => /--- end scripthub ---/.test(l));
+  return lines.slice(s + 1, e).map(l => l.replace(/^# ?/, '')).join('\n');
+}
 for (const [lang, f] of Object.entries(files)) {
-  const text = fs.readFileSync(f, 'utf8').replace(/\r\n/g, '\n').replace(/\n$/, '');
+  let text = fs.readFileSync(f, 'utf8').replace(/\r\n/g, '\n').replace(/\n$/, '');
+  if (lang === 'json') text = metadataJson(text);
   const lines = h.lines(lang, text);
   check(lang + ' line count matches (' + lines.length + ')', lines.length === text.split('\n').length);
   const plain = lines.map(l => l.replace(/<[^>]+>/g, '').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&')).join('\n');

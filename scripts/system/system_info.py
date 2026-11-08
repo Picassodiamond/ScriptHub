@@ -1,3 +1,11 @@
+# --- scripthub ---
+# {
+#   "name": "System Information",
+#   "description": "Show hostname, operating system, Python version and current time.",
+#   "category": "System",
+#   "parameters": []
+# }
+# --- end scripthub ---
 """Print basic information about the machine the script runs on."""
 import datetime
 import platform

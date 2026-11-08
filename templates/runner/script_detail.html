@@ -1,96 +1,54 @@
 {% extends "runner/_script_base.html" %}
 {% load static %}
+{% comment %}Overview = the script's settings (Configure merged in) and its recent runs; they are saved
+by the page's one Save in the centre tab bar (designer.js). Parameter definitions and saved values are on
+the Parameters tab (script_parameters.html).{% endcomment %}
 {% block body_mod %}fill split-page{% endblock %}
-{% block actions %}
-<form method="post" action="{% url 'script_toggle' script.id %}" class="toggle-form" title="{% if script.enabled %}Enabled — click to disable{% else %}Disabled — click to enable{% endif %}">{% csrf_token %}
-  <input type="hidden" name="enabled" value="{% if script.enabled %}0{% else %}1{% endif %}">
-  <button class="btn btn-ghost btn-sm" type="submit" role="switch" aria-checked="{% if script.enabled %}true{% else %}false{% endif %}"><span class="switch {% if script.enabled %}on{% endif %}" aria-hidden="true"><span></span></span> {% if script.enabled %}Enabled{% else %}Disabled{% endif %}</button>
-</form>
-{% if script.enabled and script.meta_valid %}<a class="btn btn-primary play" href="{% url 'script_run' script.id %}"><svg class="i"><use href="#i-play"/></svg> Run</a>{% endif %}
-{% endblock %}
 {% block tabs %}{% endblock %}
 {% block content %}
-{% if script.meta_error %}<div class="flash flash-error notes"><span>{{ script.meta_error }}</span></div>{% endif %}
+{% if errors %}
+<div class="flash flash-error notes"><div><strong>Not saved.</strong><ul class="err-list">{% for e in errors %}<li>{{ e }}</li>{% endfor %}</ul></div></div>
+{% elif script.meta_error %}<div class="flash flash-error notes"><span>{{ script.meta_error }}</span></div>{% endif %}
 
 <div class="split split-wide">
   <div class="split-main">{% include "runner/_script_doc.html" with back="script_detail" %}</div>
 
   <aside class="split-side">
     {% include "runner/_script_tabs.html" with side=True %}
-    {% if script.enabled and script.meta_valid %}
-    <section class="panel">
-      <div class="panel-head"><h2>Run with saved parameters</h2><span class="spacer"></span>
-        <a class="btn btn-ghost btn-sm" href="{% url 'script_run' script.id %}?tab=params">Compare</a></div>
-      {% if presets or recent %}
-      <ul class="quick">
-        {% for p in presets %}
-        <li>
-          <svg class="i i-sm faint"><use href="#i-save"/></svg>
-          <a class="q-name plain" href="{% url 'script_run' script.id %}?preset={{ p.slug }}" title="Load into the form">{{ p.name }}</a>
-          <span class="faint small mono">{{ p.host }}</span>
-          <a class="btn btn-sm play" href="{% url 'script_run' script.id %}?preset={{ p.slug }}&amp;review=1" title="Review and run with these values"><svg class="i"><use href="#i-play"/></svg> Run</a>
-        </li>
-        {% endfor %}
-        {% for r in recent %}
-        <li>
-          <svg class="i i-sm faint"><use href="#i-clock"/></svg>
-          <a class="q-name plain" href="{% url 'script_run' script.id %}?preset={{ r.key|urlencode }}" title="Load into the form">{{ r.label }}</a>
-          <span class="faint small nowrap">{{ r.when|slice:"5:" }}</span>
-          <a class="btn btn-sm play" href="{% url 'script_run' script.id %}?preset={{ r.key|urlencode }}&amp;review=1" title="Review and run with these values"><svg class="i"><use href="#i-play"/></svg> Run</a>
-        </li>
-        {% endfor %}
-      </ul>
-      {% else %}
-      <div class="panel-body muted small">Nothing saved yet. Every run remembers its values, and you can name sets as presets on the <a href="{% url 'script_run' script.id %}">Run</a> tab.</div>
-      {% endif %}
-    </section>
-    {% endif %}
-
-    <section class="panel">
-      <div class="panel-head"><h2>Details</h2><span class="spacer"></span>
-        <div class="badge-row"><span class="badge">{{ script.language_label }}</span>{% for label in script.platform_labels %}<span class="badge">{{ label }}</span>{% endfor %}</div></div>
-      <div class="panel-body">
-        {% if script.description %}<p class="lead" style="font-size:13.5px;margin-bottom:12px">{{ script.description }}</p>{% endif %}
-        <dl class="kv kv-stack">
-          <div><dt>Interpreter</dt><dd class="mono">{{ script.interpreter|default:"—" }}</dd></div>
-          <div><dt>Default host</dt><dd>{% if script.meta.host and script.meta.host != 'local' %}<span class="mono">{{ script.meta.host }}</span> <span class="muted small">SSH</span>{% else %}This computer (local){% endif %}</dd></div>
-          <div><dt>Timeout</dt><dd>{% if script.meta.timeout %}<span class="mono">{{ script.meta.timeout }} s</span>{% else %}<span class="muted">application default</span>{% endif %}</dd></div>
-          <div><dt>Concurrency</dt><dd>{% if script.meta.allow_concurrent %}Parallel runs allowed{% else %}One at a time{% endif %}</dd></div>
-          <div><dt>Working dir</dt><dd class="mono">{{ script.meta.working_directory|default:"script's own folder" }}</dd></div>
-          <div><dt>Path</dt><dd class="mono">{{ script.path }}</dd></div>
-          <div><dt>Metadata</dt><dd class="mono">{% if script.meta_source %}{{ script.meta_source }}{% else %}none (defaults){% endif %}</dd></div>
-          <div><dt>Script id</dt><dd class="mono">{{ script.id }}</dd></div>
-        </dl>
-      </div>
-    </section>
-
-    <section class="panel">
-      <div class="panel-head">
-        <h2>Parameters <span class="count-pill">{{ rows|length }}</span></h2><span class="spacer"></span>
-        <a class="btn btn-ghost btn-sm" href="{% url 'script_configure' script.id %}"><svg class="i"><use href="#i-sliders"/></svg> Edit</a>
-      </div>
-      {% if rows %}
-      <div class="param-list">
-        {% for r in rows %}
-        <div class="param-item" data-terms="{{ r.p.name }}{% if r.p.arg %} {{ r.p.arg }}{% endif %}{% if r.p.env_name %} {{ r.p.env_name }}{% endif %}" tabindex="0">
-          <div class="pi-top">
-            <span class="strong">{{ r.p.label }}</span>{% if r.p.required %}<span class="req" title="Required">*</span>{% endif %}
-            <span class="spacer"></span>
-            <span class="badge">{{ r.p.type }}</span>
-            {% if not r.p.editable_at_runtime %}<span class="badge badge-off" title="Not editable at run time">Fixed</span>{% endif %}
+    <form method="post" action="{% url 'script_detail' script.id %}" id="configure-form" novalidate>{% csrf_token %}
+      <section class="panel">
+        <div class="panel-body cfg">
+          <div class="form-grid">
+            <div class="field"><label class="field-label" for="f_name">Name</label>
+              <input class="input" id="f_name" name="name" value="{{ form.name }}" maxlength="120" placeholder="{{ script.name }}"></div>
+            <div class="field"><label class="field-label" for="f_category">Category</label>
+              <input class="input" id="f_category" name="category" value="{{ form.category }}" maxlength="60" placeholder="{{ script.category }}"></div>
           </div>
-          <div class="pi-meta mono"><span title="Passed as">{{ r.passed }}</span>{% if r.default %}<span title="Default">= {{ r.default }}</span>{% endif %}</div>
+          <div class="field"><label class="field-label" for="f_description">Description</label>
+            <textarea class="input" id="f_description" name="description" rows="2" maxlength="2000">{{ form.description }}</textarea></div>
+          <div class="form-grid">
+            <div class="field"><label class="field-label" for="f_interpreter">Interpreter</label>
+              <input class="input mono" id="f_interpreter" name="interpreter" value="{{ form.interpreter }}" placeholder="{{ script.interpreter|default:'default' }}"></div>
+            <div class="field"><label class="field-label" for="f_host">Host</label>
+              <select class="input" id="f_host" name="host">
+                {% for h in hosts %}<option value="{{ h }}" {% if h == form.host %}selected{% endif %}>{% if h == 'local' %}local{% else %}{{ h }} (ssh){% endif %}</option>{% endfor %}
+              </select></div>
+          </div>
+          <div class="field"><label class="field-label" for="f_cwd">Working directory</label>
+            <div class="inline-form"><input class="input mono" id="f_cwd" name="working_directory" value="{{ form.working_directory }}" placeholder="script folder / ssh home">{% if folder_picker %}<button type="button" class="btn btn-icon" data-pick-folder="#f_cwd" data-title="Working directory" title="Browse…"><svg class="i"><use href="#i-folder"/></svg></button>{% endif %}</div></div>
+          <div class="field"><label class="field-label" for="f_env">Environment</label>
+            <textarea class="input mono" id="f_env" name="environment" rows="2" spellcheck="false" placeholder="NAME=value">{{ form.environment }}</textarea></div>
+          <div class="field field-last"><span class="field-label">Platforms</span>
+            <div class="check-row">
+              {% for key, label in platform_choices %}<label class="check"><input type="checkbox" name="platforms" value="{{ key }}" {% if key in form.platforms %}checked{% endif %}><span>{{ label }}</span></label>{% endfor %}
+            </div></div>
         </div>
-        {% endfor %}
-      </div>
-      {% else %}
-      <div class="panel-body muted small">No parameters. <a href="{% url 'script_configure' script.id %}">Add some</a>.</div>
-      {% endif %}
-    </section>
+      </section>
+    </form>
 
+    {% if runs %}
     <section class="panel">
-      <div class="panel-head"><h2>Recent executions</h2><span class="spacer"></span><a class="btn btn-ghost btn-sm" href="{% url 'history' %}?script={{ script.id }}">History</a></div>
-      {% if runs %}
+      <div class="panel-head"><h2>Runs</h2><span class="spacer"></span><a class="btn btn-ghost btn-sm" href="{% url 'history' %}?script={{ script.id }}">History</a></div>
       <ul class="quick">
         {% for r in runs %}
         <li>
@@ -101,13 +59,13 @@
         </li>
         {% endfor %}
       </ul>
-      {% else %}
-      <div class="panel-body muted small">Not run yet.{% if script.enabled and script.meta_valid %} <a href="{% url 'script_run' script.id %}">Run it now</a>.{% endif %}</div>
-      {% endif %}
     </section>
+    {% endif %}
   </aside>
 </div>
+
 {% endblock %}
+
 {% block scripts %}
 <script src="{% static 'js/highlight.js' %}"></script>
 {% if ed %}<script src="{% static 'js/editor.js' %}"></script>{% endif %}

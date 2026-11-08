@@ -3,13 +3,14 @@ runner/folder_views.py)."""
 import json
 import shutil
 import tempfile
+import time
 from pathlib import Path
 from unittest import mock
 
 from django.test import SimpleTestCase
 
 import config
-from . import discovery, workspace
+from . import discovery, metadata, workspace
 
 
 class FolderCase(SimpleTestCase):
@@ -101,6 +102,20 @@ class WorkspaceTests(FolderCase):
         workspace.open_folder(str(self.b))                     # and it is replaced on the next change
         self.assertTrue(workspace.same(self.state()["folder"], str(self.b)))
 
+    def test_scan_stops_at_the_depth_limit(self):
+        deepest = self.a.joinpath(*"bcdefghij"[:discovery.MAX_DEPTH])   # MAX_DEPTH levels below the open folder
+        deepest.mkdir(parents=True)
+        (deepest / "deepest.py").write_bytes(b"print(5)\n")
+        (deepest / "z").mkdir()
+        (deepest / "z" / "too_deep.py").write_bytes(b"print(6)\n")
+        workspace.open_folder(str(self.a))
+        scripts, problems = discovery.scan(force=True)
+        self.assertEqual(sorted(s.path.name for s in scripts), ["deepest.py", "one.py"])
+        msg = f"more than {discovery.MAX_DEPTH} folder levels deep"
+        self.assertEqual(len(problems), 1)
+        self.assertIn(msg, problems[0])
+        self.assertContains(self.client.get("/scripts/"), msg)
+
     def test_browse_lists_sub_folders_without_hidden_ones(self):
         (self.a / "sub").mkdir()
         (self.a / ".git").mkdir()
@@ -158,6 +173,84 @@ class FolderPageTests(FolderCase):
         self.assertNotContains(self.client.get("/"), "Ad-hoc")
 
 
+class BackgroundScanTests(FolderCase):
+    """A big folder is scanned in a thread: pages do not wait for it and show progress."""
+
+    def slow(self, seconds=0.25):
+        build = discovery._build
+
+        def slow_build(*a, **kw):
+            time.sleep(seconds)
+            return build(*a, **kw)
+        p = mock.patch.object(discovery, "_build", slow_build)
+        p.start()
+        self.addCleanup(p.stop)
+
+    def finish(self):
+        job = discovery._job
+        if job is not None:
+            job.done.wait(10)
+
+    def test_pages_do_not_wait_and_show_progress(self):
+        for i in range(4):
+            (self.a / f"s{i}.py").write_bytes(b"print(1)\n")
+        self.slow(0.4)                                                   # 5 scripts: about 2 s
+        for name, value in (("RESCAN_WAIT", 0.2), ("AUTO_WAIT", 0.1)):
+            p = mock.patch.object(discovery, name, value)
+            p.start()
+            self.addCleanup(p.stop)
+        t = time.monotonic()
+        r = self.client.post("/folder/open/", {"path": str(self.a)}, follow=True)
+        self.assertLess(time.monotonic() - t, 1.5)
+        self.assertContains(r, "still being scanned")
+        self.assertContains(r, 'id="sb-scan"')
+        st = self.client.get("/folder/scan/").json()
+        self.assertTrue(st["scanning"] and st["first"])
+        self.assertLess(st["found"], 5)
+        t = time.monotonic()
+        partial, _ = discovery.scan(wait=0.05)                           # the first scan's results so far
+        self.assertLess(time.monotonic() - t, 1)
+        self.assertLess(len(partial), 5)
+        self.finish()
+        st = self.client.get("/folder/scan/").json()
+        self.assertFalse(st["scanning"])
+        self.assertEqual(st["count"], 5)
+        self.assertEqual(len(discovery.scan()[0]), 5)
+        self.assertNotContains(self.client.get("/scripts/"), 'id="sb-scan"')
+
+    def test_opening_another_folder_cancels_the_running_scan(self):
+        for i in range(6):
+            (self.a / f"s{i}.py").write_bytes(b"print(1)\n")
+        self.slow()
+        workspace.open_folder(str(self.a))
+        discovery.rescan(wait=0.1)
+        first = discovery._job
+        workspace.open_folder(str(self.b))
+        discovery.rescan(wait=5)
+        self.assertTrue(first.cancelled)
+        first.done.wait(10)
+        self.assertEqual(self.names(), ["two.py"])
+
+    def test_one_file_is_refreshed_without_a_rescan(self):
+        workspace.open_folder(str(self.a))
+        discovery.scan(force=True)
+        new = self.a / "later.py"
+        new.write_bytes(b"print(2)\n")
+        with mock.patch.object(discovery, "_start") as start:
+            discovery.update_file(new)
+            self.assertIn("later.py", [s.path.name for s in discovery.scan()[0]])
+            start.assert_not_called()
+        new.unlink()
+        discovery.update_file(new)
+        self.assertNotIn("later.py", [s.path.name for s in discovery.scan()[0]])
+
+    def test_system_folders_are_skipped(self):
+        (self.a / "$Recycle.Bin").mkdir()
+        (self.a / "$Recycle.Bin" / "old.py").write_bytes(b"print(0)\n")
+        workspace.open_folder(str(self.a))
+        self.assertEqual(self.names(), ["one.py"])
+
+
 class NewScriptTests(FolderCase):
     def form(self, **over):
         return {"language": ".py", "filename": "cleanup_logs", "subfolder": "", "name": "", "category": "", **over}
@@ -175,7 +268,10 @@ class NewScriptTests(FolderCase):
         target = self.a / "maint" / "daily" / "cleanup_logs.py"
         self.assertTrue(target.is_file())
         self.assertIn(b"Hello from ScriptHub", target.read_bytes())
-        meta = json.loads(target.with_suffix(".json").read_text())
+        meta, _src, err = metadata.load_raw(target, "0" * 12)                 # the block at the top of the script
+        self.assertIsNone(err)
+        self.assertTrue(target.read_text().splitlines()[0].startswith("# --- scripthub ---"))
+        self.assertFalse(target.with_suffix(".json").exists())                    # no sidecar
         self.assertEqual((meta["name"], meta["category"], meta["parameters"]), ("Cleanup Logs", "Maintenance", []))
         sid = discovery.script_id(target.resolve())
         self.assertEqual(r["Location"], f"/scripts/{sid}/run/")
@@ -195,6 +291,16 @@ class NewScriptTests(FolderCase):
             self.assertEqual(r.status_code, 400, bad)
         self.assertFalse((self.tmp / "out").exists())
         self.assertEqual(self.names(), ["one.py"])
+
+    def test_sub_folder_within_the_depth_limit(self):
+        workspace.open_folder(str(self.a))
+        levels = list("bcdefghij")
+        r = self.client.post("/scripts/new/", self.form(subfolder="/".join(levels[:discovery.MAX_DEPTH + 1])))
+        self.assertContains(r, f"at most {discovery.MAX_DEPTH} levels deep", status_code=400)
+        self.assertFalse((self.a / "b").exists())
+        r = self.client.post("/scripts/new/", self.form(subfolder="/".join(levels[:discovery.MAX_DEPTH])))
+        self.assertEqual(r.status_code, 302)
+        self.assertIn("cleanup_logs.py", self.names())
 
     def test_line_endings_and_extension_handling(self):
         workspace.open_folder(str(self.a))

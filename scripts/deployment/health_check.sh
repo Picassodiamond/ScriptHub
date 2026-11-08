@@ -1,9 +1,20 @@
 #!/usr/bin/env bash
+# --- scripthub ---
+# {
+#   "name": "HTTP Health Check (shell)",
+#   "description": "Bash example using a positional argument (URL) and an environment variable (TIMEOUT_SECS). Fails when the URL is unreachable or returns an error status.",
+#   "category": "Deployment",
+#   "parameters": [
+#     {"name": "url", "label": "URL", "type": "text", "required": true, "placeholder": "https://example.com/health", "pattern": "https?://\\S+", "pass_as": "positional", "position": 1, "help": "Must start with http:// or https://"},
+#     {"name": "timeout_secs", "label": "Timeout (seconds)", "type": "number", "default": 5, "required": true, "min": 1, "max": 120, "pass_as": "env", "env_name": "TIMEOUT_SECS"}
+#   ]
+# }
+# --- end scripthub ---
 # Check that a URL answers with a successful HTTP status.
 #
 # Usage:   TIMEOUT_SECS=5 health_check.sh URL
 #
-# Shows two other ways to receive parameters (see health_check.json):
+# Shows two other ways to receive parameters (see the metadata block above):
 #   * URL          - a POSITIONAL argument ("pass_as": "positional")
 #   * TIMEOUT_SECS - an ENVIRONMENT VARIABLE ("pass_as": "env")
 #

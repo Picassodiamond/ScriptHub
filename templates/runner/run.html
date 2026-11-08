@@ -2,17 +2,11 @@
 {% load static %}
 {% block title %}Run {{ script.name }}{% endblock %}
 {% block body_mod %}{% if not blocked %}fill split-page{% endif %}{% endblock %}
-{% block actions %}
-{% if not blocked %}
-<a class="btn btn-ghost btn-sm" href="{% url 'script_run' script.id %}?preset=-" title="Discard changes and load the script's defaults">Defaults</a>
-<button class="btn btn-primary" type="submit" form="run-form" data-hotkey="Ctrl+Enter" data-hint="Continue to review">Review &amp; confirm <kbd>Ctrl</kbd><kbd>↵</kbd></button>
-{% endif %}
-{% endblock %}
 {% block tabs %}{% if blocked %}{{ block.super }}{% endif %}{% endblock %}
 {% block content %}
 {% if blocked %}
 <div class="flash flash-error"><span>{{ blocked }}</span></div>
-<a class="btn" href="{% url 'library' %}"><svg class="i"><use href="#i-back"/></svg> Back to the library</a>
+<a class="btn" href="{% url 'script_detail' script.id %}"><svg class="i"><use href="#i-back"/></svg> Overview</a>
 {% else %}
 {% if has_errors %}<div class="flash flash-error notes"><span>{% if host_error %}{{ host_error }}{% else %}Please correct the highlighted fields.{% endif %}</span></div>{% endif %}
 {% for w in preset_warnings %}<div class="flash flash-warning notes"><span>{{ w }}</span></div>{% endfor %}
@@ -24,74 +18,69 @@
 
   <aside class="split-side">
     {% include "runner/_script_tabs.html" with side=True %}
-    {% include "runner/_stepper.html" with step=1 %}
-    <form method="post" class="panel" id="run-form" novalidate>{% csrf_token %}
-      <div class="panel-head"><h2>Run configuration</h2><span class="spacer"></span>
-        {% if source and source.kind != 'defaults' %}<span class="badge badge-accent clamp-1" title="Values loaded from {{ source.label }}"><svg class="i i-sm"><use href="#i-{% if source.kind == 'recent' %}clock{% else %}save{% endif %}"/></svg>{{ source.label }}</span>{% endif %}</div>
+
+    {# Where the values come from: defaults, a recent run or a preset. #}
+    <form method="get" class="values-bar" aria-label="Load values">
+      <svg class="i i-sm faint"><use href="#i-{% if source.kind == 'recent' %}clock{% elif source.kind == 'preset' %}save{% else %}sliders{% endif %}"/></svg>
+      <select class="input input-sm" name="preset" id="preset-select" aria-label="Load values from">
+        <option value="-" {% if not source or source.kind == 'defaults' %}selected{% endif %}>Defaults</option>
+        {% if recent %}<optgroup label="Recent runs">
+          {% for r in recent %}<option value="{{ r.key }}" {% if source.key == r.key %}selected{% endif %}>{{ r.label }} · {{ r.when }}</option>{% endfor %}
+        </optgroup>{% endif %}
+        {% if presets %}<optgroup label="Presets">
+          {% for p in presets %}<option value="{{ p.slug }}" {% if current_preset and current_preset.slug == p.slug %}selected{% endif %}>{{ p.name }}</option>{% endfor %}
+        </optgroup>{% endif %}
+        <option value="+" data-new-preset>+ Save current values as preset…</option>
+      </select>
+      <noscript><button class="btn btn-sm" type="submit">Load</button></noscript>
+    </form>
+
+    <form method="post" action="{% url 'script_start' script.id %}" class="panel" id="run-form" novalidate>{% csrf_token %}
+      <input type="hidden" name="submit_token" value="{{ token }}">
       <div class="panel-body">
         <div class="field host-field{% if host_error %} has-error{% endif %}">
-          <label class="field-label" for="id_host">Target host</label>
+          <label class="field-label" for="id_host">Host</label>
           <select class="input" name="host" id="id_host">
-            {% for h in hosts %}<option value="{{ h }}" {% if h == host %}selected{% endif %}>{% if h == 'local' %}This computer (local){% else %}{{ h }} (SSH){% endif %}</option>{% endfor %}
+            {% for h in hosts %}<option value="{{ h }}" {% if h == host %}selected{% endif %}>{% if h == 'local' %}local{% else %}{{ h }} (ssh){% endif %}</option>{% endfor %}
           </select>
-          {% if hosts|length > 1 %}<div class="help">SSH hosts come from <span class="mono">~/.ssh/config</span>; the script is streamed to the remote interpreter.</div>{% endif %}
           {% if host_error %}<div class="field-error">{{ host_error }}</div>{% endif %}
         </div>
-        {% if fields %}<div class="side-label" style="margin:4px 0 10px">Parameters · {{ fields|length }}</div>{% endif %}
-        {% for f in fields %}{% include "runner/_field.html" %}
-        {% empty %}<p class="muted small" style="margin:0">This script takes no parameters.</p>{% endfor %}
-      </div>
-      <div class="panel-foot">
-        <button class="btn btn-primary btn-sm" type="submit">Review &amp; confirm →</button>
-        <span class="spacer"></span>
-        <a class="btn btn-ghost btn-sm" href="{% url 'script_configure' script.id %}" title="Edit the parameter definitions">Definitions</a>
+        {% for f in fields %}{% include "runner/_field.html" %}{% endfor %}
       </div>
     </form>
 
+    {# "+ Save current values as preset…" in the list above asks for a name and posts the run form here. #}
+    <input type="hidden" id="preset-name" name="preset_name" form="run-form" value="{% if preset_name_draft %}{{ preset_name_draft }}{% elif current_preset %}{{ current_preset.name }}{% endif %}">
+    <button type="submit" id="preset-save" form="run-form" formaction="{% url 'preset_save' script.id %}" formnovalidate hidden></button>
+    {% if current_preset %}
     <section class="panel">
-      <div class="panel-body">
-      <details class="save-box" open>
-        <summary>Saved parameters <span class="count-pill">{{ pgrid.columns|length }}</span></summary>
-        <form method="get" class="field">
-          <label class="field-label" for="preset-select">Load values from</label>
-          <select class="input" name="preset" id="preset-select" onchange="this.form.submit()">
-            <option value="-" {% if not source or source.kind == 'defaults' %}selected{% endif %}>Script defaults</option>
-            {% if recent %}<optgroup label="Recent runs">
-              {% for r in recent %}<option value="{{ r.key }}" {% if source.key == r.key %}selected{% endif %}>{{ r.label }} · {{ r.when }}</option>{% endfor %}
-            </optgroup>{% endif %}
-            {% if presets %}<optgroup label="Presets">
-              {% for p in presets %}<option value="{{ p.slug }}" {% if current_preset and current_preset.slug == p.slug %}selected{% endif %}>{{ p.name }}</option>{% endfor %}
-            </optgroup>{% endif %}
-          </select>
-          <noscript><button class="btn btn-sm" type="submit">Load</button></noscript>
-          <div class="help">The form opens with your last run's values. Compare every set in the <span class="mono">.params.json</span> tab in the centre.</div>
-        </form>
-        <div class="field">
-          <label class="field-label" for="preset-name">Save current values as</label>
-          <div class="inline-form">
-            <input class="input" type="text" id="preset-name" name="preset_name" form="run-form" maxlength="60"
-                   placeholder="e.g. Production backup" value="{% if preset_name_draft %}{{ preset_name_draft }}{% elif current_preset %}{{ current_preset.name }}{% endif %}">
-            <button class="btn btn-sm" type="submit" form="run-form" formaction="{% url 'preset_save' script.id %}" formnovalidate><svg class="i"><use href="#i-save"/></svg> Save</button>
-          </div>
-          <div class="help">An existing name updates that preset.{% if has_password %} Passwords are never saved.{% endif %}</div>
-        </div>
-        {% if current_preset %}
-        <div class="field" style="margin-bottom:0">
-          <span class="field-label">Manage “{{ current_preset.name }}”</span>
-          <form method="post" action="{% url 'preset_rename' script.id %}" class="inline-form">{% csrf_token %}
+      <div class="panel-body preset-box">
+        <div class="inline-form">
+          <form method="post" action="{% url 'preset_rename' script.id %}" class="inline-form grow">{% csrf_token %}
             <input type="hidden" name="slug" value="{{ current_preset.slug }}">
-            <input class="input" type="text" name="new_name" maxlength="60" value="{{ current_preset.name }}" aria-label="New name">
+            <input class="input input-sm" type="text" name="new_name" maxlength="60" value="{{ current_preset.name }}" aria-label="Rename preset">
             <button class="btn btn-sm" type="submit">Rename</button>
           </form>
-          <form method="post" action="{% url 'preset_delete' script.id %}" data-confirm="Delete the preset “{{ current_preset.name }}”?" style="margin-top:6px">{% csrf_token %}
+          <form method="post" action="{% url 'preset_delete' script.id %}" data-confirm="Delete the preset “{{ current_preset.name }}”?">{% csrf_token %}
             <input type="hidden" name="slug" value="{{ current_preset.slug }}">
-            <button class="btn btn-danger btn-sm" type="submit"><svg class="i"><use href="#i-trash"/></svg> Delete preset</button>
+            <button class="btn btn-ghost btn-icon btn-sm btn-del" type="submit" title="Delete preset" aria-label="Delete preset"><svg class="i"><use href="#i-trash"/></svg></button>
           </form>
         </div>
-        {% endif %}
-      </details>
       </div>
     </section>
+    {% endif %}
+
+    <div class="side-bar">
+      <button class="btn btn-primary play" type="submit" form="run-form" data-once data-hotkey="Ctrl+Enter" data-hint="Run"><svg class="i"><use href="#i-play"/></svg> Run <kbd>Ctrl</kbd><kbd>↵</kbd></button>
+      {% if modes_supported %}
+      <div class="seg run-modes" role="radiogroup" aria-label="Run mode">
+        <label class="seg-btn" title="Full speed"><input type="radio" name="mode" value="normal" form="run-form" {% if mode != 'trace' and mode != 'debug' %}checked{% endif %}>Normal</label>
+        <label class="seg-btn" title="Highlight the running line"><input type="radio" name="mode" value="trace" form="run-form" {% if mode == 'trace' %}checked{% endif %}><svg class="i i-sm"><use href="#i-eye"/></svg>Trace</label>
+        <label class="seg-btn" title="Pause on line 1; step, breakpoints{% if script.extension == '.py' %}, variables{% endif %}"><input type="radio" name="mode" value="debug" form="run-form" {% if mode == 'debug' %}checked{% endif %}><svg class="i i-sm"><use href="#i-bug"/></svg>Debug</label>
+      </div>
+      {% endif %}
+      <a class="btn btn-ghost btn-sm" href="{% url 'script_run' script.id %}?preset=-" title="Discard changes and load the defaults">Reset</a>
+    </div>
   </aside>
 </div>
 {% endif %}
@@ -100,4 +89,21 @@
 <script src="{% static 'js/highlight.js' %}"></script>
 {% if ed %}<script src="{% static 'js/editor.js' %}"></script>{% endif %}
 <script src="{% static 'js/designer.js' %}"></script>
+<script>
+/* Values list: load the picked set; "+ Save current values as preset…" asks for a name. */
+(function () {
+  var sel = document.getElementById('preset-select'), name = document.getElementById('preset-name'), go = document.getElementById('preset-save');
+  if (!sel) return;
+  var before = sel.value;
+  sel.addEventListener('change', function () {
+    if (sel.value !== '+') { sel.form.submit(); return; }
+    sel.value = before;
+    var n = window.prompt('Preset name (an existing name updates that preset){% if has_password %}. Passwords are never saved.{% endif %}', name.value || '');
+    if (n === null || !n.trim()) return;
+    name.value = n.trim();
+    var form = document.getElementById('run-form');
+    if (form.requestSubmit) form.requestSubmit(go); else go.click();
+  });
+})();
+</script>
 {% endif %}{% endblock %}

@@ -60,12 +60,19 @@
     root.classList.toggle('side-off', off);
     store('sr.side', off ? '0' : '1');
   }
+  // Right column of the script pages (Overview / Parameters / Run / Review).
+  function toggleSide2() {
+    var off = !root.classList.contains('side2-off');
+    root.classList.toggle('side2-off', off);
+    store('sr.side2', off ? '0' : '1');
+  }
   document.addEventListener('click', function (e) {
     var a = e.target.closest('[data-action]');
     if (!a) return;
     var act = a.getAttribute('data-action');
     if (act === 'theme') toggleTheme();
     else if (act === 'side') toggleSide();
+    else if (act === 'side2') toggleSide2();
     else if (act === 'palette') palette.open();
     else if (act === 'help') help.open();
   });
@@ -152,6 +159,7 @@
       e.preventDefault(); palette.open(); return;
     }
     if (name === 'Ctrl+b') { e.preventDefault(); toggleSide(); return; }
+    if (name === 'Ctrl+Alt+b') { if (document.querySelector('.split-side')) { e.preventDefault(); toggleSide2(); } return; }
     var fKey = /^(Shift\+)?F\d+$/.test(name), modded = /^(Ctrl|Alt)\+/.test(name);
     if (inField && !fKey && !modded && name !== 'Escape') return;
     if (inField && name === 'Escape') return;
@@ -274,13 +282,15 @@
     });
     items.push({ group: 'Commands', text: 'Toggle light / dark theme', icon: ICON('sun'), run: toggleTheme, key: 'theme dark light toggle' });
     items.push({ group: 'Commands', text: 'Toggle side panel', hint: 'Ctrl+B', icon: ICON('panel'), run: function () { toggleSide(); }, key: 'side panel sidebar explorer toggle' });
+    if (document.querySelector('.split-side')) items.push({ group: 'Commands', text: 'Toggle right panel', hint: 'Ctrl+Alt+B', icon: ICON('panel'), run: toggleSide2, key: 'right panel column collapse toggle' });
     items.push({ group: 'Commands', text: 'Keyboard shortcuts', hint: '?', icon: ICON('keyboard'), run: function () { setTimeout(help.open, 0); }, key: 'keyboard shortcuts help keys' });
-    // Script folders: open another one (favourites and recent) or the Open folder page.
+    // Script folders: the system folder dialog, favourites and recent.
     var folders = [];
     try { folders = JSON.parse(document.getElementById('wb-folders').textContent) || []; } catch (e) {}
     var newScript = document.querySelector('[data-new-script]');
-    if (newScript) items.push({ group: 'Commands', text: 'New script', hint: 'g n', icon: ICON('plus'), href: newScript.href, key: 'new script create file' });
-    items.push({ group: 'Folders', text: 'Open folder…', icon: ICON('folder'), href: '/folder/', key: 'open folder browse directory workspace' });
+    // New script: from the explorer's "+" (keeps its folder), else on any page while editing is on.
+    if (newScript || urls.edit) items.push({ group: 'Commands', text: 'New script', hint: newScript ? 'g n' : '', icon: ICON('plus'), href: newScript ? newScript.href : '/scripts/new/', key: 'new script create file' });
+    items.push({ group: 'Folders', text: 'Open folder…', icon: ICON('folder'), run: function () { sr.openFolder(); }, key: 'open folder browse directory workspace' });
     folders.forEach(function (f) {
       items.push({ group: 'Folders', text: f.name, hint: f.path, icon: ICON(f.favorite ? 'star' : 'folder'),
         run: function () { postForm('/folder/open/', { path: f.path }); }, key: 'folder ' + f.name + ' ' + f.path });
@@ -358,9 +368,9 @@
   var help = {
     open: function () {
       var rows = [
-        ['Global', [['Command palette', 'Ctrl K'], ['Toggle side panel', 'Ctrl B'], ['Focus search / explorer filter', '/'], ['This sheet', '?']]],
-        ['Go to', [['Overview', 'g o'], ['Script Library', 'g l'], ['Jobs', 'g j'], ['History', 'g h'], ['Settings', 'g s']]],
-        ['Script', [['Overview', 'i'], ['Script: run, view, edit', 'r  or  s'], ['Configure', 'c'], ['Save the script / configuration', 'Ctrl S']]],
+        ['Global', [['Command palette', 'Ctrl K'], ['Toggle side panel', 'Ctrl B'], ['Toggle right panel (script pages)', 'Ctrl Alt B'], ['Focus search / explorer filter', '/'], ['This sheet', '?']]],
+        ['Go to', [['Home', 'g o'], ['Script Library', 'g l'], ['Runs (running + history)', 'g h'], ['Settings', 'g s']]],
+        ['Script', [['Overview: settings', 'i  or  c'], ['Parameters and saved values', 'p'], ['Run: run, view, edit', 'r  or  s'], ['Save the script / settings / parameters', 'Ctrl S']]],
         ['Run & debug', [['Review / launch', 'Ctrl ↵'], ['Back from review', 'Esc'], ['Continue', 'F5'], ['Step to next line', 'F10  or  n'], ['Pause', 'F6'], ['Stop the run', 'Shift F5']]]
       ];
       var seen = {}, page = [];
@@ -390,6 +400,90 @@
     }
   };
 
+  // -------------------------------------------------------- folder scan --
+  // A big folder is scanned in the background; while it runs the status bar shows the
+  // progress. When it is done the overview pages reload, other pages offer to.
+  var scanEl = document.getElementById('sb-scan');
+  if (scanEl) (function () {
+    var text = scanEl.querySelector('[data-scan-text]'), version = scanEl.dataset.version;
+    var fmt = function (n) { return Number(n || 0).toLocaleString(); };
+    var tick = function () {
+      fetch(scanEl.dataset.url, { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (s) {
+        if (s.scanning) {
+          text.textContent = 'Scanning ' + s.folder + ' · ' + fmt(s.dirs) + ' folders · ' + fmt(s.found) + ' scripts · ' + s.elapsed + 's';
+          scanEl.title = s.current || '';
+          setTimeout(tick, 1000);
+          return;
+        }
+        scanEl.classList.remove('sb-live');
+        if (String(s.version) === version) { scanEl.remove(); return; }
+        if (document.body.hasAttribute('data-scan-reload')) { location.reload(); return; }
+        var a = document.createElement('a');                 // keep this page (forms) as it is
+        a.className = 'sb-item'; a.href = location.href; a.id = 'sb-scan';
+        a.textContent = 'Scan finished · ' + fmt(s.count) + ' scripts — reload';
+        scanEl.replaceWith(a);
+      }).catch(function () { setTimeout(tick, 3000); });
+    };
+    setTimeout(tick, 800);
+  })();
+
+  // ------------------------------------------------- system folder dialog --
+  // On the machine running ScriptHub (desktop mode, or a browser on that machine:
+  // body[data-folder-picker]) "Open folder…" shows the system folder dialog and opens
+  // the folder picked. Elsewhere it goes to the Open folder page.
+  function csrf() {
+    var m = /(?:^|;\s*)csrftoken=([^;]+)/.exec(document.cookie);
+    if (m) return decodeURIComponent(m[1]);
+    var i = document.querySelector('input[name=csrfmiddlewaretoken]');
+    return i ? i.value : '';
+  }
+  function post(url, data) {
+    var body = new FormData();
+    Object.keys(data).forEach(function (k) { body.append(k, data[k]); });
+    return fetch(url, { method: 'POST', body: body, headers: { 'X-CSRFToken': csrf() } })
+      .then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { if (!r.ok) throw j; return j; }); });
+  }
+  var canPick = document.body.dataset.folderPicker === '1', picking = false;
+  function pickFolder(initial, title) {
+    if (picking) return Promise.resolve({});
+    picking = true;
+    document.documentElement.style.cursor = 'progress';
+    return post('/desktop/pick-folder/', { initial: initial || '', title: title || 'Open a script folder' })
+      .finally(function () { picking = false; document.documentElement.style.cursor = ''; });
+  }
+  function openFolder() {
+    if (!canPick) { location.href = '/folder/'; return; }
+    pickFolder(document.body.dataset.folder, 'Open a script folder')
+      .then(function (j) { if (j.path) postForm('/folder/open/', { path: j.path }); })
+      .catch(function () { location.href = '/folder/'; });               // no dialog here: use the page
+  }
+  sr.openFolder = openFolder;
+  document.addEventListener('click', function (e) {
+    var open = e.target.closest('[data-open-folder]');
+    if (open && canPick) {
+      e.preventDefault();
+      [].forEach.call(document.querySelectorAll('details[data-menu][open]'), function (d) { d.open = false; });
+      openFolder();
+      return;
+    }
+    var pick = e.target.closest('[data-pick-folder]');
+    if (pick) {                                     // "Browse…" next to a path field
+      e.preventDefault();
+      var input = document.querySelector(pick.getAttribute('data-pick-folder'));
+      pick.disabled = true;
+      pickFolder(input ? input.value : '', pick.getAttribute('data-title'))
+        .then(function (j) {
+          if (!j.path || !input) return;
+          input.value = j.path; input.dispatchEvent(new Event('input', { bubbles: true })); input.focus();
+          if (pick.hasAttribute('data-pick-submit') && input.form) {   // e.g. Open folder: picking = opening
+            if (input.form.requestSubmit) input.form.requestSubmit(); else input.form.submit();
+          }
+        })
+        .catch(function (j) { window.alert((j && j.error) || 'The folder dialog is not available.'); })
+        .then(function () { pick.disabled = false; });
+    }
+  });
+
   // ------------------------------------------------------- desktop mode --
   // Only when started by the desktop launcher (body[data-desktop]).
   if (document.body.dataset.desktop === '1') {
@@ -399,36 +493,7 @@
     document.addEventListener('visibilitychange', function () { if (!document.hidden) ping(); });
     window.addEventListener('pagehide', function () { if (navigator.sendBeacon) navigator.sendBeacon('/desktop/bye/'); });
 
-    var csrf = function () {
-      var m = /(?:^|;\s*)csrftoken=([^;]+)/.exec(document.cookie);
-      if (m) return decodeURIComponent(m[1]);
-      var i = document.querySelector('input[name=csrfmiddlewaretoken]');
-      return i ? i.value : '';
-    };
-    var post = function (url, data) {
-      var body = new FormData();
-      Object.keys(data).forEach(function (k) { body.append(k, data[k]); });
-      return fetch(url, { method: 'POST', body: body, headers: { 'X-CSRFToken': csrf() } })
-        .then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { if (!r.ok) throw j; return j; }); });
-    };
     document.addEventListener('click', function (e) {
-      var pick = e.target.closest('[data-pick-folder]');
-      if (pick) {
-        e.preventDefault();
-        var input = document.querySelector(pick.getAttribute('data-pick-folder'));
-        pick.disabled = true;
-        post('/desktop/pick-folder/', { initial: input ? input.value : '', title: pick.getAttribute('data-title') || '' })
-          .then(function (j) {
-            if (!j.path || !input) return;
-            input.value = j.path; input.dispatchEvent(new Event('input', { bubbles: true })); input.focus();
-            if (pick.hasAttribute('data-pick-submit') && input.form) {   // e.g. Open folder: picking = opening
-              if (input.form.requestSubmit) input.form.requestSubmit(); else input.form.submit();
-            }
-          })
-          .catch(function (j) { window.alert((j && j.error) || 'The folder dialog is not available.'); })
-          .then(function () { pick.disabled = false; });
-        return;
-      }
       var reveal = e.target.closest('[data-reveal-script], [data-reveal-run]');
       if (reveal) {
         e.preventDefault();

@@ -44,7 +44,8 @@ class ExecutionSpec:
     env: dict = field(default_factory=dict)
     cwd: str | None = None
     timeout: int = 3600
-    allow_concurrent: bool = True
+    # A script runs one at a time (further runs wait in the queue); tests may lift it.
+    allow_concurrent: bool = False
     parameters: dict = field(default_factory=dict)   # redacted copy for history
     display_command: str = ""
     token: str | None = None

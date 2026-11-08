@@ -1,11 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Overview{% endblock %}
-{% block crumbs %}<span>Workbench</span>{% endblock %}
-{% block heading %}<span class="t">Overview</span>{% endblock %}
-{% block actions %}
-<button type="button" class="btn btn-ghost" data-action="palette"><svg class="i"><use href="#i-search"/></svg> Find a script <kbd>Ctrl</kbd><kbd>K</kbd></button>
-<a class="btn btn-primary" href="{% url 'library' %}"><svg class="i"><use href="#i-files"/></svg> Library</a>
-{% endblock %}
+{% block title %}Home{% endblock %}
 {% block content %}
 <div class="page">
 {% if not wb_folder.folder %}
@@ -13,7 +7,7 @@
   <div class="panel-body">
     <h2 style="margin:0 0 6px">Open a script folder to start</h2>
     <p class="muted" style="margin:0 0 12px">ScriptHub lists and runs the scripts in one folder at a time. Pick it once; it is reopened next time.</p>
-    <a class="btn btn-primary" href="{% url 'folder' %}"><svg class="i"><use href="#i-folder"/></svg> Open folder…</a>
+    <a class="btn btn-primary" href="{% url 'folder' %}" data-open-folder><svg class="i"><use href="#i-folder"/></svg> Open folder…</a>
     {% for x in wb_folder.favorites|slice:":5" %}{% if x.exists %}
     <form method="post" action="{% url 'folder_open' %}" style="display:inline">{% csrf_token %}<input type="hidden" name="path" value="{{ x.path }}"><button class="btn" type="submit" title="{{ x.path }}"><svg class="i"><use href="#i-star"/></svg> {{ x.name }}</button></form>
     {% endif %}{% endfor %}
@@ -27,15 +21,15 @@
 </section>
 {% endif %}
 <div class="stats">
-  <a class="stat" href="{% url 'library' %}"><div class="stat-label">Scripts</div><div class="stat-num">{{ total }}</div><div class="stat-sub">{{ enabled }} enabled</div></a>
-  <a class="stat stat-run" href="{% url 'executions' %}"><div class="stat-label">Running</div><div class="stat-num">{{ running }}</div><div class="stat-sub">{{ queued }} queued</div></a>
+  <a class="stat" href="{% url 'library' %}"><div class="stat-label">Scripts</div><div class="stat-num">{{ total }}</div><div class="stat-sub">{% if invalid %}{{ invalid }} need fixing{% else %}in the open folder{% endif %}</div></a>
+  <a class="stat stat-run" href="{% url 'history' %}"><div class="stat-label">Running</div><div class="stat-num">{{ running }}</div><div class="stat-sub">{{ queued }} queued</div></a>
   <a class="stat stat-ok" href="{% url 'history' %}?status=success"><div class="stat-label">Succeeded</div><div class="stat-num">{{ success }}</div><div class="stat-sub">in history</div></a>
   <a class="stat stat-bad" href="{% url 'history' %}?status=failed"><div class="stat-label">Failed</div><div class="stat-num">{{ failed }}</div><div class="stat-sub">incl. timeouts</div></a>
 </div>
 
 <div class="cols-main">
   <section class="panel">
-    <div class="panel-head"><h2>Recent executions</h2><span class="spacer"></span>{% if has_runs %}<a class="btn btn-ghost btn-sm" href="{% url 'executions' %}">All jobs</a>{% endif %}</div>
+    <div class="panel-head"><h2>Recent executions</h2><span class="spacer"></span>{% if has_runs %}<a class="btn btn-ghost btn-sm" href="{% url 'history' %}">All runs</a>{% endif %}</div>
     {% if recent %}
     <div class="table-wrap">
     <table class="table">

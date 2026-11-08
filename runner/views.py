@@ -1,11 +1,10 @@
 """HTTP views. Business logic lives in the service modules."""
 from django.contrib import messages
-from django.http import Http404
 from django.shortcuts import redirect, render
 from django.views.decorators.http import require_POST
 
 import config
-from . import discovery, history, metadata, ssh_hosts
+from . import discovery, history, ssh_hosts
 from .validators import ValidationError, validate_config
 
 
@@ -22,16 +21,16 @@ def dashboard(request):
 
     usage = Counter(r.get("script_id") for r in runs if r.get("script_id") in by_id)
     frequent = [{"script": by_id[sid], "runs": n} for sid, n in usage.most_common(5)]
-    # Quick run: recently used first, then the rest alphabetically (enabled and valid only).
+    # Quick run: recently used first, then the rest alphabetically (valid metadata only).
     recent_order = {}
     for r in runs:
         recent_order.setdefault(r.get("script_id"), len(recent_order))
-    runnable = [s for s in scripts if s.enabled and s.meta_valid]
+    runnable = [s for s in scripts if s.meta_valid]
     runnable.sort(key=lambda s: (recent_order.get(s.id, 10_000), s.name.lower()))
 
     return render(request, "runner/dashboard.html", {
         "total": len(scripts),
-        "enabled": sum(1 for s in scripts if s.enabled),
+        "invalid": sum(1 for s in scripts if not s.meta_valid),
         "running": live["running"],
         "queued": live["queued"],
         "success": counts.get(history.SUCCESS, 0),
@@ -70,7 +69,6 @@ def library(request):
             "languages": languages,
             "platforms": platforms,
             "problems": problems,
-            "enabled_count": sum(1 for s in scripts if s.enabled),
             "interpreters": sorted({s.interpreter for s in scripts if s.interpreter}),
         },
     )
@@ -78,26 +76,13 @@ def library(request):
 
 @require_POST
 def library_refresh(request):
-    scripts, problems = discovery.scan(force=True)
+    scripts, problems, finished = discovery.rescan()
+    if not finished:
+        messages.info(request, "Rescanning in the background; the list updates when it is done.")
+        return redirect("library")
     messages.success(request, f"Rescanned: {len(scripts)} script(s) found.")
     for p in problems:
         messages.warning(request, p)
-    return redirect("library")
-
-
-@require_POST
-def script_toggle(request, script_id):
-    script = discovery.get_script(script_id)
-    if script is None:
-        raise Http404("Unknown script")
-    enable = request.POST.get("enabled") == "1"
-    try:
-        metadata.set_enabled(script.path, script.id, enable)
-    except (OSError, ValueError) as exc:
-        messages.error(request, f"Could not update {script.name}: {exc}")
-    else:
-        discovery.scan(force=True)
-        messages.success(request, f"{script.name} {'enabled' if enable else 'disabled'}.")
     return redirect("library")
 
 
@@ -196,7 +181,7 @@ def settings_save(request):
         config.save_config(new)
     if errors:
         return _render_settings(request, form=form, errors=errors, status=400)
-    discovery.scan(force=True)
+    discovery.rescan(wait=1.0)                       # interpreters may have changed
     messages.success(request, "Settings saved. They apply to the next execution.")
     return redirect("settings")
 

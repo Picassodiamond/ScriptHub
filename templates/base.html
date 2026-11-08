@@ -8,67 +8,26 @@
   <script>
     /* Theme and side panel state before first paint (no flash). */
     (function () {
-      var d = document.documentElement, t = null, s = null;
-      try { t = localStorage.getItem('sr.theme'); s = localStorage.getItem('sr.side'); } catch (e) {}
+      var d = document.documentElement, t = null, s = null, r = null;
+      try { t = localStorage.getItem('sr.theme'); s = localStorage.getItem('sr.side'); r = localStorage.getItem('sr.side2'); } catch (e) {}
       if (t !== 'light' && t !== 'dark') t = (window.matchMedia && matchMedia('(prefers-color-scheme: light)').matches) ? 'light' : 'dark';
       d.setAttribute('data-theme', t);
       if (s === '0') d.classList.add('side-off');
+      if (r === '0') d.classList.add('side2-off');      /* right column of the script pages */
     })();
   </script>
   <link rel="stylesheet" href="{% static 'css/workbench.css' %}">
 </head>
-<body class="wb {% block body_class %}{% endblock %}" data-page="{{ nav_active }}"{% if desktop %} data-desktop="1"{% endif %}{% block body_attrs %}{% endblock %}>
+<body class="wb {% block body_class %}{% endblock %}" data-page="{{ nav_active }}"{% if desktop %} data-desktop="1"{% endif %}{% if folder_picker %} data-folder-picker="1" data-folder="{{ wb_folder.folder.path }}"{% endif %}{% if url_name == 'dashboard' or url_name == 'library' or url_name == 'folder' %} data-scan-reload{% endif %}{% block body_attrs %}{% endblock %}>
   {# Icon sprite: <svg class="i"><use href="#i-name"/></svg> #}
-  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
-    <symbol id="i-play" viewBox="0 0 24 24"><path d="M7 4.5v15a1 1 0 0 0 1.5.86l12.5-7.5a1 1 0 0 0 0-1.72L8.5 3.64A1 1 0 0 0 7 4.5z" fill="currentColor" stroke="none"/></symbol>
-    <symbol id="i-pause" viewBox="0 0 24 24"><rect x="6" y="4.5" width="4" height="15" rx="1"/><rect x="14" y="4.5" width="4" height="15" rx="1"/></symbol>
-    <symbol id="i-stop" viewBox="0 0 24 24"><rect x="5.5" y="5.5" width="13" height="13" rx="2"/></symbol>
-    <symbol id="i-step" viewBox="0 0 24 24"><path d="M4 12a8 8 0 0 1 14.5-4.6"/><polyline points="19 3 19 8 14 8"/><circle cx="12" cy="18.5" r="2"/></symbol>
-    <symbol id="i-unplug" viewBox="0 0 24 24"><path d="M5 12h4M15 12h4M9 8v8M15 8v8"/><path d="M9 8h-1a4 4 0 0 0 0 8h1M15 8h1a4 4 0 0 1 0 8h-1"/></symbol>
-    <symbol id="i-bug" viewBox="0 0 24 24"><rect x="7" y="8" width="10" height="12" rx="5"/><path d="M12 8V5M9 5.5 10.5 8M15 5.5 13.5 8M3 13h4M17 13h4M4 19l3.5-2M20 19l-3.5-2M4 7l3.5 2.5M20 7l-3.5 2.5"/></symbol>
-    <symbol id="i-pulse" viewBox="0 0 24 24"><polyline points="3 12 7 12 10 5 14 19 17 12 21 12"/></symbol>
-    <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></symbol>
-    <symbol id="i-sliders" viewBox="0 0 24 24"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></symbol>
-    <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-3-6.7"/><polyline points="21 3 21 9 15 9"/></symbol>
-    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></symbol>
-    <symbol id="i-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></symbol>
-    <symbol id="i-list" viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></symbol>
-    <symbol id="i-files" viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2V7z"/><polyline points="14 3 14 7 18 7"/><path d="M9 21h8a2 2 0 0 0 2-2"/></symbol>
-    <symbol id="i-copy" viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></symbol>
-    <symbol id="i-download" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></symbol>
-    <symbol id="i-back" viewBox="0 0 24 24"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></symbol>
-    <symbol id="i-wrap" viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M3 12h15a3 3 0 1 1 0 6h-4"/><polyline points="16 16 14 18 16 20"/><path d="M3 18h7"/></symbol>
-    <symbol id="i-check" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></symbol>
-    <symbol id="i-plus" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></symbol>
-    <symbol id="i-x" viewBox="0 0 24 24"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></symbol>
-    <symbol id="i-code" viewBox="0 0 24 24"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></symbol>
-    <symbol id="i-terminal" viewBox="0 0 24 24"><rect x="2.5" y="4" width="19" height="16" rx="2"/><polyline points="7 9.5 10 12 7 14.5"/><line x1="12.5" y1="15" x2="17" y2="15"/></symbol>
-    <symbol id="i-edit" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z"/></symbol>
-    <symbol id="i-save" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></symbol>
-    <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15.5 14"/></symbol>
-    <symbol id="i-zap" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></symbol>
-    <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></symbol>
-    <symbol id="i-star" viewBox="0 0 24 24"><path d="M12 3.5l2.6 5.3 5.9.9-4.25 4.1 1 5.8L12 16.9l-5.25 2.7 1-5.8L3.5 9.7l5.9-.9z"/></symbol>
-    <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></symbol>
-    <symbol id="i-panel" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="9" y1="4" x2="9" y2="20"/></symbol>
-    <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></symbol>
-    <symbol id="i-moon" viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></symbol>
-    <symbol id="i-keyboard" viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10"/></symbol>
-    <symbol id="i-command" viewBox="0 0 24 24"><path d="M18 3a3 3 0 0 0-3 3v12a3 3 0 1 0 3-3H6a3 3 0 1 0 3 3V6a3 3 0 1 0-3 3h12a3 3 0 0 0 0-6z"/></symbol>
-    <symbol id="i-trash" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></symbol>
-    <symbol id="i-external" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></symbol>
-    <symbol id="i-server" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="7" rx="1.5"/><rect x="3" y="13" width="18" height="7" rx="1.5"/><path d="M7 7.5h.01M7 16.5h.01"/></symbol>
-    <symbol id="i-layout" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="12" y1="4" x2="12" y2="20"/></symbol>
-    <symbol id="i-layout-rows" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="3" y1="12" x2="21" y2="12"/></symbol>
-    <symbol id="i-collapse" viewBox="0 0 24 24"><polyline points="7 14 12 9 17 14"/><polyline points="7 20 12 15 17 20" opacity=".5"/></symbol>
-  </svg>
+  {% include "_icons.html" %}
 
   {% with na=nav_active %}
   <nav class="activity" aria-label="Main">
-    <a class="act-brand" href="{% url 'dashboard' %}" data-hotkey="g o" data-hint="Go to Overview" title="Overview  (g o)" aria-label="Overview"><svg class="i"><use href="#i-play"/></svg></a>
+    <a class="act-brand" href="{% url 'dashboard' %}" data-hotkey="g o" data-hint="Go to Home" title="Home  (g o)" aria-label="Home"><svg class="i"><use href="#i-play"/></svg></a>
+    <button type="button" class="act act-toggle" data-action="side" title="Toggle side panel  (Ctrl+B)" aria-controls="side"><svg class="i"><use href="#i-panel"/></svg></button>
     <a class="act {% if na == 'library' or na == 'script' %}is-active{% endif %}" href="{% url 'library' %}" data-hotkey="g l" data-hint="Go to Script Library" title="Script Library  (g l)"><svg class="i"><use href="#i-files"/></svg><span class="act-label">Library</span></a>
-    <a class="act {% if na == 'executions' or na == 'execution' %}is-active{% endif %}" href="{% url 'executions' %}" data-hotkey="g j" data-hint="Go to Jobs" title="Jobs — running &amp; recent  (g j)"><svg class="i"><use href="#i-pulse"/></svg><span class="act-label">Jobs</span>{% if active_runs %}<span class="act-badge" title="Running or queued">{{ active_runs }}</span>{% endif %}</a>
-    <a class="act {% if na == 'history' %}is-active{% endif %}" href="{% url 'history' %}" data-hotkey="g h" data-hint="Go to History" title="History  (g h)"><svg class="i"><use href="#i-clock"/></svg><span class="act-label">History</span></a>
+    <a class="act {% if na == 'history' or na == 'executions' or na == 'execution' %}is-active{% endif %}" href="{% url 'history' %}" data-hotkey="g h|g j" data-hint="Go to Runs" title="Runs — running now and history  (g h)"><svg class="i"><use href="#i-pulse"/></svg><span class="act-label">Runs</span>{% if active_runs %}<span class="act-badge" title="Running or queued">{{ active_runs }}</span>{% endif %}</a>
     <span class="act-spacer"></span>
     <button type="button" class="act act-opt" data-action="palette" title="Command palette  (Ctrl+K)"><svg class="i"><use href="#i-command"/></svg></button>
     <button type="button" class="act act-opt" data-action="theme" title="Switch light / dark theme"><svg class="i theme-ic-dark"><use href="#i-moon"/></svg><svg class="i theme-ic-light"><use href="#i-sun"/></svg></button>
@@ -82,14 +41,6 @@
   <div class="side-scrim" data-action="side"></div>
 
   <main class="main" id="main">
-    <header class="main-head">
-      <button type="button" class="btn btn-ghost btn-icon side-toggle" data-action="side" title="Toggle side panel  (Ctrl+B)" aria-controls="side"><svg class="i"><use href="#i-panel"/></svg></button>
-      <div class="head-text">
-        <nav class="crumbs" aria-label="Breadcrumb">{% block crumbs %}{% endblock %}</nav>
-        <h1 class="head-title">{% block heading %}{% endblock %}</h1>
-      </div>
-      <div class="head-actions">{% block actions %}{% endblock %}</div>
-    </header>
     {% block tabs %}{% endblock %}
     <div class="main-body {% block body_mod %}{% endblock %}" id="main-body">
       {% if messages %}
@@ -108,8 +59,9 @@
 
   <footer class="statusbar">
     <span class="sb-item sb-brand">ScriptHub {{ app_version }}</span>{% if desktop %}<span class="sb-item" title="Running as a desktop app: only this window can use it">desktop</span>{% endif %}
-    <a class="sb-item {% if live_running %}sb-live{% endif %}" href="{% url 'executions' %}" title="Open Jobs"><span class="sb-dot"></span>{{ live_running }} running · {{ live_queued }} queued</a>
+    <a class="sb-item {% if live_running %}sb-live{% endif %}" href="{% url 'history' %}" title="Open Runs"><span class="sb-dot"></span>{{ live_running }} running · {{ live_queued }} queued</a>
     {% block status_extra %}{% endblock %}
+    {% with sc=wb_scan %}{% if sc.scanning %}<span class="sb-item sb-live sb-scan" id="sb-scan" role="status" aria-live="polite" data-url="{% url 'folder_scan' %}" data-version="{{ sc.version }}" title="{{ sc.current }}"><span class="sb-dot"></span><span data-scan-text>Scanning {{ sc.folder }} · {{ sc.dirs }} folders · {{ sc.found }} scripts</span></span>{% endif %}{% endwith %}
     <span class="sb-spacer"></span>
     <button type="button" class="sb-item" data-action="palette" title="Command palette">Commands <kbd>Ctrl</kbd><kbd>K</kbd></button>
     <button type="button" class="sb-item" data-action="help" title="Keyboard shortcuts">Shortcuts <kbd>?</kbd></button>
@@ -118,7 +70,7 @@
 
   {{ wb_palette|json_script:"wb-palette" }}
   {{ wb_folder_palette|json_script:"wb-folders" }}
-  <script type="application/json" id="wb-urls">{"script": "{% url 'script_detail' 'XID' %}", "run": "{% url 'script_run' 'XID' %}", "source": "{% url 'script_source' 'XID' %}", "configure": "{% url 'script_configure' 'XID' %}"{% if editing_enabled %}, "edit": "{% url 'script_edit' 'XID' %}"{% endif %}, "execution": "{% url 'execution_console' 'XID' %}"}</script>
+  <script type="application/json" id="wb-urls">{"script": "{% url 'script_detail' 'XID' %}", "run": "{% url 'script_run' 'XID' %}", "source": "{% url 'script_source' 'XID' %}", "configure": "{% url 'script_detail' 'XID' %}"{% if editing_enabled %}, "edit": "{% url 'script_edit' 'XID' %}"{% endif %}, "execution": "{% url 'execution_console' 'XID' %}"}</script>
   <script src="{% static 'js/app.js' %}"></script>
   {% block scripts %}{% endblock %}
 </body>

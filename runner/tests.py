@@ -111,8 +111,12 @@ class DefinitionValidationTests(SimpleTestCase):
 
     def test_metadata_collects_errors(self):
         with self.assertRaises(ValidationError) as cm:
-            ps.validate_metadata({"timeout": 0, "enabled": "yes", "parameters": [{"name": "!"}]})
+            ps.validate_metadata({"platforms": "x", "environment": 5, "parameters": [{"name": "!"}]})
         self.assertGreaterEqual(len(cm.exception.errors), 3)
+
+    def test_removed_per_script_options_are_dropped(self):
+        clean = ps.validate_metadata({"name": "x", "enabled": False, "timeout": "soon", "allow_concurrent": 1})
+        self.assertEqual(clean, {"name": "x", "parameters": []})
 
 
 class ArgumentTests(SimpleTestCase):
@@ -158,22 +162,33 @@ class ArgumentTests(SimpleTestCase):
         self.assertEqual(values["b"], "fixed")
 
 
+def meta_of(script_path):
+    """The metadata of a script (its comment block, or an old sidecar)."""
+    data, _source, err = metadata.load_raw(Path(script_path), "0" * 12)
+    assert err is None, err
+    return data
+
+
 class BundledExamplesTests(SimpleTestCase):
-    def test_all_bundled_metadata_is_valid(self):
-        files = sorted((config.BASE_DIR / "scripts").rglob("*.json"))
-        self.assertGreaterEqual(len(files), 5)
+    def test_all_bundled_metadata_is_valid_and_inside_the_scripts(self):
+        base = config.BASE_DIR / "scripts"
+        files = sorted(p for p in base.rglob("*") if p.suffix in (".py", ".sh", ".bat") and "__pycache__" not in p.parts
+                       and p.parent != base)                         # the examples are in sub-folders
+        self.assertGreaterEqual(len(files), 15)
         for f in files:
             with self.subTest(file=f.name):
-                data = json.loads(f.read_text(encoding="utf-8"))
+                data, _err = metadata.parse_block(f.read_text(encoding="utf-8"))
+                self.assertIsNotNone(data, "no metadata block")
                 ps.validate_metadata(data)  # raises on problems
+                self.assertFalse(f.with_suffix(".json").exists())  # no sidecar any more
 
     def test_example_argument_styles(self):
         base = config.BASE_DIR / "scripts"
-        health = ps.validate_metadata(json.loads((base / "deployment/health_check.json").read_text()))["parameters"]
+        health = ps.validate_metadata(meta_of(base / "deployment/health_check.sh"))["parameters"]
         argv, env = ps.build_arguments(health, {"url": "https://x.test/h", "timeout_secs": 7})
         self.assertEqual(argv, ["https://x.test/h"])        # positional
         self.assertEqual(env, {"TIMEOUT_SECS": "7"})        # environment
-        ping = ps.validate_metadata(json.loads((base / "system/ping_host.json").read_text()))["parameters"]
+        ping = ps.validate_metadata(meta_of(base / "system/ping_host.bat"))["parameters"]
         argv, _ = ps.build_arguments(ping, {"host": "10.0.0.1", "count": 3})
         self.assertEqual(argv, ["10.0.0.1", "3"])           # ordered positionals
         _, errs = ps.clean_values(ping, {"host": "a;b", "count": "3"})
@@ -187,7 +202,8 @@ class PageTests(SimpleTestCase):
         self.tmp = Path(tempfile.mkdtemp())
         self.scripts = self.tmp / "scripts"
         self.scripts.mkdir()
-        (self.scripts / "tool.py").write_text("print('hi')\n")
+        (self.scripts / "tool.py").write_bytes(b"print('hi')\n")
+        self.original = (self.scripts / "tool.py").read_bytes()
         (self.scripts / "tool.json").write_text(json.dumps({
             "name": "Tool", "category": "Test",
             "parameters": [
@@ -202,6 +218,8 @@ class PageTests(SimpleTestCase):
         patches = [
             mock.patch.object(config, "CONFIG_FILE", cfg_file),
             mock.patch.object(config, "METADATA_OVERRIDE_DIR", self.tmp / "ov"),
+            mock.patch.object(config, "PRESETS_DIR", self.tmp / "presets"),       # saved values live in runtime/
+            mock.patch.object(config, "EXECUTIONS_DIR", self.tmp / "executions"),
         ]
         for p in patches:
             p.start()
@@ -215,7 +233,7 @@ class PageTests(SimpleTestCase):
         return f"/scripts/{self.sid}/{name}/"
 
     def test_detail_and_run_defaults(self):
-        self.assertContains(self.client.get(f"/scripts/{self.sid}/"), "Database")
+        self.assertContains(self.client.get(self.url("parameters")), "Database")      # parameter definitions
         r = self.client.get(self.url("run"))
         self.assertContains(r, 'value="mydb"')
         self.assertContains(r, 'value="30"')
@@ -227,85 +245,115 @@ class PageTests(SimpleTestCase):
         self.assertContains(r, "required", status_code=400)
         self.assertContains(r, "at most 365", status_code=400)
 
-    def test_run_confirmation_masks_password(self):
-        r = self.client.post(self.url("run"), {"p_db": "prod", "p_days": "7", "p_secret": "topsecret", "p_zip": "on"})
-        self.assertContains(r, "Confirm")
-        self.assertContains(r, "--db prod")
-        self.assertContains(r, "--zip")
-        self.assertNotContains(r, "<td>topsecret")
-        # raw value is carried for the next step only inside a hidden field
-        self.assertContains(r, 'name="p_secret"')
+    def test_run_form_starts_directly_without_a_review_step(self):
+        page = self.client.get(self.url("run"))
+        self.assertContains(page, f'action="{self.url("start")}"')
+        self.assertContains(page, 'name="submit_token"')
+        self.assertNotContains(page, "Review")
+        # Invalid values: the form again with the errors, nothing started.
+        with mock.patch("runner.execution_views.manager.submit") as submit:
+            r = self.client.post(self.url("start"), {"p_db": "", "p_days": "999", "submit_token": "x1"})
+        self.assertEqual(r.status_code, 400)
+        self.assertContains(r, "at most 365", status_code=400)
+        submit.assert_not_called()
+
+    def test_parameters_tab_and_overview_save_separately(self):
+        page = self.client.get(self.url("parameters"))
+        self.assertContains(page, 'id="param-list"')
+        self.assertContains(page, "Saved values")
+        self.assertNotContains(self.client.get(f"/scripts/{self.sid}/"), 'id="param-list"')   # not on Overview
+        before = [p["name"] for p in meta_of(self.scripts / "tool.py")["parameters"]]
+        # Overview saves the settings and keeps the parameter definitions.
+        r = self.client.post(f"/scripts/{self.sid}/", {"name": "Settings only", "host": "local"})
+        self.assertEqual(r["Location"], f"/scripts/{self.sid}/")
+        saved = meta_of(self.scripts / "tool.py")
+        self.assertEqual((saved["name"], [p["name"] for p in saved["parameters"]]), ("Settings only", before))
+        # Parameters saves the definitions and keeps the settings.
+        r = self.client.post(self.url("parameters"), {"parameters_json": json.dumps([{"name": "only", "type": "text"}])})
+        self.assertEqual(r["Location"], self.url("parameters"))
+        saved = meta_of(self.scripts / "tool.py")
+        self.assertEqual((saved["name"], [p["name"] for p in saved["parameters"]]), ("Settings only", ["only"]))
+        bad = self.client.post(self.url("parameters"), {"parameters_json": json.dumps([{"name": "!"}])})
+        self.assertEqual(bad.status_code, 400)
+        self.assertEqual([p["name"] for p in meta_of(self.scripts / "tool.py")["parameters"]], ["only"])
 
     def test_configure_save_and_backup(self):
         params = [{"name": "only", "type": "select", "choices": ["x|X"], "pass_as": "flag"}]
         params = [{"name": "only", "label": "Only", "type": "select", "choices": [{"value": "x", "label": "X"}]}]
         r = self.client.post(self.url("configure"), {
-            "name": "Renamed", "category": "Test", "enabled": "on", "timeout": "120",
+            "name": "Renamed", "category": "Test", "timeout": "120", "enabled": "on",   # no longer saved
             "parameters_json": json.dumps(params)})
         self.assertEqual(r.status_code, 302)
-        saved = json.loads((self.scripts / "tool.json").read_text())
+        saved = meta_of(self.scripts / "tool.py")
         self.assertEqual(saved["name"], "Renamed")
-        self.assertEqual(saved["timeout"], 120)
+        self.assertFalse({"timeout", "enabled", "allow_concurrent"} & set(saved))    # options no longer exist
         self.assertEqual([p["name"] for p in saved["parameters"]], ["only"])
-        bak = json.loads((self.scripts / "tool.json.bak").read_text())
-        self.assertEqual(bak["name"], "Tool")  # previous valid version kept
+        self.assertIn("# --- scripthub ---", (self.scripts / "tool.py").read_text())   # inside the script now
+        self.assertFalse((self.scripts / "tool.json").exists())                        # the old sidecar moved in
+        self.assertEqual((self.scripts / "tool.py.bak").read_bytes(), self.original)   # previous version kept
 
     def test_configure_rejects_invalid(self):
         before = (self.scripts / "tool.json").read_text()
+        script_before = (self.scripts / "tool.py").read_bytes()
         r = self.client.post(self.url("configure"), {
-            "name": "X", "enabled": "on",
+            "name": "X",
             "parameters_json": json.dumps([{"name": "a", "type": "number", "min": 9, "max": 1}])})
         self.assertEqual(r.status_code, 400)
         self.assertContains(r, "min is greater than max", status_code=400)
         self.assertEqual((self.scripts / "tool.json").read_text(), before)
+        self.assertEqual((self.scripts / "tool.py").read_bytes(), script_before)
 
-    def test_raw_json_invalid_and_valid(self):
-        before = (self.scripts / "tool.json").read_text()
-        r = self.client.post(self.url("configure/raw"), {"raw_json": "{not json"})
-        self.assertContains(r, "Invalid JSON", status_code=400)
-        self.assertEqual((self.scripts / "tool.json").read_text(), before)
-        r = self.client.post(self.url("configure/raw"), {"raw_json": json.dumps({"name": "Via raw", "parameters": []})})
+    def test_editing_the_block_in_the_script_changes_the_metadata(self):
+        self.client.post(f"/scripts/{self.sid}/", {"name": "Tool", "host": "local"})     # moves it into tool.py
+        text = (self.scripts / "tool.py").read_text()
+        self.assertIn('"name": "Tool"', text)
+        page = self.client.get(self.url("edit"))
+        base_hash = page.content.decode().split('name="base_hash" value="', 1)[1].split('"', 1)[0]
+        r = self.client.post(self.url("edit"), {"content": text.replace('"name": "Tool"', '"name": "Edited in code"'),
+                                                "base_hash": base_hash, "action": "save"})
         self.assertEqual(r.status_code, 302)
-        self.assertEqual(json.loads((self.scripts / "tool.json").read_text())["name"], "Via raw")
+        self.assertEqual(discovery.get_script(self.sid, force=True).name, "Edited in code")
 
     def test_script_pages_share_the_centre_and_put_tabs_on_the_right(self):
-        for page in ("", "run", "configure"):
+        self.assertRedirects(self.client.get(self.url("configure")), f"/scripts/{self.sid}/")   # merged into Overview
+        for page in ("", "run"):
             html = self.client.get(self.url(page) if page else f"/scripts/{self.sid}/").content.decode()
-            for panel in ('id="doc-code-panel"', 'id="doc-meta-panel"', 'id="doc-params-panel"', 'name="raw_json"'):
+            for panel in ('id="doc-code-panel"', 'id="doc-params-panel"'):
                 self.assertIn(panel, html, f"{page or 'overview'}: {panel}")
+            self.assertNotIn('id="doc-meta-panel"', html)                 # metadata is in the script now
             centre, side = html.split('class="split-side"', 1)
             self.assertNotIn('class="wb-tabs', centre, page)               # no tab strip above the centre
             self.assertIn('class="wb-tabs side-tabs"', side, page)          # it heads the right column
 
-    def test_raw_json_save_returns_to_the_page_it_came_from(self):
-        body = {"raw_json": json.dumps({"name": "Back", "parameters": []})}
-        r = self.client.post(self.url("configure/raw"), {**body, "back": "script_detail"})
-        self.assertEqual(r["Location"], f"/scripts/{self.sid}/")
-        r = self.client.post(self.url("configure/raw"), {**body, "back": "https://evil.example/"})
-        self.assertEqual(r["Location"], self.url("configure"))
 
     def test_broken_metadata_blocks_run_and_can_be_repaired(self):
         (self.scripts / "tool.json").write_text("{ broken")
         discovery.scan(force=True)
         self.assertContains(self.client.get(self.url("run")), "Invalid metadata file")
-        self.assertContains(self.client.get(self.url("configure")), "{ broken")
-        r = self.client.post(self.url("configure/raw"), {"raw_json": '{"name": "Fixed", "parameters": []}'})
-        self.assertEqual(r.status_code, 302)
-        self.assertNotContains(self.client.get(self.url("run")), "Invalid metadata")
-
-    def test_disabled_script_cannot_run(self):
-        metadata.set_enabled(self.scripts / "tool.py", self.sid, False)
+        # A block in the script wins over an old sidecar: writing one repairs the script.
+        (self.scripts / "tool.py").write_bytes(b'# --- scripthub ---\n# {"name": "Fixed", "parameters": []}\n# --- end scripthub ---\nprint(1)\n')
         discovery.scan(force=True)
-        self.assertContains(self.client.get(self.url("run")), "disabled")
-        r = self.client.post(self.url("run"), {"p_db": "x", "p_days": "1"})
-        self.assertNotContains(r, "Command preview")
+        self.assertNotContains(self.client.get(self.url("run")), "Invalid metadata")
+        self.assertEqual(discovery.get_script(self.sid).name, "Fixed")
+
+    def test_old_enabled_and_timeout_keys_are_ignored(self):
+        meta = meta_of(self.scripts / "tool.py")
+        (self.scripts / "tool.json").write_text(json.dumps({**meta, "enabled": False, "timeout": 5, "allow_concurrent": True}))
+        discovery.scan(force=True)
+        page = self.client.get(self.url("run"))
+        self.assertNotContains(page, "is disabled")
+        with mock.patch("runner.execution_views.manager.submit", return_value="RUN-20260101-001") as submit:
+            r = self.client.post(self.url("start"), {"p_db": "x", "p_days": "1", "submit_token": "t-old-keys"})
+        self.assertEqual(r.status_code, 302)                                          # runs although "enabled": false
+        self.assertEqual(submit.call_args[0][0].timeout, config.load_config()["default_timeout"])   # Settings default
+        self.assertEqual(self.client.post(f"/scripts/{self.sid}/toggle/", {"enabled": "0"}).status_code, 404)
 
     def test_source_view_download_and_escaping(self):
         (self.scripts / "tool.py").write_text("print('<b>hi</b>')\n# second line\n")
         r = self.client.get(self.url("source"))
         self.assertContains(r, "&lt;b&gt;hi&lt;/b&gt;")      # HTML-escaped, never executed as markup
         self.assertContains(r, "second line")
-        self.assertContains(r, "tool.json")                    # metadata tab
+        self.assertContains(r, "tool.json")                    # an old sidecar still shows as a tab
         d = self.client.get(self.url("source") + "?download=1")
         self.assertEqual(d["Content-Type"].split(";")[0], "text/plain")
         self.assertIn("attachment", d["Content-Disposition"])
@@ -315,11 +363,11 @@ class PageTests(SimpleTestCase):
         (self.scripts / "tool.py").write_bytes(b"\x00\x01\x02binary")
         self.assertContains(self.client.get(self.url("source")), "looks binary")
 
-    def test_library_has_cards_table_and_switches(self):
+    def test_library_has_cards_and_table_without_switches(self):
         r = self.client.get("/scripts/")
         self.assertContains(r, 'id="view-cards"')
         self.assertContains(r, 'id="view-table"')
-        self.assertContains(r, 'role="switch"')
+        self.assertNotContains(r, 'role="switch"')                  # scripts can no longer be disabled
         self.assertContains(r, "lang-py")
 
     def test_source_page_loads_highlighter_with_language(self):
@@ -354,19 +402,19 @@ class PageTests(SimpleTestCase):
         self.assertContains(r, 'data-platform="linux macos"')  # the .sh card
 
     def test_platform_override_is_saved_only_when_different_from_default(self):
-        base = {"name": "Tool", "enabled": "on", "parameters_json": "[]"}
+        base = {"name": "Tool", "parameters_json": "[]"}
         self.client.post(self.url("configure"), {**base, "platforms": ["linux"]})
-        self.assertEqual(json.loads((self.scripts / "tool.json").read_text())["platforms"], ["linux"])
+        self.assertEqual(meta_of(self.scripts / "tool.py")["platforms"], ["linux"])
         self.assertEqual(discovery.scan(force=True)[0][0].platforms, ["linux"])
         self.client.post(self.url("configure"), {**base, "platforms": ["windows", "linux", "macos"]})
-        self.assertNotIn("platforms", json.loads((self.scripts / "tool.json").read_text()))
+        self.assertNotIn("platforms", meta_of(self.scripts / "tool.py"))
 
     def test_configure_saves_host_working_directory_and_environment(self):
-        base = {"name": "Tool", "enabled": "on", "parameters_json": "[]"}
+        base = {"name": "Tool", "parameters_json": "[]"}
         r = self.client.post(self.url("configure"), {**base, "host": "prod-1", "working_directory": "/srv/app",
                                                        "environment": "A=1\nB=two words\n# comment"})
         self.assertEqual(r.status_code, 302)
-        saved = json.loads((self.scripts / "tool.json").read_text())
+        saved = meta_of(self.scripts / "tool.py")
         self.assertEqual((saved["host"], saved["working_directory"]), ("prod-1", "/srv/app"))
         self.assertEqual(saved["environment"], {"A": "1", "B": "two words"})
         bad = self.client.post(self.url("configure"), {**base, "environment": "NOEQUALS"})

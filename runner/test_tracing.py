@@ -241,10 +241,10 @@ class TraceWebTests(WebCase):
     def post(self, code="print('hi')\nx = 2\n", ext=".py", trace="1"):
         return self.start_script(code, ext, mode="trace" if trace else "normal")
 
-    def test_review_offers_the_run_modes(self):
-        self.start_script("print(1)\n")                       # creates a script to review
+    def test_run_form_offers_the_run_modes(self):
+        self.start_script("print(1)\n")                       # creates a script
         sid = discovery.scan(force=True)[0][0].id
-        page = self.client.post(f"/scripts/{sid}/run/", {"host": "local"})
+        page = self.client.get(f"/scripts/{sid}/run/")
         self.assertContains(page, 'name="mode" value="trace"')     # run-mode picker: normal / trace / debug
         self.assertContains(page, 'name="mode" value="debug"')
 

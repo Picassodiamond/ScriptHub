@@ -2,8 +2,5 @@
 {# Shared frame for every page about one script: breadcrumb, title and the tab strip. #}
 {% block title %}{{ script.name }}{% endblock %}
 {% block body_attrs %} data-script-id="{{ script.id }}"{% endblock %}
-{% block crumbs %}<a href="{% url 'library' %}">Library</a><span class="sep">/</span><span>{{ script.category }}</span><span class="sep">/</span><span class="mono">{{ script.relative }}</span>{% endblock %}
-{% block heading %}<span class="lang lang-lg lang-{{ script.extension|slice:'1:' }}">{{ script.extension|slice:'1:' }}</span><span class="t">{{ script.name }}</span>{% if not script.enabled %}<span class="badge badge-off">Disabled</span>{% endif %}{% endblock %}
-{% block actions %}{% endblock %}
-{# Pages with a right column (Overview, Run, Review, Configure) empty this block and put the tabs at the top of that column. #}
+{# Pages with a right column (Overview, Parameters, Run) empty this block and put the tabs at the top of that column. #}
 {% block tabs %}{% include "runner/_script_tabs.html" %}{% endblock %}

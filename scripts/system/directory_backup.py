@@ -1,3 +1,15 @@
+# --- scripthub ---
+# {
+#   "name": "Directory Backup",
+#   "description": "Create a ZIP backup of a source directory.",
+#   "category": "Backup",
+#   "parameters": [
+#     {"name": "source", "label": "Source directory", "type": "directory", "required": true, "editable_at_runtime": true, "help": "Directory to back up", "placeholder": "/data/project", "pass_as": "flag"},
+#     {"name": "destination", "label": "Destination directory", "type": "directory", "default": "./backups", "required": true, "editable_at_runtime": true, "help": "Where the ZIP file is written", "pass_as": "flag"},
+#     {"name": "compress", "label": "Compress archive", "type": "boolean", "default": true, "editable_at_runtime": true, "pass_as": "flag", "required": false}
+#   ]
+# }
+# --- end scripthub ---
 """Create a ZIP backup of a directory."""
 import argparse
 import datetime

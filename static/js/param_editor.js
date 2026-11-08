@@ -6,7 +6,7 @@
   var info = JSON.parse(document.getElementById('type-info').textContent);
   var list = document.getElementById('param-list');   // the <table>
   var empty = document.getElementById('param-empty');
-  var form = document.getElementById('configure-form');
+  var form = list.closest('form');
   var hidden = document.getElementById('parameters_json');
   var KNOWN = ['name', 'label', 'type', 'default', 'required', 'help', 'placeholder', 'choices',
     'min', 'max', 'min_length', 'max_length', 'pattern', 'editable_at_runtime', 'arg',
@@ -159,10 +159,15 @@
     }
 
     // ---- summary row (the table) ----
-    var up = h('button', { type: 'button', 'class': 'btn btn-ghost btn-sm', title: 'Move up', text: '↑' });
-    var down = h('button', { type: 'button', 'class': 'btn btn-ghost btn-sm', title: 'Move down', text: '↓' });
-    var del = h('button', { type: 'button', 'class': 'btn btn-danger btn-sm', title: 'Delete parameter', text: 'Delete' });
-    var edit = h('button', { type: 'button', 'class': 'btn btn-ghost btn-sm', text: 'Edit' });
+    function iconBtn(icon, title, extra) {
+      var b = h('button', { type: 'button', 'class': 'btn btn-ghost btn-icon btn-sm' + (extra || ''), title: title, 'aria-label': title });
+      b.innerHTML = '<svg class="i i-sm"><use href="#i-' + icon + '"/></svg>';
+      return b;
+    }
+    var up = iconBtn('up', 'Move up');
+    var down = iconBtn('down', 'Move down');
+    var del = iconBtn('trash', 'Delete parameter', ' btn-del');
+    var edit = iconBtn('edit', 'Edit');
 
     var cells = {};
     var sum = h('tr', { 'class': 'pe-row' });
@@ -170,7 +175,10 @@
       cells[k] = h('td', { 'class': 'pe-c-' + k + (k === 'name' || k === 'def' || k === 'pass' ? ' mono' : '') });
       sum.appendChild(cells[k]);
     });
-    sum.appendChild(h('td', { 'class': 'pe-actions' }, [h('div', { 'class': 'btn-row' }, [edit, up, down, del])]));
+    sum.appendChild(h('td', { 'class': 'pe-actions' }, [h('div', { 'class': 'btn-row' }, [up, down, edit, del])]));
+    sum.addEventListener('click', function (e) {          // the row itself opens / closes the editor
+      if (!e.target.closest('button')) edit.click();
+    });
     var editTr = h('tr', { 'class': 'pe-edit', hidden: '' }, [h('td', { colspan: '9' }, [card])]);
     var item = h('tbody', { 'class': 'pe-item' }, [sum, editTr]);
 
@@ -189,7 +197,9 @@
       cells.pass.textContent = o.pass_as === 'flag' ? (o.arg || '--' + String(o.name || '').replace(/_/g, '-'))
         : o.pass_as === 'env' ? 'env ' + (o.env_name || String(o.name || '').toUpperCase())
         : 'positional' + (o.position ? ' ' + o.position : '');
-      edit.textContent = editTr.hidden ? 'Edit' : 'Close';
+      edit.classList.toggle('is-on', !editTr.hidden);
+      edit.title = editTr.hidden ? 'Edit' : 'Close';
+      sum.classList.toggle('is-open', !editTr.hidden);
     }
 
     function refresh() {
@@ -254,7 +264,7 @@
     item.focusName();
   });
 
-  form.addEventListener('submit', function () {
-    hidden.value = JSON.stringify(items().map(function (c) { return c.get(); }));
-  });
+  // The page's one Save (designer.js) calls this to compare and to post the definitions.
+  form.srSerialize = function () { hidden.value = JSON.stringify(items().map(function (c) { return c.get(); })); };
+  form.addEventListener('submit', form.srSerialize);
 })();

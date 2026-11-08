@@ -1,14 +1,6 @@
 {% extends "runner/_script_base.html" %}
 {% load static %}
 {% block body_mod %}fill{% endblock %}
-{% block actions %}
-{% if not error %}
-<button type="button" class="btn btn-ghost btn-sm" id="wrap-source" aria-pressed="false" data-hotkey="w" data-hint="Toggle line wrap"><svg class="i"><use href="#i-wrap"/></svg> Wrap</button>
-<button type="button" class="btn btn-ghost btn-sm" id="copy-source"><svg class="i"><use href="#i-copy"/></svg> <span>Copy</span></button>
-<a class="btn btn-ghost btn-sm" href="{% url 'script_source' script.id %}?download=1"><svg class="i"><use href="#i-download"/></svg> Download</a>
-{% endif %}
-{% if editing_enabled %}<a class="btn btn-sm" href="{% url 'script_edit' script.id %}"><svg class="i"><use href="#i-edit"/></svg> Edit</a>{% endif %}
-{% endblock %}
 {% block content %}
 {% if error %}
 <div class="flash flash-error"><span>{{ error }}</span></div>
@@ -22,7 +14,11 @@
   </div>
   {% else %}<span class="mono small">{{ script.path.name }}</span>{% endif %}
   <span class="spacer"></span>
-  <span class="muted small mono">{{ size }} bytes · {% if language %}{{ language }} · {% endif %}{{ lines|length }} lines · read-only</span>
+  <span class="muted small mono hide-sm">{{ size }} bytes · {{ lines|length }} lines · read-only</span>
+  <button type="button" class="btn btn-ghost btn-icon btn-sm" id="wrap-source" aria-pressed="false" data-hotkey="w" data-hint="Toggle line wrap" title="Wrap lines (W)"><svg class="i"><use href="#i-wrap"/></svg></button>
+  <button type="button" class="btn btn-ghost btn-icon btn-sm" id="copy-source" title="Copy"><svg class="i"><use href="#i-copy"/></svg><span hidden>Copy</span></button>
+  <a class="btn btn-ghost btn-icon btn-sm" href="{% url 'script_source' script.id %}?download=1" title="Download"><svg class="i"><use href="#i-download"/></svg></a>
+  {% if editing_enabled %}<a class="btn btn-sm" href="{% url 'script_edit' script.id %}"><svg class="i"><use href="#i-edit"/></svg> Edit</a>{% endif %}
 </div>
 
 <div id="tab-script" class="tab-panel source-full" style="display:flex;flex-direction:column">

@@ -1,0 +1,5 @@
+{# ▶ Run a saved set of values (preset slug or "@<n>" = recent run) as it is: starts the run, which then opens as a tab. `key`, optional `label`. #}
+<form method="post" action="{% url 'script_start' script.id %}" class="run-saved">{% csrf_token %}
+  <input type="hidden" name="from_preset" value="{{ key }}">
+  <button class="btn {% if label %}btn-primary{% else %}btn-ghost btn-icon{% endif %} btn-sm play" type="submit" data-once title="Run with these values"><svg class="i"><use href="#i-play"/></svg>{% if label %} {{ label }}{% endif %}</button>
+</form>
