@@ -39,6 +39,7 @@ urlpatterns = [
     path("folder/forget/", folder_views.folder_forget, name="folder_forget"),
     path("folder/scan/", folder_views.folder_scan, name="folder_scan"),
     path("desktop/pick-folder/", desktop.pick_folder, name="desktop_pick_folder"),
+    path("desktop/pick-file/", desktop.pick_file, name="desktop_pick_file"),
     path("desktop/reveal/", desktop.reveal, name="desktop_reveal"),
     path("desktop/ping/", desktop.ping, name="desktop_ping"),
     path("desktop/bye/", desktop.bye, name="desktop_bye"),

@@ -73,16 +73,17 @@ def create(root: Path, ext: str, filename: str, subfolder: str, name: str = "", 
         raise ValueError("That location is outside the script folder.")
     if target.exists():
         raise ValueError(f"{target.name} already exists there; pick another name. Existing files are never overwritten.")
+    meta = {"name": (name.strip() or filename.replace("_", " ").replace("-", " ").title())[:120],
+            "description": "", "parameters": []}
+    if category.strip():
+        meta["category"] = category.strip()[:60]
+    meta = metadata.with_id(meta)                    # a new script gets its stable id right away
+    newline = "\r\n" if ext in script_editor.CRLF_EXTENSIONS else "\n"
+    text = metadata.with_block(script_editor.normalise_text(STARTERS.get(ext, ""), ext), meta, target, newline)
     try:
         target.parent.mkdir(parents=True, exist_ok=True)
-        data = script_editor.normalise_text(STARTERS.get(ext, ""), ext).encode("utf-8")
-        with open(target, "xb") as fh:
-            fh.write(data)
-        meta = {"name": (name.strip() or filename.replace("_", " ").replace("-", " ").title())[:120],
-                "description": "", "parameters": []}
-        if category.strip():
-            meta["category"] = category.strip()[:60]
-        metadata.save_raw(target, discovery.script_id(target.resolve()), meta)
+        with open(target, "xb") as fh:              # one write: starter + metadata block, never overwrites
+            fh.write(text.encode("utf-8"))
     except FileExistsError:
         raise ValueError(f"{target.name} already exists there; pick another name.") from None
     except OSError as exc:
@@ -96,7 +97,8 @@ def script_new(request):
         return _blocked(request, "Creating and editing scripts from the browser is turned off in Settings.")
     root = workspace.current()
     if root is None or not root.is_dir():
-        messages.info(request, "Open a script folder first; new scripts are saved in it.")
+        messages.info(request, "A single script is open; open a folder to create new scripts in it." if root and root.is_file()
+                      else "Open a script folder first; new scripts are saved in it.")
         return redirect("folder")
 
     if request.method != "POST":
@@ -116,6 +118,7 @@ def script_new(request):
     except ValueError as exc:
         return _render(request, cfg, form, [str(exc)], status=400)
     discovery.update_file(target)
-    sid = discovery.script_id(target.resolve())
-    messages.success(request, f"Created {target.name}. Write it here (Ctrl+S saves); add parameters in Configure.")
+    created = discovery.get_script(discovery.script_id(target.resolve()))
+    sid = created.id if created else discovery.script_id(target.resolve())
+    messages.success(request, f"Created {target.name}. Write it here (Ctrl+S saves); add parameters on the Parameters tab.")
     return redirect("script_run", script_id=sid)

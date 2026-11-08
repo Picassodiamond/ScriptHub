@@ -106,19 +106,30 @@ For SSH hosts, `ssh` must already work for you from a terminal (see
 
 ## A tour of the pages
 
-Version 2 is laid out like an IDE workbench (dark theme by default; **Theme** in the
-status bar or the moon/sun icon switches to light, remembered per browser):
+Version 2 is laid out like an IDE workbench (dark theme by default; *View → Light /
+dark theme* switches, remembered per browser):
 
-* **Activity bar** (far left): Home (the app icon), Library, **Runs** (what is running
-  now, with a live count, and the history), Settings, plus the side-panel toggle,
-  the command palette and the theme switch.
-* **Side panel**: the **Explorer** (every script grouped by category, with a dot for its
-  last result and a filter box) on most pages; the list of executions in the
+* **Menu bar** (top), as in VS Code; the open folder or file and the script are shown
+  in the middle. Click a menu (then hover to move between menus, Esc closes):
+  * **File**: New script (`g n`), **Open file…**, **Open folder…** (`g f`), *Open
+    recent* (favourites and recent folders/files), add to / remove from favourites,
+    Close folder, Settings.
+  * **View**: Command palette (Ctrl+K), Home / Library / Runs, Side panel (Ctrl+B),
+    Right panel (Ctrl+Alt+B) and Saved values panel (Ctrl+J) on script pages,
+    Collapse explorer, Light / dark theme.
+  * **Run**: Run the script (Ctrl+Enter), Run with Trace, Run with Debug, Rescan
+    folder, Runs.
+  * **Help**: Keyboard shortcuts (`?`), version.
+* **Activity bar** (far left): Home, Library, **Runs** (what is running now, with a
+  live count, and the history); Settings at the bottom.
+* **Side panel**: the **Explorer** (the open folder's name with New script, Rescan
+  and Collapse all; every script grouped by category, with a dot for its last
+  result and a filter box) on most pages; the list of executions in the
   console; the filters on History; the section list on Settings. **Ctrl+B** hides it.
 * **Main area**: no page header (the activity bar shows the section, the explorer the
   script); script pages have the tabs **Overview · Parameters · Run** on top of a right
   column that **Ctrl+Alt+B** (or its ◧ button) hides and shows.
-* **Status bar**: running/queued count, command palette, shortcuts, theme.
+* **Status bar**: version, running/queued count and the progress of a folder scan.
 
 | Page | What it does |
 |---|---|
@@ -129,7 +140,7 @@ status bar or the moon/sun icon switches to light, remembered per browser):
 | **Script › Overview** | The script's settings on the right: name, category, description, interpreter, default host, working directory, environment, platforms; below, recent runs. (The old `/configure/` URL opens this page.) |
 | **Script › Parameters** | The **parameter definitions** the run form is built from (click a row to edit; hover to see where the script uses it). |
 | **Script › Run** | On the right: where the values come from (defaults, a recent run or a preset), the host and the parameters (focusing one marks the lines that use it), and *+ Save current values as preset…* at the end of the values list. **Run** (Ctrl+Enter) in the bottom bar, with the mode **Normal · Trace · Debug** next to it, starts the script straight away (unsaved script edits are saved first) and opens the run as a tab next to the script; **Reset** loads the defaults. |
-| **New script** (`/scripts/new/`, **+** in the explorer header) | Name, language, optional sub-folder and category; creates the file (with a short starter) and its metadata in the open folder, then opens it in the editor. |
+| **New script** (`/scripts/new/`, *File → New script*, **+** in the explorer header) | Name, language, optional sub-folder and category; creates the file (with a short starter) and its metadata in the open folder, then opens it in the editor. |
 | **Console** (`/executions/RUN-…/`) | Step 3. Live status, duration, exit code, stdout and stderr (side by side, stacked or stdout only), auto-scroll, copy, download, stop; the running line (trace) or the **debugger** (debug). |
 | **Runs** (`/history/`; `/executions/` redirects here) | What is running or queued on top (refreshes by itself while something runs), then every execution with search, filters, paging, delete and retention. |
 | **History** | Search and filter every past execution, open or download logs, delete runs, apply retention. |
@@ -147,7 +158,7 @@ Ctrl+Enter runs it), type `run ` to list run actions only, paste a run id such a
 | `Ctrl+B` | Toggle the side panel |
 | `/` | Focus the page search (or the explorer filter) |
 | `g o` `g l` `g h` `g s` | Go to Home, Library, Runs, Settings |
-| `g n` `g f` | New script, Open folder (explorer header) |
+| `g n` `g f` | New script, Open folder |
 | `g n` | New script (in the open folder) |
 | `i` (or `c`) `r` | On a script: Overview (configuration), Run (run / view / edit) |
 | `Ctrl+Enter` | Run (Run tab), Create (New script) |
@@ -209,20 +220,21 @@ The names used before the rename (`SCRIPT_RUNNER_DEBUG`, `SCRIPT_RUNNER_ALLOWED_
 
 ## Script folder
 
-ScriptHub works on **one folder at a time**, like an editor's *Open Folder*. It is
-not a setting: on first start the Overview asks you to open one (or the bundled
+ScriptHub works on **one folder at a time**, like an editor's *Open Folder*, or on a
+**single script** (*File → Open file…*: the explorer then shows just that script;
+New script needs a folder). It is not a setting: on first start the Overview asks you to open one (or the bundled
 `./scripts` examples), and the folder you open is reopened on the next start.
 
-* **Open folder…** (explorer folder menu, Overview, Ctrl+K) shows the system
-  folder dialog and opens the folder you pick. The dialog appears on the machine
+* **Open folder…** / **Open file…** (File menu, Ctrl+K) show the system dialog
+  (folders, or files filtered to the script types) and open what you pick. The dialog appears on the machine
   running ScriptHub, so it is offered in the desktop app and in a browser on that
   same machine. From another machine, the `/folder/` page is used instead: type a
-  path or click through the drives and sub-folders.
+  path (folder or script) or click through the drives, sub-folders and scripts.
 * A large folder (a whole drive, say) is scanned in the background: the app stays
   usable, the status bar shows the folders and scripts counted so far, and the
   Overview / Library reload when the scan is done.
-* **Recent** keeps the last 10 folders; **favourites** (star) stay until you
-  unstar them. Both are in the explorer's folder menu and the command palette
+* **Recent** keeps the last 10 folders and files; **favourites** (star) stay until
+  you unstar them. Both are in *File → Open recent* and the command palette
   (Ctrl+K), so switching is one click.
 * The state lives in `runtime/workspace.json`. An older `script_directories`
   list in `config.json` is used once to fill it (first existing folder is opened,
@@ -343,10 +355,20 @@ to copy, move or commit. The Overview and Parameters tabs write the block for yo
 you can also edit it in the script. Scripts from older versions may still have a
 `<stem>.json` next to them: it is read until the first save, which moves it into the
 script. If the script cannot be written, the metadata goes to
-`runtime/metadata_overrides/<script id>.json` instead.
+`runtime/metadata_overrides/<path id>.json` instead.
+
+**Script id.** The first time ScriptHub writes the block it adds `"id"` (12 random hex
+characters). That id stays with the file, so a script that is **moved or renamed keeps
+its saved values, backups and run history**. Scripts that never had their metadata
+saved are known by an id made from their path until then; when the stable id is
+written, the old one keeps working (links, earlier runs) and the script's saved values
+and backups move to the new id. A **copy** of a script carries the same id: the Library
+warns about it, the original keeps the id, and the copy gets a new one on its next save.
+Don't edit the id by hand (remove it to get a new one).
 
 | Field | Type | Meaning |
 |---|---|---|
+| `id` | 12 hex characters | Written by ScriptHub on the first save; keeps saved values, backups and history with a moved or renamed script. Do not edit. |
 | `name` | text | Display name. |
 | `description` | text | Shown on cards and details. |
 | `category` | text | Groups scripts; default is the first sub-folder name. |
@@ -364,7 +386,7 @@ the next time the metadata is saved.
 When you save on the Overview or Parameters tab the metadata is **validated
 first**; invalid data is never written and every problem is listed. Only the
 block is rewritten (line endings and a BOM are kept), and the previous version of
-the script is kept as `<name>.bak` (**Restore previous** in the editor).
+the script is kept as a backup (**Restore previous** in the editor).
 
 ---
 
@@ -475,9 +497,9 @@ values:
   compress: true
 ```
 
-The script id comes from the script's path, so moving or renaming a script starts
-it without saved values. The files use a small YAML subset (written by ScriptHub,
-fine to edit by hand).
+They belong to the script's id (see *Script id* under the metadata reference), so
+they follow a moved or renamed script once its metadata has been saved. The files use
+a small YAML subset (written by ScriptHub, fine to edit by hand).
 
 * **Recent runs** are remembered automatically: every started run stores the values it
   used (the last 10 distinct sets, newest first). The **Run** tab opens with the
@@ -506,7 +528,7 @@ fine to edit by hand).
 
 ### New script
 
-**New script** (the **+** in the explorer header, `g n`, or Ctrl+K → *New script*)
+**New script** (*File → New script*, the **+** in the explorer header, `g n`, or Ctrl+K)
 creates a file in the **open folder**: give a file name, language, and optionally a
 sub-folder (created if needed; existing ones are suggested) and a category. The file
 starts with its metadata block and a few lines of example code, then
@@ -527,8 +549,14 @@ and goes straight to the run form.
 
 Saving is designed not to lose work or break scripts:
 
-* **A backup is always kept** as `<file>.bak`. **Restore previous** swaps the file
-  with it (and restoring is itself undoable).
+* **A backup is always kept**, outside the script folder: every save (editor,
+  restore, Overview / Parameters) stores the version it replaces in
+  `runtime/backups/<script id>/` as a timestamped copy; the last 10 per script are
+  kept. **Restore previous** puts the newest one back; **Versions…** next to it lists
+  them all and restores the one you pick. What is there before a restore is backed up
+  too, so a restore can be undone. A `<file>.bak` left next to a script by an older
+  version is moved into the backups on the script's next save (it is only removed once
+  the copy is written).
 * **Conflicts are detected.** If the file changed on disk after you opened it, the
   save is refused and your text stays in the editor; you can reload, or choose
   *Overwrite the file with my version*.
@@ -746,7 +774,7 @@ ScriptHub starts operating-system processes and has **no authentication**.
   arguments, environment). Treat access to the page as access to this account.
 * **Creating and editing scripts lets anyone with access run any code.** It can be
   switched off in **Settings → Features**; see [Sharing with other people](#sharing-with-other-people).
-  Saves are atomic with a `.bak`, only catalogued files are writable, and
+  Saves are atomic and keep the previous version in `runtime/backups/`, only catalogued files are writable, and
   New script never overwrites or leaves the open folder.
 * Every run records the connecting client address (`X-Forwarded-For` is
   deliberately not trusted, because any client can forge it).

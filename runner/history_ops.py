@@ -49,11 +49,15 @@ def query_runs(q="", script_id="", status="", date_from=None, date_to=None, page
     """Return (runs_on_page, total_matches). Newest first."""
     q = (q or "").strip().lower()
     matches = []
+    if script_id:
+        from . import ids
+        script_id = ids.canonical(script_id)
     for run_id in history.list_run_ids():
         meta = history.read_meta(run_id)
         if meta is None:
             continue
         meta.setdefault("id", run_id)
+        history.canonical_script(meta)
         if script_id and meta.get("script_id") != script_id:
             continue
         if status and meta.get("status") != status:
@@ -80,6 +84,8 @@ def script_choices():
     seen = {}
     for run_id in history.list_run_ids():
         meta = history.read_meta(run_id)
+        if meta:
+            history.canonical_script(meta)
         if meta and meta.get("script_id") and meta["script_id"] not in seen:
             seen[meta["script_id"]] = meta.get("script_name") or meta["script_id"]
     return sorted(seen.items(), key=lambda kv: kv[1].lower())

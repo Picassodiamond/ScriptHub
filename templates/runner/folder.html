@@ -1,13 +1,13 @@
 {% extends "base.html" %}
-{% block title %}Open folder{% endblock %}
+{% block title %}Open folder or file{% endblock %}
 {% block content %}
 <div class="page page-narrow">
 
 <section class="panel">
-  <div class="panel-head"><h2>Open a folder</h2>{% if ws.folder %}<span class="spacer"></span><span class="faint small">Open now: <span class="mono" title="{{ ws.folder.path }}">{{ ws.folder.name }}</span></span>{% endif %}</div>
+  <div class="panel-head"><h2>Open a folder or a script</h2>{% if ws.folder %}<span class="spacer"></span><span class="faint small">Open now: <span class="mono" title="{{ ws.folder.path }}">{{ ws.folder.name }}</span></span>{% endif %}</div>
   <div class="panel-body">
     <form method="post" action="{% url 'folder_open' %}" class="inline-form" id="open-form">{% csrf_token %}
-      <input class="input mono" type="text" name="path" id="folder-path" value="{{ browser.path }}" placeholder="C:\scripts   or   /home/me/scripts" required aria-label="Folder path">
+      <input class="input mono" type="text" name="path" id="folder-path" value="{{ browser.path }}" placeholder="C:\scripts   or   /home/me/scripts/backup.sh" required aria-label="Folder path">
       {% if folder_picker %}<button type="button" class="btn" data-pick-folder="#folder-path" data-pick-submit data-title="Open a script folder"><svg class="i"><use href="#i-folder"/></svg> Browse…</button>{% endif %}
       <button class="btn btn-primary" type="submit">Open</button>
     </form>
@@ -30,9 +30,14 @@
         <a class="fb-dir" href="?browse={{ d.path|urlencode }}"><svg class="i i-sm"><use href="#i-folder"/></svg> <span class="clamp-1">{{ d.name }}</span></a>
         <form method="post" action="{% url 'folder_open' %}">{% csrf_token %}<input type="hidden" name="path" value="{{ d.path }}"><button class="btn btn-ghost btn-sm" type="submit">Open</button></form>
       </li>
-      {% empty %}
-      {% if not browser.error %}<li class="fb-msg faint small">No sub-folders.</li>{% endif %}
       {% endfor %}
+      {% for f in browser.files %}
+      <li>
+        <span class="fb-dir fb-file"><svg class="i i-sm"><use href="#i-files"/></svg> <span class="clamp-1 mono">{{ f.name }}</span></span>
+        <form method="post" action="{% url 'folder_open' %}">{% csrf_token %}<input type="hidden" name="path" value="{{ f.path }}"><button class="btn btn-ghost btn-sm" type="submit" title="Open just this script">Open</button></form>
+      </li>
+      {% endfor %}
+      {% if not browser.dirs and not browser.files and not browser.error %}<li class="fb-msg faint small">No sub-folders or scripts.</li>{% endif %}
       {% if browser.more %}<li class="fb-msg faint small">Only the first 500 sub-folders are listed; type the path above.</li>{% endif %}
     </ul>
     {% else %}

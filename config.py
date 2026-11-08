@@ -19,6 +19,7 @@ EXECUTIONS_DIR = RUNTIME_DIR / "executions"
 PRESETS_DIR = RUNTIME_DIR / "presets"
 LOCKS_DIR = RUNTIME_DIR / "locks"
 METADATA_OVERRIDE_DIR = RUNTIME_DIR / "metadata_overrides"
+BACKUPS_DIR = RUNTIME_DIR / "backups"          # previous versions of scripts, per script id
 
 log = logging.getLogger(__name__)
 

@@ -21,9 +21,11 @@ class FolderCase(SimpleTestCase):
         self.b = self.make_folder("beta", "two.py")
         self.cfg_file = self.tmp / "config.json"
         self.cfg_file.write_text(json.dumps({}))
-        p = mock.patch.object(config, "CONFIG_FILE", self.cfg_file)
-        p.start()
-        self.addCleanup(p.stop)
+        for p in (mock.patch.object(config, "CONFIG_FILE", self.cfg_file),
+                  mock.patch.object(config, "BACKUPS_DIR", self.tmp / "backups"),
+                  mock.patch.object(config, "PRESETS_DIR", self.tmp / "presets")):
+            p.start()
+            self.addCleanup(p.stop)
         discovery.scan(force=True)
         self.addCleanup(discovery.scan, True)
         self.client = self.client_class(HTTP_HOST="localhost")
@@ -70,12 +72,31 @@ class WorkspaceTests(FolderCase):
             workspace.open_folder(str(self.make_folder(f"f{i}", "s.py")))
         self.assertEqual(len(self.state()["recent"]), workspace.MAX_RECENT)
 
-    def test_open_rejects_missing_folders_and_files(self):
+    def test_open_rejects_missing_paths_and_non_scripts(self):
         workspace.open_folder(str(self.a))
-        for bad in (str(self.tmp / "nope"), str(self.a / "one.py"), "", "  "):
+        (self.a / "notes.txt").write_bytes(b"x")
+        for bad in (str(self.tmp / "nope"), str(self.a / "notes.txt"), "", "  "):
             with self.assertRaises(ValueError):
                 workspace.open_folder(bad)
         self.assertTrue(workspace.same(self.state()["folder"], str(self.a)))
+
+    def test_a_single_script_file_can_be_opened(self):
+        (self.b / "other.py").write_bytes(b"print(2)\n")
+        workspace.open_folder(str(self.b / "two.py"))
+        self.assertTrue(workspace.current_is_file())
+        self.assertEqual(self.names(), ["two.py"])                       # just that script, not its folder
+        script = discovery.scan()[0][0]
+        self.assertTrue(workspace.same(str(script.root), str(self.b)))   # its folder is its root
+        self.assertTrue(self.state()["recent"][0].endswith("two.py"))
+        page = self.client.get("/")
+        self.assertContains(page, "Close file")                          # File menu
+        self.assertNotContains(page, "data-new-script")                  # no folder to create scripts in
+        self.assertEqual(self.client.get("/scripts/new/")["Location"], "/folder/")
+
+    def test_browse_lists_script_files_too(self):
+        (self.a / "notes.txt").write_bytes(b"x")
+        files = [f["name"] for f in workspace.browse(str(self.a))["files"]]
+        self.assertEqual(files, ["one.py"])
 
     def test_favourites_are_listed_apart_from_recent(self):
         workspace.open_folder(str(self.a))
@@ -273,8 +294,10 @@ class NewScriptTests(FolderCase):
         self.assertTrue(target.read_text().splitlines()[0].startswith("# --- scripthub ---"))
         self.assertFalse(target.with_suffix(".json").exists())                    # no sidecar
         self.assertEqual((meta["name"], meta["category"], meta["parameters"]), ("Cleanup Logs", "Maintenance", []))
-        sid = discovery.script_id(target.resolve())
-        self.assertEqual(r["Location"], f"/scripts/{sid}/run/")
+        from runner import ids
+        self.assertTrue(ids.valid(meta["id"]))                                    # a new script has its stable id
+        self.assertEqual(r["Location"], f"/scripts/{meta['id']}/run/")
+        self.assertFalse(config.BACKUPS_DIR.exists())                            # nothing to back up yet
         page = self.client.get(r["Location"])
         self.assertContains(page, 'id="edit-form"')                          # the editor, ready to write
         self.assertContains(page, "Created cleanup_logs.py")

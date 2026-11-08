@@ -219,6 +219,7 @@ class PageTests(SimpleTestCase):
             mock.patch.object(config, "CONFIG_FILE", cfg_file),
             mock.patch.object(config, "METADATA_OVERRIDE_DIR", self.tmp / "ov"),
             mock.patch.object(config, "PRESETS_DIR", self.tmp / "presets"),       # saved values live in runtime/
+            mock.patch.object(config, "BACKUPS_DIR", self.tmp / "backups"),       # previous versions too
             mock.patch.object(config, "EXECUTIONS_DIR", self.tmp / "executions"),
         ]
         for p in patches:
@@ -265,8 +266,9 @@ class PageTests(SimpleTestCase):
         before = [p["name"] for p in meta_of(self.scripts / "tool.py")["parameters"]]
         # Overview saves the settings and keeps the parameter definitions.
         r = self.client.post(f"/scripts/{self.sid}/", {"name": "Settings only", "host": "local"})
-        self.assertEqual(r["Location"], f"/scripts/{self.sid}/")
         saved = meta_of(self.scripts / "tool.py")
+        self.assertEqual(r["Location"], f"/scripts/{saved['id']}/")                 # the stable id from now on
+        self.sid = saved["id"]
         self.assertEqual((saved["name"], [p["name"] for p in saved["parameters"]]), ("Settings only", before))
         # Parameters saves the definitions and keeps the settings.
         r = self.client.post(self.url("parameters"), {"parameters_json": json.dumps([{"name": "only", "type": "text"}])})
@@ -290,7 +292,65 @@ class PageTests(SimpleTestCase):
         self.assertEqual([p["name"] for p in saved["parameters"]], ["only"])
         self.assertIn("# --- scripthub ---", (self.scripts / "tool.py").read_text())   # inside the script now
         self.assertFalse((self.scripts / "tool.json").exists())                        # the old sidecar moved in
-        self.assertEqual((self.scripts / "tool.py.bak").read_bytes(), self.original)   # previous version kept
+        self.assertFalse((self.scripts / "tool.py.bak").exists())                     # nothing next to the script
+        from runner import backups
+        self.assertEqual(backups.read(saved["id"]), self.original)                     # runtime/backups/<id>/
+
+    def test_first_save_writes_a_stable_id_and_old_links_and_data_follow(self):
+        from runner import ids, presets
+        old = self.sid
+        presets.save_preset(discovery.get_script(old), "Prod", ps.validate_parameters([])[0], {}, "local")
+        r = self.client.post(f"/scripts/{old}/", {"name": "Tool", "host": "local"})
+        new = meta_of(self.scripts / "tool.py")["id"]
+        self.assertTrue(ids.valid(new))
+        self.assertNotEqual(new, old)
+        self.assertEqual(r["Location"], f"/scripts/{new}/")
+        self.assertEqual(ids.canonical(old), new)                                   # the old id is an alias
+        self.assertEqual(self.client.get(f"/scripts/{old}/run/").status_code, 200)  # old links still work
+        self.assertTrue((config.PRESETS_DIR / new / "prod.yaml").is_file())         # saved values moved over
+        self.assertFalse((config.PRESETS_DIR / old).exists())
+        self.assertEqual([p["name"] for p in presets.list_presets(discovery.get_script(new))], ["Prod"])
+        second = (self.scripts / "tool.py").read_text()
+        self.client.post(f"/scripts/{new}/", {"name": "Tool 2", "host": "local"})
+        self.assertEqual(meta_of(self.scripts / "tool.py")["id"], new)            # written once, then kept
+        self.assertNotEqual(second, (self.scripts / "tool.py").read_text())
+
+    def test_a_moved_script_keeps_its_id_saved_values_backups_and_history(self):
+        from runner import backups, history, presets
+        self.client.post(f"/scripts/{self.sid}/", {"name": "Tool", "host": "local"})      # writes the stable id
+        sid = meta_of(self.scripts / "tool.py")["id"]
+        presets.save_preset(discovery.get_script(sid), "Prod", ps.validate_parameters([])[0], {}, "local")
+        run_dir = config.EXECUTIONS_DIR / "RUN-20260101-001"
+        run_dir.mkdir(parents=True)
+        (run_dir / "metadata.json").write_text(json.dumps({"id": "RUN-20260101-001", "script_id": sid,
+                                                           "script_name": "Tool", "status": "success"}))
+        (self.scripts / "sub").mkdir()
+        (self.scripts / "tool.py").rename(self.scripts / "sub" / "renamed.py")
+        moved = discovery.get_script(sid, force=True)
+        self.assertEqual(moved.path.name, "renamed.py")
+        self.assertEqual([p["name"] for p in presets.list_presets(moved)], ["Prod"])
+        self.assertTrue(backups.versions(sid))
+        self.assertEqual([m["id"] for m in history.list_runs(script_id=sid)], ["RUN-20260101-001"])
+        self.assertContains(self.client.get(f"/scripts/{sid}/"), "RUN-20260101-001")    # recent runs on Overview
+
+    def test_a_copied_script_gets_a_new_id_on_its_next_save(self):
+        self.client.post(f"/scripts/{self.sid}/", {"name": "Tool", "host": "local"})
+        sid = meta_of(self.scripts / "tool.py")["id"]
+        (self.scripts / "copy.py").write_bytes((self.scripts / "tool.py").read_bytes())
+        scripts, problems = discovery.scan(force=True)
+        copy = next(s for s in scripts if s.path.name == "copy.py")
+        self.assertEqual(next(s for s in scripts if s.path.name == "tool.py").id, sid)   # the original keeps it
+        self.assertNotEqual(copy.id, sid)
+        self.assertTrue(copy.id_conflict.endswith("tool.py"))
+        self.assertTrue(any("copy.py has the same id" in p for p in problems))
+        self.assertContains(self.client.get("/scripts/"), "has the same id")            # the warning is shown
+        self.client.post(f"/scripts/{copy.id}/", {"name": "Copy", "host": "local"})
+        new = meta_of(self.scripts / "copy.py")["id"]
+        self.assertNotEqual(new, sid)
+        self.assertEqual(meta_of(self.scripts / "tool.py")["id"], sid)
+        scripts, problems = discovery.scan(force=True)
+        self.assertFalse(any("same id" in p for p in problems))
+        self.assertEqual(len({s.id for s in scripts}), len(scripts))
 
     def test_configure_rejects_invalid(self):
         before = (self.scripts / "tool.json").read_text()

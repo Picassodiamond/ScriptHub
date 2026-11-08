@@ -162,7 +162,7 @@ def script_detail(request, script_id):
         errors += _save(script, new)
         if not errors:
             messages.success(request, "Script settings saved.")
-            return redirect("script_detail", script_id=script.id)
+            return redirect("script_detail", script_id=_current_id(script))
 
     return _configure_response(
         request, script, form=form, params=params if isinstance(params, list) else [],
@@ -185,13 +185,20 @@ def _save(script, new) -> list:
     """Validate and write the metadata; returns the errors (empty = saved)."""
     try:
         clean = ps.validate_metadata(new)
-        metadata.save_raw(script.path, script.id, clean)
+        # the first save writes a stable id; a copy of another script gets a new one
+        metadata.save_raw(script.path, script.id, clean, conflict=bool(script.id_conflict))
     except ValidationError as exc:
         return list(exc.errors)
     except OSError as exc:
         return [f"Could not save metadata: {exc}"]
     discovery.update_file(script.path)
     return []
+
+
+def _current_id(script) -> str:
+    """The script's id after a save (a stable id may just have been written)."""
+    fresh = discovery.get_script(script.path_id)
+    return fresh.id if fresh else script.id
 
 
 def script_parameters(request, script_id):
@@ -210,7 +217,7 @@ def script_parameters(request, script_id):
         errors = _save(script, {**data, "parameters": params})
         if not errors:
             messages.success(request, "Parameters saved.")
-            return redirect("script_parameters", script_id=script.id)
+            return redirect("script_parameters", script_id=_current_id(script))
     return _configure_response(request, script, params=params, errors=errors, status=400, **page)
 
 

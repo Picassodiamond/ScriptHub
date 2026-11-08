@@ -50,6 +50,14 @@ class TokenGateTests(DesktopCase):
             self.assertContains(self.client.get("/"), "data-open-folder")
             self.assertEqual(self.client.post("/desktop/pick-folder/").json()["path"], os.path.normpath("C:/picked"))
 
+    def test_file_dialog_same_rules_and_script_types_only(self):
+        with mock.patch.object(desktop, "ask_file", return_value="C:/s/run.py") as ask:
+            self.assertEqual(self.client.post("/desktop/pick-file/", REMOTE_ADDR="10.1.2.3").status_code, 404)
+            ask.assert_not_called()
+            self.assertEqual(self.client.post("/desktop/pick-file/").json()["path"], os.path.normpath("C:/s/run.py"))
+            self.assertIn(".py", ask.call_args[0][2])                   # filtered to the script types
+            self.assertContains(self.client.get("/"), "data-open-file")   # File > Open file…
+
     def test_every_request_needs_the_launch_token(self):
         with desktop_on():
             self.assertEqual(self.client.get("/").status_code, 403)

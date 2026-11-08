@@ -1,7 +1,8 @@
 """Safe editing of catalogued script files.
 
 * Only a path the catalogue gave us (inside its configured directory) is written.
-* Saves are atomic; the previous version is kept as ``<file>.bak``.
+* Saves are atomic; the previous version is kept in runtime/backups/<script id>/
+  (runner/backups.py), never next to the script.
 * A save is refused when the file changed on disk since it was opened
   (``base_hash``), unless the caller explicitly forces it.
 * Line endings are kept sensible: ``.bat`` -> CRLF, ``.sh`` -> LF, others keep
@@ -16,6 +17,7 @@ import shutil
 import subprocess
 from pathlib import Path
 
+from . import backups
 from .fsutil import _replace_with_retry
 from .security import is_within
 
@@ -40,12 +42,8 @@ def file_hash(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
-def backup_path(path: Path) -> Path:
-    return path.with_name(path.name + ".bak")
-
-
-def has_backup(path: Path) -> bool:
-    return backup_path(path).is_file()
+def has_backup(sid: str) -> bool:
+    return bool(backups.versions(sid))
 
 
 def _check_path(path: Path, root: Path) -> None:
@@ -136,9 +134,14 @@ def _atomic_write(path: Path, data: bytes) -> None:
         raise
 
 
-def _write_with_backup(path: Path, new_bytes: bytes, current: bytes) -> None:
+def _write_with_backup(path: Path, new_bytes: bytes, current: bytes, sid: str) -> None:
+    """Keep ``current`` in runtime/backups/<sid>/ (moving an old <file>.bak in first), then write."""
     try:
-        backup_path(path).write_bytes(current)
+        backups.migrate_side_bak(sid, path)
+        backups.add(sid, path.name, current)
+    except (OSError, backups.BackupError) as exc:
+        raise EditError(f"Could not keep a backup, so nothing was saved: {exc}") from exc
+    try:
         _atomic_write(path, new_bytes)
     except PermissionError as exc:
         raise EditError("The file or its folder is read-only, so it cannot be saved.") from exc
@@ -146,7 +149,7 @@ def _write_with_backup(path: Path, new_bytes: bytes, current: bytes) -> None:
         raise EditError(f"Could not save: {exc}") from exc
 
 
-def save_script(path: Path, root: Path, text: str, base_hash: str, force: bool = False) -> dict:
+def save_script(path: Path, root: Path, text: str, base_hash: str, force: bool = False, sid: str = "") -> dict:
     """Save editor text. Returns {'changed': bool, 'warning': str|None}."""
     _check_path(path, root)
     if not os.access(path, os.W_OK):       # a rename would succeed even for a 0444 file in a writable folder
@@ -168,20 +171,29 @@ def save_script(path: Path, root: Path, text: str, base_hash: str, force: bool =
     warning = syntax_warning(ext, body.decode("utf-8"))
     if new_bytes == current:
         return {"changed": False, "warning": warning}
-    _write_with_backup(Path(path), new_bytes, current)
+    _write_with_backup(Path(path), new_bytes, current, sid or _path_id(path))
     return {"changed": True, "warning": warning}
 
 
-def restore_backup(path: Path, root: Path) -> None:
-    """Swap the file with its .bak (so the restore itself can be undone)."""
+def restore_backup(path: Path, root: Path, sid: str = "", version: str = "") -> None:
+    """Put a backup back (``version`` = its name, empty = the newest). What is there now is
+    backed up first, so the restore itself can be undone."""
     _check_path(path, root)
     if not os.access(path, os.W_OK):
         raise EditError("The file is read-only, so it cannot be restored.")
-    bak = backup_path(path)
-    if not bak.is_file():
-        raise EditError("There is no previous version to restore.")
+    sid = sid or _path_id(path)
+    backups.migrate_side_bak(sid, path)
     try:
-        previous, current = bak.read_bytes(), Path(path).read_bytes()
+        previous, current = backups.read(sid, version), Path(path).read_bytes()
+    except backups.BackupError as exc:
+        raise EditError(str(exc)) from exc
     except OSError as exc:
         raise EditError(f"Could not read the files: {exc}") from exc
-    _write_with_backup(Path(path), previous, current)
+    if previous == current:
+        raise EditError("That version is the same as the current file.")
+    _write_with_backup(Path(path), previous, current, sid)
+
+
+def _path_id(path) -> str:
+    from .ids import path_id
+    return path_id(Path(path).resolve())

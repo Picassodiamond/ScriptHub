@@ -1036,3 +1036,44 @@ button.doc-tab.is-active { background: var(--code-bg); color: var(--text); box-s
 .bp-resize { display: none; position: absolute; left: 0; right: 0; top: -6px; height: 10px; cursor: ns-resize; z-index: 2; touch-action: none; }
 .bottom-on .bp-resize { display: block; }
 .bp-resize:hover { background: linear-gradient(var(--accent), var(--accent)) center / 100% 2px no-repeat; }
+
+/* ------------------------------------------------------- menu bar --- */
+/* VS Code style: File / View / Run / Help across the top, the open folder in the middle. */
+.wb {
+  grid-template-rows: var(--mb-h, 30px) minmax(0, 1fr) var(--sb-h);
+  grid-template-areas: "mb mb mb" "act side main" "sb sb sb";
+}
+.menubar { grid-area: mb; position: relative; z-index: 30; display: flex; align-items: center; gap: 1px; padding: 0 6px;
+  background: var(--bg-2); border-bottom: 1px solid var(--line); font-size: 12.5px; }
+.mb-logo { flex: none; display: grid; place-items: center; width: 20px; height: 20px; margin: 0 6px 0 2px; border-radius: 5px;
+  background: linear-gradient(135deg, var(--accent), #7a5cff); color: #fff; }
+.mb-logo .i { width: 10px; height: 10px; margin-left: 1px; fill: currentColor; stroke: none; }
+.mb-menu { position: relative; }
+.mb-menu > summary { list-style: none; padding: 3px 8px; border-radius: 5px; color: var(--text-2); cursor: default; user-select: none; }
+.mb-menu > summary::-webkit-details-marker { display: none; }
+.mb-menu > summary:hover, .mb-menu[open] > summary { background: var(--hover); color: var(--text); }
+.mb-menu > .menu { top: calc(100% + 3px); width: 280px; max-height: none; overflow: visible; }
+.menubar .menu-item > span:not(.clamp-1):not(.count-pill) { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.menubar .menu-item kbd { flex: none; margin-left: 10px; color: var(--faint); background: none; border: 0; font-size: 11px; }
+.menubar form { margin: 0; }
+.menu-item.is-disabled, .menubar .menu-item:disabled { opacity: .45; cursor: default; }
+.menu-item.is-disabled:hover { background: none; }
+.menu-sub { position: relative; }
+.menu-sub > .submenu { display: none; top: -5px; left: calc(100% - 2px); width: 340px; max-height: 70vh; overflow: auto; }
+.menu-sub:hover > .submenu, .menu-sub:focus-within > .submenu { display: block; }
+.sub-caret { flex: none; margin-left: auto; border-left: 4px solid currentColor; border-top: 4px solid transparent; border-bottom: 4px solid transparent; }
+.mb-title { position: absolute; left: 50%; transform: translateX(-50%); max-width: 40%; overflow: hidden; text-overflow: ellipsis;
+  white-space: nowrap; color: var(--muted); font-size: 12px; pointer-events: none; }
+/* explorer header: the open folder as a plain title (VS Code style) */
+.side-title-block { flex: 1; min-width: 0; }
+.side-head .side-title { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.side-title .fav-mark { width: 10px; height: 10px; margin: 0 0 1px 2px; color: var(--warn); fill: currentColor; vertical-align: middle; }
+@media (max-width: 860px) {
+  .wb, .side-off .wb { grid-template-rows: var(--mb-h, 30px) minmax(0, 1fr) 54px; grid-template-areas: "mb" "main" "act"; }
+  .side { top: var(--mb-h, 30px); }
+  .mb-title { display: none; }
+}
+
+/* Restore previous + Versions… (backups in runtime/backups/<id>/) */
+.restore-form { display: inline-flex; align-items: center; gap: 4px; margin: 0; }
+.restore-pick { width: auto; max-width: 170px; }
