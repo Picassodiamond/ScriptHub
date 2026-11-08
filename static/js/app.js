@@ -60,12 +60,44 @@
     root.classList.toggle('side-off', off);
     store('sr.side', off ? '0' : '1');
   }
-  // Right column of the script pages (Overview / Parameters / Run / Review).
+  // Right column of the script pages (Overview / Parameters / Run).
   function toggleSide2() {
     var off = !root.classList.contains('side2-off');
     root.classList.toggle('side2-off', off);
     store('sr.side2', off ? '0' : '1');
   }
+  // Bottom panel of the script pages (saved values): Ctrl+J, its header, drag its top edge.
+  function toggleBottom(force) {
+    var on = typeof force === 'boolean' ? force : !root.classList.contains('bottom-on');
+    root.classList.toggle('bottom-on', on);
+    store('sr.bottom', on ? '1' : '0');
+    var head = document.querySelector('.bp-head');
+    if (head) head.setAttribute('aria-expanded', on ? 'true' : 'false');
+  }
+  (function () {
+    var panel = document.getElementById('saved-panel');
+    if (!panel) return;
+    if (panel.hasAttribute('data-force-open')) toggleBottom(true);      // ?tab=params
+    else toggleBottom(root.classList.contains('bottom-on'));
+    var grip = panel.querySelector('[data-bp-resize]');
+    if (!grip) return;
+    grip.addEventListener('pointerdown', function (e) {
+      e.preventDefault();
+      var body = panel.querySelector('.bp-body'), startY = e.clientY, startH = body.getBoundingClientRect().height;
+      grip.setPointerCapture(e.pointerId);
+      function move(ev) {
+        var h = Math.max(110, Math.min(window.innerHeight * 0.75, startH + (startY - ev.clientY)));
+        root.style.setProperty('--bp-h', Math.round(h) + 'px');
+      }
+      function up() {
+        grip.removeEventListener('pointermove', move);
+        grip.removeEventListener('pointerup', up);
+        store('sr.bottomH', String(parseInt(getComputedStyle(root).getPropertyValue('--bp-h'), 10) || ''));
+      }
+      grip.addEventListener('pointermove', move);
+      grip.addEventListener('pointerup', up);
+    });
+  })();
   document.addEventListener('click', function (e) {
     var a = e.target.closest('[data-action]');
     if (!a) return;
@@ -73,6 +105,7 @@
     if (act === 'theme') toggleTheme();
     else if (act === 'side') toggleSide();
     else if (act === 'side2') toggleSide2();
+    else if (act === 'bottom') toggleBottom();
     else if (act === 'palette') palette.open();
     else if (act === 'help') help.open();
   });
@@ -160,6 +193,7 @@
     }
     if (name === 'Ctrl+b') { e.preventDefault(); toggleSide(); return; }
     if (name === 'Ctrl+Alt+b') { if (document.querySelector('.split-side')) { e.preventDefault(); toggleSide2(); } return; }
+    if (name === 'Ctrl+j') { if (document.getElementById('saved-panel')) { e.preventDefault(); toggleBottom(); } return; }
     var fKey = /^(Shift\+)?F\d+$/.test(name), modded = /^(Ctrl|Alt)\+/.test(name);
     if (inField && !fKey && !modded && name !== 'Escape') return;
     if (inField && name === 'Escape') return;
@@ -283,6 +317,7 @@
     items.push({ group: 'Commands', text: 'Toggle light / dark theme', icon: ICON('sun'), run: toggleTheme, key: 'theme dark light toggle' });
     items.push({ group: 'Commands', text: 'Toggle side panel', hint: 'Ctrl+B', icon: ICON('panel'), run: function () { toggleSide(); }, key: 'side panel sidebar explorer toggle' });
     if (document.querySelector('.split-side')) items.push({ group: 'Commands', text: 'Toggle right panel', hint: 'Ctrl+Alt+B', icon: ICON('panel'), run: toggleSide2, key: 'right panel column collapse toggle' });
+    if (document.getElementById('saved-panel')) items.push({ group: 'Commands', text: 'Toggle saved values panel', hint: 'Ctrl+J', icon: ICON('sliders'), run: function () { toggleBottom(); }, key: 'saved values presets bottom panel compare toggle' });
     items.push({ group: 'Commands', text: 'Keyboard shortcuts', hint: '?', icon: ICON('keyboard'), run: function () { setTimeout(help.open, 0); }, key: 'keyboard shortcuts help keys' });
     // Script folders: the system folder dialog, favourites and recent.
     var folders = [];
@@ -368,7 +403,7 @@
   var help = {
     open: function () {
       var rows = [
-        ['Global', [['Command palette', 'Ctrl K'], ['Toggle side panel', 'Ctrl B'], ['Toggle right panel (script pages)', 'Ctrl Alt B'], ['Focus search / explorer filter', '/'], ['This sheet', '?']]],
+        ['Global', [['Command palette', 'Ctrl K'], ['Toggle side panel', 'Ctrl B'], ['Toggle right panel (script pages)', 'Ctrl Alt B'], ['Toggle saved values panel', 'Ctrl J'], ['Focus search / explorer filter', '/'], ['This sheet', '?']]],
         ['Go to', [['Home', 'g o'], ['Script Library', 'g l'], ['Runs (running + history)', 'g h'], ['Settings', 'g s']]],
         ['Script', [['Overview: settings', 'i  or  c'], ['Parameters and saved values', 'p'], ['Run: run, view, edit', 'r  or  s'], ['Save the script / settings / parameters', 'Ctrl S']]],
         ['Run & debug', [['Review / launch', 'Ctrl ↵'], ['Back from review', 'Esc'], ['Continue', 'F5'], ['Step to next line', 'F10  or  n'], ['Pause', 'F6'], ['Stop the run', 'Shift F5']]]

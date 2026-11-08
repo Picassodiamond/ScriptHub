@@ -318,7 +318,7 @@ class PageTests(SimpleTestCase):
         self.assertRedirects(self.client.get(self.url("configure")), f"/scripts/{self.sid}/")   # merged into Overview
         for page in ("", "run"):
             html = self.client.get(self.url(page) if page else f"/scripts/{self.sid}/").content.decode()
-            for panel in ('id="doc-code-panel"', 'id="doc-params-panel"'):
+            for panel in ('id="doc-code-panel"', 'id="saved-panel"'):
                 self.assertIn(panel, html, f"{page or 'overview'}: {panel}")
             self.assertNotIn('id="doc-meta-panel"', html)                 # metadata is in the script now
             centre, side = html.split('class="split-side"', 1)

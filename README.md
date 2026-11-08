@@ -125,9 +125,9 @@ status bar or the moon/sun icon switches to light, remembered per browser):
 | **Home** (`/`, the app icon) | Counts of scripts, running, successful and failed executions; recent executions; **Quick run** and most-used scripts. |
 | **Script Library** (`/scripts/`) | Every script as a dense table (or cards). Search (`/` focuses it), filter by **category, platform and language**. |
 | **Open folder** (`/folder/`) | Fallback when the system folder dialog is not available (browser on another machine): type a path or click through the folder list; favourites (star) and recent folders. The explorer's folder name is a quick switcher with the same lists. |
-| **Script pages** | The centre is the same on Overview and Run: the script (an editor with syntax colours, line numbers, auto-indent, **Ctrl+S** saves in place, or read-only when editing is off), its metadata JSON (editable) and its saved parameters (`.params.json`, compare grid or raw file), plus copy, download, **Restore previous** and a full-screen editor. The **Overview / Parameters / Run** tabs head the right column, so switching only changes that column. A script page has **one Save** (centre tab bar, **Ctrl+S** anywhere): it saves whatever changed — the script, the metadata JSON, the Overview settings, the parameter definitions (the JSON tab and a form changed together is refused, as they edit the same file); a dot marks unsaved changes. |
+| **Script pages** | The centre is the same on Overview, Parameters and Run: the script (an editor with syntax colours, line numbers, auto-indent, or read-only when editing is off; its metadata block is at the top) with copy, download, **Restore previous** and a full-screen editor, a tab for each run started there, and under it the collapsible **Saved values** panel (**Ctrl+J**). The **Overview / Parameters / Run** tabs head the right column, so switching only changes that column. A script page has **one Save** (centre tab bar, **Ctrl+S** anywhere): it saves whatever changed — the script, the Overview settings, the parameter definitions (editing the metadata block in the script and a form together is refused, as they are the same settings); a dot marks unsaved changes. |
 | **Script › Overview** | The script's settings on the right: name, category, description, interpreter, default host, working directory, environment, platforms; below, recent runs. (The old `/configure/` URL opens this page.) |
-| **Script › Parameters** | The **parameter definitions** the run form is built from (click a row to edit; hover to see where the script uses it) and the **saved values** (presets and recent runs, ▶ runs one straight away, *Compare* opens the grid in the centre). |
+| **Script › Parameters** | The **parameter definitions** the run form is built from (click a row to edit; hover to see where the script uses it). |
 | **Script › Run** | On the right: where the values come from (defaults, a recent run or a preset), the host and the parameters (focusing one marks the lines that use it), and *+ Save current values as preset…* at the end of the values list. **Run** (Ctrl+Enter) in the bottom bar, with the mode **Normal · Trace · Debug** next to it, starts the script straight away (unsaved script edits are saved first) and opens the run as a tab next to the script; **Reset** loads the defaults. |
 | **New script** (`/scripts/new/`, **+** in the explorer header) | Name, language, optional sub-folder and category; creates the file (with a short starter) and its metadata in the open folder, then opens it in the editor. |
 | **Console** (`/executions/RUN-…/`) | Step 3. Live status, duration, exit code, stdout and stderr (side by side, stacked or stdout only), auto-scroll, copy, download, stop; the running line (trace) or the **debugger** (debug). |
@@ -151,6 +151,7 @@ Ctrl+Enter runs it), type `run ` to list run actions only, paste a run id such a
 | `g n` | New script (in the open folder) |
 | `i` (or `c`) `r` | On a script: Overview (configuration), Run (run / view / edit) |
 | `Ctrl+Enter` | Run (Run tab), Create (New script) |
+| `Ctrl+Alt+B` `Ctrl+J` | Hide/show the right panel, the saved-values panel (script pages) |
 | `F5` `F10`/`n` `F6` `Shift+F5` | Debugger: continue, step, pause, stop |
 
 
@@ -487,7 +488,7 @@ fine to edit by hand).
 * **Run with saved values:** every preset and recent run has a **▶ Run** button (on the
   Parameters tab and in the comparison grid) that starts the script with those values
   already filled in and validated; **Ctrl+Enter** launches.
-* **Compare:** the **saved values** tab in the centre of a script page shows a grid,
+* **Compare:** the **Saved values** panel under the script (click its bar or **Ctrl+J**; drag its top edge to resize) shows a grid,
   rows = parameters, columns = presets and recent runs; values that differ from the
   script's default are highlighted.
 * Values are **re-validated against the current metadata** each time they load: removed

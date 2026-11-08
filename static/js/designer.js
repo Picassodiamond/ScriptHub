@@ -30,12 +30,6 @@
       try { sessionStorage.setItem(TAB_KEY, t.dataset.docTab); } catch (e) { /* storage unavailable */ }
     });
   });
-  // Buttons elsewhere on the page that open a centre tab (e.g. "Compare" -> saved parameters grid).
-  document.addEventListener('click', function (e) {
-    var b = e.target.closest ? e.target.closest('[data-doc-open]') : null;
-    var t = b && tabs.filter(function (x) { return x.dataset.docTab === b.dataset.docOpen; })[0];
-    if (t) t.click();
-  });
   var docEl = document.querySelector('.doc[data-doc-default]');
   if (docEl && !docEl.getAttribute('data-doc-default')) {
     var saved = null;

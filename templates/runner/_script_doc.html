@@ -1,12 +1,11 @@
 {% comment %}Shared centre of the script pages (Overview, Parameters, Run): the script (its metadata is
-   the comment block at the top) and its saved values, plus a tab per run started here (designer.js).
-   Only the right column changes between pages. Needs doc_context() in the view. Active tab:
-   ?tab=params, otherwise the one picked last.{% endcomment %}
+   the comment block at the top) plus a tab per run started here (designer.js), and under it the
+   saved values in a collapsible bottom panel. Only the right column changes between pages.
+   Needs doc_context() in the view.{% endcomment %}
 {% with ptab=request.GET.tab %}
-<section class="doc" aria-label="Script, saved values and runs" data-script="{{ script.id }}" data-doc-default="{% if ptab == 'params' %}doc-params-panel{% endif %}">
+<section class="doc" aria-label="Script, saved values and runs" data-script="{{ script.id }}" data-doc-default="">
   <div class="doc-bar" role="tablist">
-    <button type="button" class="doc-tab{% if ptab != 'params' %} is-active{% endif %}" data-doc-tab="doc-code-panel" role="tab" title="{{ script.path.name }}"><span class="lang lang-{{ script.extension|slice:'1:' }}">{{ script.extension|slice:'1:' }}</span>{{ script.path.name }}</button>
-    <button type="button" class="doc-tab{% if ptab == 'params' %} is-active{% endif %}" data-doc-tab="doc-params-panel" role="tab" title="Saved values ({{ pfile.path }})"><span class="lang">yaml</span>saved values <span class="count-pill">{{ pgrid.columns|length }}</span></button>
+    <button type="button" class="doc-tab is-active" data-doc-tab="doc-code-panel" role="tab" title="{{ script.path.name }}"><span class="lang lang-{{ script.extension|slice:'1:' }}">{{ script.extension|slice:'1:' }}</span>{{ script.path.name }}</button>
     <span class="spacer"></span>
     <span class="faint small mono hide-sm" id="doc-refs"></span>
     {% if ed %}
@@ -26,7 +25,7 @@
     {% include "runner/_side2_open.html" %}
   </div>
 
-  <div class="doc-panel" id="doc-code-panel"{% if ptab == 'params' %} hidden{% endif %}>
+  <div class="doc-panel" id="doc-code-panel">
     {% if ed %}
     <form method="post" action="{% url 'script_edit' script.id %}" id="edit-form" class="editor-fill" novalidate>{% csrf_token %}
       <input type="hidden" name="base_hash" value="{{ ed.hash }}">
@@ -40,12 +39,18 @@
     {% endif %}
   </div>
 
-  <div class="doc-panel" id="doc-params-panel"{% if ptab != 'params' %} hidden{% endif %}>
-    <div class="pg-toolbar">
-      <span class="spacer"></span>
-      <span class="faint small hide-sm">Highlighted = differs from the script's default</span>
-    </div>
-    <div class="pgrid-wrap" data-pview-panel="grid">
+</section>
+{% comment %}Saved values (presets and recent runs) side by side: a collapsible panel under the script
+   (Ctrl+J; open state and height are remembered; ?tab=params opens it).{% endcomment %}
+<section class="bottom-panel" id="saved-panel" aria-label="Saved values"{% if ptab == 'params' %} data-force-open{% endif %}>
+  <div class="bp-resize" data-bp-resize title="Drag to resize"></div>
+  <button type="button" class="bp-head" data-action="bottom" aria-controls="saved-body" title="Saved values  (Ctrl+J)">
+    <span class="bp-caret" aria-hidden="true"></span><span class="bp-title">Saved values</span><span class="count-pill">{{ pgrid.columns|length }}</span>
+    <span class="spacer"></span>
+    <span class="bp-note hide-sm">highlighted = differs from the default</span><kbd>Ctrl</kbd><kbd>J</kbd>
+  </button>
+  <div class="bp-body" id="saved-body">
+    <div class="pgrid-wrap">
       {% if pgrid.columns %}
       <table class="pgrid">
         <thead>

@@ -1,8 +1,8 @@
 {% extends "runner/_script_base.html" %}
 {% load static %}
 {% block title %}Parameters · {{ script.name }}{% endblock %}
-{% comment %}Parameters tab: the parameter definitions (the run form is built from them; click a row
-to edit it) and the saved values (presets and recent runs, ▶ runs one straight away).{% endcomment %}
+{% comment %}Parameters tab: the parameter definitions the run form is built from (click a row to edit it).
+Saved values are in the bottom panel of the centre.{% endcomment %}
 {% block body_mod %}fill split-page{% endblock %}
 {% block tabs %}{% endblock %}
 {% block content %}
@@ -24,35 +24,6 @@ to edit it) and the saved values (presets and recent runs, ▶ runs one straight
         <input type="hidden" name="parameters_json" id="parameters_json" value="[]">
       </section>
     </form>
-
-    <section class="panel">
-      <div class="panel-head"><h2>Saved values <span class="count-pill">{{ saved_count }}</span></h2><span class="spacer"></span>
-        {% if presets or recent %}<button type="button" class="btn btn-ghost btn-sm" data-doc-open="doc-params-panel" title="Compare every set side by side in the centre">Compare</button>{% endif %}</div>
-      {% if not script.meta_valid %}
-      <div class="panel-body muted small">Fix the metadata to use saved values.</div>
-      {% elif presets or recent %}
-      <ul class="quick">
-        {% for p in presets %}
-        <li>
-          <svg class="i i-sm faint"><use href="#i-save"/></svg>
-          <a class="q-name plain" href="{% url 'script_run' script.id %}?preset={{ p.slug }}" title="Load into the run form">{{ p.name }}</a>
-          <span class="faint small mono">{{ p.host }}</span>
-          {% include "runner/_run_saved.html" with key=p.slug %}
-        </li>
-        {% endfor %}
-        {% for r in recent %}
-        <li>
-          <svg class="i i-sm faint"><use href="#i-clock"/></svg>
-          <a class="q-name plain" href="{% url 'script_run' script.id %}?preset={{ r.key|urlencode }}" title="Load into the run form">{{ r.label }}</a>
-          <span class="faint small nowrap">{{ r.when|slice:"5:" }}</span>
-          {% include "runner/_run_saved.html" with key=r.key %}
-        </li>
-        {% endfor %}
-      </ul>
-      {% else %}
-      <div class="panel-body muted small">None yet: every run is remembered, presets are saved on the Run tab.</div>
-      {% endif %}
-    </section>
   </aside>
 </div>
 
