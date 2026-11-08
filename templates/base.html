@@ -48,6 +48,7 @@
     <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15.5 14"/></symbol>
     <symbol id="i-zap" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></symbol>
     <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></symbol>
+    <symbol id="i-star" viewBox="0 0 24 24"><path d="M12 3.5l2.6 5.3 5.9.9-4.25 4.1 1 5.8L12 16.9l-5.25 2.7 1-5.8L3.5 9.7l5.9-.9z"/></symbol>
     <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></symbol>
     <symbol id="i-panel" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="9" y1="4" x2="9" y2="20"/></symbol>
     <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></symbol>
@@ -66,7 +67,6 @@
   <nav class="activity" aria-label="Main">
     <a class="act-brand" href="{% url 'dashboard' %}" data-hotkey="g o" data-hint="Go to Overview" title="Overview  (g o)" aria-label="Overview"><svg class="i"><use href="#i-play"/></svg></a>
     <a class="act {% if na == 'library' or na == 'script' %}is-active{% endif %}" href="{% url 'library' %}" data-hotkey="g l" data-hint="Go to Script Library" title="Script Library  (g l)"><svg class="i"><use href="#i-files"/></svg><span class="act-label">Library</span></a>
-    {% if adhoc_enabled %}<a class="act {% if na == 'adhoc' %}is-active{% endif %}" href="{% url 'adhoc' %}" data-hotkey="g a" data-hint="Go to Ad-hoc script" title="Ad-hoc script  (g a)"><svg class="i"><use href="#i-terminal"/></svg><span class="act-label">Ad-hoc</span></a>{% endif %}
     <a class="act {% if na == 'executions' or na == 'execution' %}is-active{% endif %}" href="{% url 'executions' %}" data-hotkey="g j" data-hint="Go to Jobs" title="Jobs — running &amp; recent  (g j)"><svg class="i"><use href="#i-pulse"/></svg><span class="act-label">Jobs</span>{% if active_runs %}<span class="act-badge" title="Running or queued">{{ active_runs }}</span>{% endif %}</a>
     <a class="act {% if na == 'history' %}is-active{% endif %}" href="{% url 'history' %}" data-hotkey="g h" data-hint="Go to History" title="History  (g h)"><svg class="i"><use href="#i-clock"/></svg><span class="act-label">History</span></a>
     <span class="act-spacer"></span>
@@ -117,6 +117,7 @@
   </footer>
 
   {{ wb_palette|json_script:"wb-palette" }}
+  {{ wb_folder_palette|json_script:"wb-folders" }}
   <script type="application/json" id="wb-urls">{"script": "{% url 'script_detail' 'XID' %}", "run": "{% url 'script_run' 'XID' %}", "source": "{% url 'script_source' 'XID' %}", "configure": "{% url 'script_configure' 'XID' %}"{% if editing_enabled %}, "edit": "{% url 'script_edit' 'XID' %}"{% endif %}, "execution": "{% url 'execution_console' 'XID' %}"}</script>
   <script src="{% static 'js/app.js' %}"></script>
   {% block scripts %}{% endblock %}

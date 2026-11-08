@@ -1,46 +1,24 @@
 {% extends "runner/_script_base.html" %}
 {% load static %}
 {% block title %}Configure {{ script.name }}{% endblock %}
-{% block body_mod %}fill adhoc-page{% endblock %}
+{% block body_mod %}fill split-page{% endblock %}
 {% block actions %}
 <a class="btn btn-ghost btn-sm" href="{% url 'script_detail' script.id %}">Cancel</a>
 <button class="btn btn-primary" type="submit" form="configure-form" data-hotkey="Ctrl+s" data-hint="Save configuration"><svg class="i"><use href="#i-save"/></svg> Save configuration <kbd>Ctrl</kbd><kbd>S</kbd></button>
 {% endblock %}
+{% block tabs %}{% endblock %}
 {% block content %}
 {% if errors %}
 <div class="flash flash-error notes"><div><strong>Not saved.</strong><ul class="err-list">{% for e in errors %}<li>{{ e }}</li>{% endfor %}</ul></div></div>
 {% endif %}
 
-<div class="adhoc adhoc-wide">
-  <div class="adhoc-main">
-    <section class="doc" aria-label="Script and metadata">
-      <div class="doc-bar" role="tablist">
-        <button type="button" class="doc-tab{% if not raw_errors %} is-active{% endif %}" data-doc-tab="doc-src-panel" role="tab"><span class="lang lang-{{ script.extension|slice:'1:' }}">{{ script.extension|slice:'1:' }}</span>{{ script.path.name }}</button>
-        <button type="button" class="doc-tab{% if raw_errors %} is-active{% endif %}" data-doc-tab="doc-raw-panel" role="tab"><span class="lang">json</span>{% if script.meta_source %}{{ script.meta_source.name }}{% else %}metadata (new){% endif %}</button>
-        <span class="spacer"></span>
-        <span class="faint small mono hide-sm" id="doc-refs"></span>
-        {% if desktop %}<button type="button" class="btn btn-ghost btn-icon btn-sm" data-reveal-script="{{ script.id }}" title="Show in folder"><svg class="i"><use href="#i-folder"/></svg></button>{% endif %}
-        {% if editing_enabled %}<a class="btn btn-ghost btn-sm" href="{% url 'script_edit' script.id %}" title="Open the script in the editor"><svg class="i"><use href="#i-edit"/></svg></a>{% endif %}
-      </div>
-      <div class="doc-panel" id="doc-src-panel"{% if raw_errors %} hidden{% endif %}>
-        {% if src_error %}<div class="doc-msg">{{ src_error }}</div>
-        {% else %}<pre class="source doc-src" id="doc-src" data-lang="{{ src_lang }}"><code>{% for line in src_lines %}<span class="ln">{{ line }}</span>{% endfor %}</code></pre>{% endif %}
-      </div>
-      <form class="doc-panel" id="doc-raw-panel" method="post" action="{% url 'script_configure_raw' script.id %}"{% if not raw_errors %} hidden{% endif %}>{% csrf_token %}
-        {% if raw_errors %}
-        <div class="flash flash-error" style="margin:10px 10px 0"><div><strong>Not saved.</strong><ul class="err-list">{% for e in raw_errors %}<li>{{ e }}</li>{% endfor %}</ul></div></div>
-        {% endif %}
-        <textarea class="raw-doc" name="raw_json" spellcheck="false" aria-label="Raw metadata JSON">{{ raw_text }}</textarea>
-        <div class="doc-foot">
-          <span class="muted small">Advanced: the whole metadata document, validated before saving. Use it to repair invalid JSON.</span>
-          <span class="spacer"></span>
-          <button class="btn btn-sm" type="submit">Validate &amp; save raw JSON</button>
-        </div>
-      </form>
-    </section>
+<div class="split split-wide">
+  <div class="split-main">
+    {% include "runner/_script_doc.html" with back="script_configure" %}
   </div>
 
-  <aside class="adhoc-side">
+  <aside class="split-side">
+    {% include "runner/_script_tabs.html" with side=True %}
     <form method="post" id="configure-form" novalidate>{% csrf_token %}
       <section class="panel">
         <div class="panel-head"><h2>Script</h2></div>
@@ -110,6 +88,7 @@
 
 {% block scripts %}
 <script src="{% static 'js/highlight.js' %}"></script>
+{% if ed %}<script src="{% static 'js/editor.js' %}"></script>{% endif %}
 <script src="{% static 'js/param_editor.js' %}"></script>
 <script src="{% static 'js/designer.js' %}"></script>
 {% endblock %}

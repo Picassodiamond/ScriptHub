@@ -8,8 +8,7 @@
 {% block actions %}
 {% if desktop %}<button type="button" class="btn btn-ghost btn-icon btn-sm" data-reveal-run="{{ run.id }}" title="Show the run folder (logs, metadata)"><svg class="i"><use href="#i-folder"/></svg></button>{% endif %}
 <button type="button" class="btn btn-ghost btn-icon btn-sm" id="refresh-now" title="Refresh now"><svg class="i"><use href="#i-refresh"/></svg></button>
-{% if run.adhoc %}{% if adhoc_enabled %}<a class="btn btn-sm" href="{% url 'adhoc' %}?from={{ run.id }}"><svg class="i"><use href="#i-edit"/></svg> Edit &amp; run again</a>{% endif %}
-{% elif run.script_id %}<a class="btn btn-sm" href="{% url 'script_run' run.script_id %}" data-hotkey="r" data-hint="Run this script again"><svg class="i"><use href="#i-play"/></svg> Run again</a>{% endif %}
+{% if run.script_id and not run.adhoc %}<a class="btn btn-sm" href="{% url 'script_run' run.script_id %}" data-hotkey="r" data-hint="Run this script again"><svg class="i"><use href="#i-play"/></svg> Run again</a>{% endif %}
 <form method="post" action="{% url 'history_delete' run.id %}" id="delete-form" data-confirm="Delete {{ run.id }} and its logs?" {% if active %}hidden{% endif %}>{% csrf_token %}
   <input type="hidden" name="from" value="console">
   <button class="btn btn-ghost btn-sm" type="submit"><svg class="i"><use href="#i-trash"/></svg> Delete</button>

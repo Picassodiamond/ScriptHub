@@ -4,7 +4,7 @@
 {% block heading %}<span class="t">Script Library</span><span class="count-pill" id="head-count">{{ scripts|length }}</span>{% endblock %}
 {% block actions %}
 <form method="post" action="{% url 'library_refresh' %}">{% csrf_token %}
-  <button class="btn" type="submit" title="Rescan the script directories"><svg class="i"><use href="#i-refresh"/></svg> Rescan</button>
+  <button class="btn" type="submit" title="Rescan the folder"><svg class="i"><use href="#i-refresh"/></svg> Rescan</button>
 </form>
 {% endblock %}
 {% block content %}
@@ -125,7 +125,8 @@
   <div class="empty">
     <svg class="i"><use href="#i-folder"/></svg>
     <h2>No scripts found</h2>
-    <p>Add a script directory in <a href="{% url 'settings' %}">Settings</a>, or drop a <code>.py</code> / <code>.sh</code> / <code>.bat</code> file into <code>scripts/</code> and rescan.</p>
+    {% if wb_folder.folder %}<p>Nothing with a known extension in <span class="mono">{{ wb_folder.folder.path }}</span>. {% if editing_enabled %}<a href="{% url 'script_new' %}">Create a new script</a>, drop{% else %}Drop{% endif %} a <code>.py</code> / <code>.sh</code> / <code>.bat</code> file into it and rescan, or <a href="{% url 'folder' %}">open another folder</a>.</p>
+    {% else %}<p>No folder is open. <a href="{% url 'folder' %}">Open a script folder</a> to see its scripts.</p>{% endif %}
   </div>
 </section>
 {% endif %}

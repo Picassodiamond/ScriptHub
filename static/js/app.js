@@ -210,6 +210,24 @@
   try { urls = JSON.parse(document.getElementById('wb-urls').textContent); } catch (e) {}
   function url(kind, id) { return urls[kind] ? urls[kind].replace('XID', encodeURIComponent(id)) : null; }
   var ICON = function (n) { return '<svg class="i"><use href="#i-' + n + '"/></svg>'; };
+  // A normal (navigating) POST from script, with the page's CSRF token.
+  function postForm(action, data) {
+    var f = document.createElement('form'), tok = document.querySelector('input[name=csrfmiddlewaretoken]');
+    var m = /(?:^|;\s*)csrftoken=([^;]+)/.exec(document.cookie);
+    data = Object.assign({ csrfmiddlewaretoken: tok ? tok.value : (m ? decodeURIComponent(m[1]) : '') }, data);
+    f.method = 'post'; f.action = action; f.hidden = true;
+    Object.keys(data).forEach(function (k) { var i = document.createElement('input'); i.type = 'hidden'; i.name = k; i.value = data[k]; f.appendChild(i); });
+    document.body.appendChild(f); f.submit();
+  }
+
+  // Drop-down menus (<details data-menu>): close on outside click and Escape.
+  document.addEventListener('click', function (e) {
+    [].forEach.call(document.querySelectorAll('details[data-menu][open]'), function (d) { if (!d.contains(e.target)) d.open = false; });
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Escape') return;
+    [].forEach.call(document.querySelectorAll('details[data-menu][open]'), function (d) { d.open = false; var s = d.querySelector('summary'); if (s) s.focus(); });
+  });
 
   function score(q, text) {
     // Subsequence fuzzy match. Returns null or {s: score, idx: [positions]}.
@@ -257,8 +275,18 @@
     items.push({ group: 'Commands', text: 'Toggle light / dark theme', icon: ICON('sun'), run: toggleTheme, key: 'theme dark light toggle' });
     items.push({ group: 'Commands', text: 'Toggle side panel', hint: 'Ctrl+B', icon: ICON('panel'), run: function () { toggleSide(); }, key: 'side panel sidebar explorer toggle' });
     items.push({ group: 'Commands', text: 'Keyboard shortcuts', hint: '?', icon: ICON('keyboard'), run: function () { setTimeout(help.open, 0); }, key: 'keyboard shortcuts help keys' });
+    // Script folders: open another one (favourites and recent) or the Open folder page.
+    var folders = [];
+    try { folders = JSON.parse(document.getElementById('wb-folders').textContent) || []; } catch (e) {}
+    var newScript = document.querySelector('[data-new-script]');
+    if (newScript) items.push({ group: 'Commands', text: 'New script', hint: 'g n', icon: ICON('plus'), href: newScript.href, key: 'new script create file' });
+    items.push({ group: 'Folders', text: 'Open folder…', icon: ICON('folder'), href: '/folder/', key: 'open folder browse directory workspace' });
+    folders.forEach(function (f) {
+      items.push({ group: 'Folders', text: f.name, hint: f.path, icon: ICON(f.favorite ? 'star' : 'folder'),
+        run: function () { postForm('/folder/open/', { path: f.path }); }, key: 'folder ' + f.name + ' ' + f.path });
+    });
     var refresh = document.querySelector('form[action$="/scripts/refresh/"]');
-    if (refresh) items.push({ group: 'Commands', text: 'Rescan script directories', icon: ICON('refresh'), run: function () { refresh.submit(); }, key: 'rescan refresh library scan' });
+    if (refresh) items.push({ group: 'Commands', text: 'Rescan the folder', icon: ICON('refresh'), run: function () { refresh.submit(); }, key: 'rescan refresh library scan' });
     return items;
   }
 
@@ -331,7 +359,7 @@
     open: function () {
       var rows = [
         ['Global', [['Command palette', 'Ctrl K'], ['Toggle side panel', 'Ctrl B'], ['Focus search / explorer filter', '/'], ['This sheet', '?']]],
-        ['Go to', [['Overview', 'g o'], ['Script Library', 'g l'], ['Ad-hoc script', 'g a'], ['Jobs', 'g j'], ['History', 'g h'], ['Settings', 'g s']]],
+        ['Go to', [['Overview', 'g o'], ['Script Library', 'g l'], ['Jobs', 'g j'], ['History', 'g h'], ['Settings', 'g s']]],
         ['Script', [['Overview', 'i'], ['Script: run, view, edit', 'r  or  s'], ['Configure', 'c'], ['Save the script / configuration', 'Ctrl S']]],
         ['Run & debug', [['Review / launch', 'Ctrl ↵'], ['Back from review', 'Esc'], ['Continue', 'F5'], ['Step to next line', 'F10  or  n'], ['Pause', 'F6'], ['Stop the run', 'Shift F5']]]
       ];
@@ -390,7 +418,13 @@
         var input = document.querySelector(pick.getAttribute('data-pick-folder'));
         pick.disabled = true;
         post('/desktop/pick-folder/', { initial: input ? input.value : '', title: pick.getAttribute('data-title') || '' })
-          .then(function (j) { if (j.path && input) { input.value = j.path; input.dispatchEvent(new Event('input', { bubbles: true })); input.focus(); } })
+          .then(function (j) {
+            if (!j.path || !input) return;
+            input.value = j.path; input.dispatchEvent(new Event('input', { bubbles: true })); input.focus();
+            if (pick.hasAttribute('data-pick-submit') && input.form) {   // e.g. Open folder: picking = opening
+              if (input.form.requestSubmit) input.form.requestSubmit(); else input.form.submit();
+            }
+          })
           .catch(function (j) { window.alert((j && j.error) || 'The folder dialog is not available.'); })
           .then(function () { pick.disabled = false; });
         return;

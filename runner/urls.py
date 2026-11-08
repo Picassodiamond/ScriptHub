@@ -1,11 +1,12 @@
 from django.urls import path
 
-from . import adhoc_views, desktop, edit_views, execution_views, history_views, preset_views, script_views, views
+from . import desktop, edit_views, execution_views, folder_views, history_views, new_views, preset_views, script_views, views
 
 urlpatterns = [
     path("", views.dashboard, name="dashboard"),
     path("scripts/", views.library, name="library"),
     path("scripts/refresh/", views.library_refresh, name="library_refresh"),
+    path("scripts/new/", new_views.script_new, name="script_new"),
     path("scripts/<str:script_id>/toggle/", views.script_toggle, name="script_toggle"),
     path("scripts/<str:script_id>/", script_views.script_detail, name="script_detail"),
     path("scripts/<str:script_id>/configure/", script_views.script_configure, name="script_configure"),
@@ -15,8 +16,6 @@ urlpatterns = [
     path("scripts/<str:script_id>/start/", execution_views.script_start, name="script_start"),
     path("scripts/<str:script_id>/edit/", edit_views.script_edit, name="script_edit"),
     path("scripts/<str:script_id>/edit/restore/", edit_views.script_restore, name="script_restore"),
-    path("adhoc/", adhoc_views.adhoc, name="adhoc"),
-    path("adhoc/save/", adhoc_views.adhoc_save, name="adhoc_save"),
     path("scripts/<str:script_id>/presets/save/", preset_views.preset_save, name="preset_save"),
     path("scripts/<str:script_id>/presets/rename/", preset_views.preset_rename, name="preset_rename"),
     path("scripts/<str:script_id>/presets/delete/", preset_views.preset_delete, name="preset_delete"),
@@ -34,10 +33,13 @@ urlpatterns = [
     path("executions/<str:run_id>/log/<str:stream>/", execution_views.execution_log, name="execution_log"),
     path("settings/hosts/test/", views.settings_test_host, name="settings_test_host"),
     path("settings/", views.settings_view, name="settings"),
+    path("folder/", folder_views.folder_page, name="folder"),
+    path("folder/open/", folder_views.folder_open, name="folder_open"),
+    path("folder/close/", folder_views.folder_close, name="folder_close"),
+    path("folder/favorite/", folder_views.folder_favorite, name="folder_favorite"),
+    path("folder/forget/", folder_views.folder_forget, name="folder_forget"),
     path("desktop/pick-folder/", desktop.pick_folder, name="desktop_pick_folder"),
     path("desktop/reveal/", desktop.reveal, name="desktop_reveal"),
     path("desktop/ping/", desktop.ping, name="desktop_ping"),
     path("desktop/bye/", desktop.bye, name="desktop_bye"),
-    path("settings/directories/add/", views.settings_add_directory, name="settings_add_directory"),
-    path("settings/directories/remove/", views.settings_remove_directory, name="settings_remove_directory"),
 ]

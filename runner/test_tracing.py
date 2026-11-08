@@ -10,7 +10,7 @@ from unittest import mock
 from django.test import SimpleTestCase
 
 import config
-from runner import executor, history, tracing
+from runner import discovery, executor, history, tracing
 from runner.executor import ExecutionError
 from runner.process_manager import manager
 from runner.test_execution import PY, EngineCase, FakeSshRemoteTests, wait_for
@@ -232,24 +232,23 @@ class RemoteTraceTests(FakeSshRemoteTests):
         self.assertIn("finished", self.read_log(rid, "stdout"))
 
 
-from runner.test_editor_adhoc import WebCase  # noqa: E402
+from runner.test_editor import WebCase  # noqa: E402
 
 
 class TraceWebTests(WebCase):
     LOOP = "import time\nfor i in range(60):\n    time.sleep(0.1)\nprint('done')\n"
 
-    def post(self, **over):
-        form = {"language": ".py", "code": "print('hi')\nx = 2\n", "host": "local", "timeout": "60",
-                "arguments": "", "cwd": "", "trace": "1"}
-        form.update(over)
-        return self.client.post("/adhoc/", form)
+    def post(self, code="print('hi')\nx = 2\n", ext=".py", trace="1"):
+        return self.start_script(code, ext, mode="trace" if trace else "normal")
 
-    def test_adhoc_form_offers_the_option(self):
-        page = self.client.get("/adhoc/")
+    def test_review_offers_the_run_modes(self):
+        self.start_script("print(1)\n")                       # creates a script to review
+        sid = discovery.scan(force=True)[0][0].id
+        page = self.client.post(f"/scripts/{sid}/run/", {"host": "local"})
         self.assertContains(page, 'name="mode" value="trace"')     # run-mode picker: normal / trace / debug
         self.assertContains(page, 'name="mode" value="debug"')
 
-    def test_traced_adhoc_run_shows_source_and_reports_the_line(self):
+    def test_traced_run_shows_source_and_reports_the_line(self):
         run_id = self.run_id_of(self.post())
         meta = self.wait_final(run_id)
         self.assertTrue(meta["trace"]["enabled"])
@@ -269,7 +268,7 @@ class TraceWebTests(WebCase):
         self.assertIsNone(self.client.get(f"/executions/{run_id}/status/").json()["trace"])
 
     def test_bat_cannot_be_traced(self):
-        r = self.post(language=".bat", code="@echo off\r\necho hi\r\n")
+        r = self.post(ext=".bat", code="@echo off\r\necho hi\r\n")
         if os.name == "nt":
             self.assertEqual(r.status_code, 400)
             self.assertContains(r, "Python and Bash", status_code=400)

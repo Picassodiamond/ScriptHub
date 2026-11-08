@@ -22,12 +22,12 @@ MIT licensed — see [Licence and contributing](#licence-and-contributing).
 1. [Quick start](#quick-start)
 2. [A tour of the pages](#a-tour-of-the-pages)
 3. [Configuration](#configuration)
-4. [Script directories](#script-directories)
+4. [Script folder](#script-folder)
 5. [Writing scripts](#writing-scripts)
 6. [Metadata JSON reference](#metadata-json-reference)
 7. [Defining parameters](#defining-parameters)
 8. [Running a script, hosts and presets](#running-a-script-hosts-and-presets)
-9. [Editing scripts and ad-hoc scripts](#editing-scripts-and-ad-hoc-scripts)
+9. [Creating and editing scripts](#creating-and-editing-scripts)
 10. [Execution lifecycle](#execution-lifecycle)
 11. [Logging, history and retention](#logging-history-and-retention)
 12. [Running on Linux servers over SSH](#running-on-linux-servers-over-ssh)
@@ -94,8 +94,8 @@ python manage.py desktop --background   # tray only, no window
   in the tray until they finish. **Quit** from the tray asks before stopping running scripts.
 * **Start with Windows** (tray menu) writes `ScriptHub.cmd` into your Startup folder,
   which starts the app in the tray at sign-in; untick it to remove the file.
-* **Native extras:** *Browse…* buttons (folder dialogs) next to directory fields in
-  Settings, Configure and Ad-hoc, and *Show in folder* for scripts and run folders.
+* **Native extras:** *Browse…* buttons (folder dialogs) on Open folder and next to
+  directory fields in Configure, and *Show in folder* for scripts and run folders.
 * Launching it again while it runs just opens another window.
 * Log: `runtime/desktop.log`. As with `runserver`, runs live inside the app's process.
 
@@ -109,7 +109,7 @@ For SSH hosts, `ssh` must already work for you from a terminal (see
 Version 2 is laid out like an IDE workbench (dark theme by default; **Theme** in the
 status bar or the moon/sun icon switches to light, remembered per browser):
 
-* **Activity bar** (far left): Overview, Library, Ad-hoc, Jobs (with a live count),
+* **Activity bar** (far left): Overview, Library, Jobs (with a live count),
   History, Settings, plus the command palette and theme switch.
 * **Side panel**: the **Explorer** (every script grouped by category, with a dot for its
   last result and a filter box) on most pages; the list of executions on Jobs and in the
@@ -122,15 +122,17 @@ status bar or the moon/sun icon switches to light, remembered per browser):
 |---|---|
 | **Overview** (`/`) | Counts of scripts, running, successful and failed executions; recent executions; **Quick run** and most-used scripts. |
 | **Script Library** (`/scripts/`) | Every script as a dense table (or cards). Search (`/` focuses it), filter by **category, platform and language**, enable/disable with a switch. |
-| **Script › Overview** | The script in the body; on the right its details, parameters (hover one to see where the script uses it) and recent executions, plus the enable switch. |
-| **Script › Script** | Run, view and edit in one place. The script in the body: an editor (syntax colours, line numbers, auto-indent, Tab, **Ctrl+S** saves in place) or read-only when editing is off, with the metadata JSON as a second tab, copy, download, **Restore previous** and a full-screen editor. On the right the **Run configuration** (target host, parameters) and **Presets**; focusing a parameter marks the lines that use it. **Review & confirm** (Ctrl+Enter) saves unsaved edits first. |
+| **Open folder** (`/folder/`) | Choose the script folder: type a path, **Browse…** (desktop app) or click through the folder list; favourites (star) and recent folders. The explorer's folder name is a quick switcher with the same lists. |
+| **Script pages** | The centre is the same on Overview, Run and Configure: the script (an editor with syntax colours, line numbers, auto-indent, **Ctrl+S** saves in place, or read-only when editing is off), its metadata JSON (editable) and its saved parameters (`.params.json`, compare grid or raw file), plus copy, download, **Restore previous** and a full-screen editor. The **Overview / Run / Configure** tabs head the right column, so switching only changes that column. |
+| **Script › Overview** | On the right: saved parameters, details, parameters (hover one to see where the script uses it) and recent executions, plus the enable switch. |
+| **Script › Run** | On the right the **Run configuration** (target host, parameters) and **Presets**; focusing a parameter marks the lines that use it. **Review & confirm** (Ctrl+Enter) saves unsaved edits first. |
 | **Review** | Step 2 of the run. The script in the body; on the right the **run mode** (Normal, Trace lines, Debug), the exact command (passwords masked) and every value. **Run now** (Ctrl+Enter) starts it, **Esc** goes back. |
-| **Script › Configure** | The script in the body (and the metadata JSON as a second tab, editable as raw JSON); on the right name, category, interpreter, timeout, concurrency, default host, working directory, environment, platforms and the **parameter editor**. |
-| **Ad-hoc** (`/adhoc/`) | An editor in the body, run configuration on the right; run once on this computer or over SSH, optionally save to the library. |
+| **Script › Configure** | On the right name, category, interpreter, timeout, concurrency, default host, working directory, environment, platforms and the **parameter editor**. |
+| **New script** (`/scripts/new/`, **+** in the explorer header) | Name, language, optional sub-folder and category; creates the file (with a short starter) and its metadata in the open folder, then opens it in the editor. |
 | **Console** (`/executions/RUN-…/`) | Step 3. Live status, duration, exit code, stdout and stderr (side by side, stacked or stdout only), auto-scroll, copy, download, stop; the running line (trace) or the **debugger** (debug). |
 | **Jobs** (`/executions/`) | What is running, queued and finished recently (refreshes by itself). |
 | **History** | Search and filter every past execution, open or download logs, delete runs, apply retention. |
-| **Settings** | Script directories, features, concurrency limits, timeouts, polling, retention, interpreters (local and SSH), SSH command, environment variables, SSH host test. |
+| **Settings** | Features, concurrency limits, timeouts, polling, retention, interpreters (local and SSH), SSH command, environment variables, SSH host test. |
 
 ### Keyboard and command palette
 
@@ -143,9 +145,10 @@ Ctrl+Enter runs it), type `run ` to list run actions only, paste a run id such a
 | `Ctrl+K` | Command palette |
 | `Ctrl+B` | Toggle the side panel |
 | `/` | Focus the page search (or the explorer filter) |
-| `g o` `g l` `g a` `g j` `g h` `g s` | Go to Overview, Library, Ad-hoc, Jobs, History, Settings |
+| `g o` `g l` `g j` `g h` `g s` | Go to Overview, Library, Jobs, History, Settings |
+| `g n` | New script (in the open folder) |
 | `i` `r` `c` | On a script: Overview, Script (run / view / edit), Configure |
-| `Ctrl+Enter` | Review (Run step), Run now (Review step and Ad-hoc) |
+| `Ctrl+Enter` | Review (Run step), Run now (Review step), Create (New script) |
 | `Esc` | Back from Review to the parameters |
 | `F5` `F10`/`n` `F6` `Shift+F5` | Debugger: continue, step, pause, stop |
 
@@ -161,13 +164,11 @@ restart.
 
 ```json
 {
-  "script_directories": ["./scripts", "/opt/custom_scripts"],
   "interpreters": {".py": "python", ".sh": "bash", ".bat": "cmd"},
   "remote_interpreters": {".py": "python3", ".sh": "bash"},
   "ssh_executable": "ssh",
   "ssh_connect_timeout": 10,
   "environment": {},
-  "enable_adhoc": true,
   "enable_script_editing": true,
   "max_concurrent_executions": 3,
   "max_concurrent_per_host": 3,
@@ -180,14 +181,12 @@ restart.
 
 | Key | Meaning |
 |---|---|
-| `script_directories` | Folders scanned recursively. Relative paths are relative to this application. |
 | `interpreters` | File extension → command used **on this computer**. Only listed extensions are treated as scripts. |
 | `remote_interpreters` | Extension → command used **on SSH hosts**. |
 | `ssh_executable` | The SSH command (a path or command line). Uses your own `~/.ssh/config`. |
 | `ssh_connect_timeout` | Seconds before an SSH connection attempt gives up. |
 | `environment` | Extra environment variables for every run (a script's own settings and parameters override them). |
-| `enable_adhoc` | Show the Ad-hoc screen (`false` blocks it completely). |
-| `enable_script_editing` | Allow editing script files from the browser (`false` blocks editing and restoring). |
+| `enable_script_editing` | Allow creating and editing script files from the browser (`false` blocks New script, editing and restoring). |
 | `max_concurrent_executions` | Runs beyond this wait in the queue. |
 | `max_concurrent_per_host` | Same limit, applied to this computer and to each SSH host separately. |
 | `default_timeout` | Seconds, for scripts that set no timeout of their own. |
@@ -206,19 +205,32 @@ The names used before the rename (`SCRIPT_RUNNER_DEBUG`, `SCRIPT_RUNNER_ALLOWED_
 
 ---
 
-## Script directories
+## Script folder
 
-By default `./scripts` is scanned. Add or remove folders in **Settings → Script
-directories**; they are scanned **recursively**, and new files appear without a
-restart (press **Refresh** to rescan immediately).
+ScriptHub works on **one folder at a time**, like an editor's *Open Folder*. It is
+not a setting: on first start the Overview asks you to open one (or the bundled
+`./scripts` examples), and the folder you open is reopened on the next start.
+
+* **Open folder** (`/folder/`, or the folder name at the top of the explorer):
+  type a path, use **Browse…** (native dialog, desktop app only) or click through
+  the drives and sub-folders.
+* **Recent** keeps the last 10 folders; **favourites** (star) stay until you
+  unstar them. Both are in the explorer's folder menu and the command palette
+  (Ctrl+K), so switching is one click.
+* The state lives in `runtime/workspace.json`. An older `script_directories`
+  list in `config.json` is used once to fill it (first existing folder is opened,
+  all of them become recent).
+
+The folder is scanned **recursively**, and new files appear without a restart
+(press **Refresh** to rescan immediately). Switching folders does not stop runs
+that are in progress, and history keeps runs of scripts from other folders.
 
 Rules that keep this safe:
 
 * Only extensions listed under **Interpreters** are catalogued. A stray `.exe`,
   `.txt` or `.json` is ignored.
 * Hidden folders, `__pycache__`, `venv`, `node_modules` and `site-packages` are skipped.
-* Symlinks that point outside their configured folder are skipped.
-* The same file reached through two folders is listed once.
+* Symlinks that point outside the open folder are skipped.
 * Nothing is executed during discovery.
 * Disable a script with its switch (stored in its metadata); a disabled script
   cannot be run.
@@ -395,8 +407,8 @@ New types can be added in `runner/parameter_service.py` (`register_type`).
 
 ### Step debugging
 
-Choose the run mode **Debug — step through** on the Review step (or on the Ad-hoc
-screen) for a Python or Bash script, on this computer or an SSH host. The run pauses
+Choose the run mode **Debug — step through** on the Review step for a Python or
+Bash script, on this computer or an SSH host. The run pauses
 on the script's first line and the console turns into a debugger:
 
 * **Step** (`F10` or `n`) runs one line and pauses again (it goes into the script's own
@@ -462,7 +474,21 @@ so the values travel with the script (move it, copy it, commit it to git).
 
 ---
 
-## Editing scripts and ad-hoc scripts
+## Creating and editing scripts
+
+### New script
+
+**New script** (the **+** in the explorer header, `g n`, or Ctrl+K → *New script*)
+creates a file in the **open folder**: give a file name, language, and optionally a
+sub-folder (created if needed; existing ones are suggested) and a category. The file
+starts with a few lines of example code and gets a metadata file next to it, then
+opens on its **Run** tab with the editor in the centre. Opened from a script page,
+the form starts in that script's folder, language and category.
+
+* Existing files are never overwritten (the file is created with exclusive mode).
+* Only simple file and folder names are accepted; absolute paths, drives and `..`
+  are refused, so nothing is written outside the open folder.
+* It is part of **Edit scripts in the browser** in Settings (off = no New script).
 
 ### Editing a catalogued script
 
@@ -482,39 +508,20 @@ Saving is designed not to lose work or break scripts:
   script fails on Linux), `.bat` with CRLF, other files keep the style they had.
 * A quick **syntax check** (Python `compile`, `bash -n`; the script is never run)
   shows a warning after saving. It does not block the save.
-* Only catalogued files inside a configured script directory can be edited; the
+* Only catalogued files inside the open script folder can be edited; the
   editor never accepts a path from the browser. Files must be UTF-8 text up to
   512 KB; read-only files are refused.
 
-### Ad-hoc scripts
-
-**Ad-hoc** is for one-off jobs: pick a language, type or paste the code, choose
-*Run on* (this computer or an SSH host), optionally add **arguments** (one per
-line, passed exactly as written), a working directory and a timeout, then **Run now**.
-
-* The code runs exactly as written, started the same safe way as any other script
-  (argument list, no shell; batch arguments filtered; SSH streaming over stdin).
-* **The code that ran is kept inside that execution's History folder**, together
-  with its arguments and who started it, so you can always see what was run.
-  **Edit & run again** on the console (or *Recent ad-hoc runs*) reloads it.
-* The default working directory is your home folder (never the run folder).
-* **Save to the library…** stores the script (and a small metadata file) in a
-  script directory you choose so it becomes a normal library entry. It never
-  overwrites an existing file, and only accepts simple folder and file names.
-* Starter scripts are offered for Python, Shell and Batch; switching language
-  swaps the starter only if you have not typed anything yet.
-
 ### Sharing with other people
 
-If other people will submit scripts, remember that **Ad-hoc and editing mean
-arbitrary code execution** with this application's permissions (and the SSH
+If other people will submit scripts, remember that **creating and editing scripts
+means arbitrary code execution** with this application's permissions (and the SSH
 accounts' on remote hosts). The application has no login, so:
 
 * put your own authentication in front of it (reverse proxy, VPN, SSO) and run it
   under a dedicated, least-privilege account;
-* in **Settings → Features**, switch off **Ad-hoc scripts** and/or **Edit scripts
-  in the browser** if people should only run the catalogue (`enable_adhoc` and
-  `enable_script_editing` in `config.json`);
+* in **Settings → Features**, switch off **Create and edit scripts in the browser**
+  if people should only run the catalogue (`enable_script_editing` in `config.json`);
 * every execution records the **client address** it came from (shown on the
   console and searchable in History). This is the connecting address; it is only
   as meaningful as your network setup: behind a reverse proxy it is the proxy's.
@@ -523,7 +530,7 @@ accounts' on remote hosts). The application has no login, so:
 
 ### Seeing which line is running
 
-Choose the run mode **Trace lines** on the Review step (or on the Ad-hoc screen) for
+Choose the run mode **Trace lines** on the Review step for
 a Python or Bash script. The console then shows the script's source next to the
 output with the current line highlighted and scrolled into view. The source shown is a
 copy taken when the run started, so later edits do not shift the highlight.
@@ -697,7 +704,7 @@ ScriptHub starts operating-system processes and has **no authentication**.
   tunnel (`ssh -L 8000:localhost:8000 you@host`) or put your own authenticating
   reverse proxy in front. **Never expose it directly to the internet or an
   untrusted network.**
-* Only scripts in the configured directories, with a configured extension, can be
+* Only scripts in the open folder, with a configured extension, can be
   run. The source viewer and run endpoints take a catalogue ID, not a path.
 * Processes are started with `shell=False` from argument lists; user input is
   never concatenated into a command. For SSH, every element of the remote command
@@ -709,10 +716,10 @@ ScriptHub starts operating-system processes and has **no authentication**.
   to presets. Output written by scripts is stored as-is.
 * **Anyone who can edit metadata or settings can change what runs** (interpreter,
   arguments, environment). Treat access to the page as access to this account.
-* **Editing and Ad-hoc let anyone with access run any code.** They can be switched
-  off in **Settings → Features**; see [Sharing with other people](#sharing-with-other-people).
+* **Creating and editing scripts lets anyone with access run any code.** It can be
+  switched off in **Settings → Features**; see [Sharing with other people](#sharing-with-other-people).
   Saves are atomic with a `.bak`, only catalogued files are writable, and
-  "Save to library" never overwrites or leaves its script directory.
+  New script never overwrites or leaves the open folder.
 * Every run records the connecting client address (`X-Forwarded-For` is
   deliberately not trusted, because any client can forge it).
 * Run the application under a **dedicated, least-privilege operating-system
@@ -829,7 +836,9 @@ ScriptHub/
 ├── requirements.txt          Django only
 ├── runner/
 │   ├── views.py, script_views.py, execution_views.py, history_views.py,
-│   │   preset_views.py, edit_views.py, adhoc_views.py     thin HTTP layer
+│   │   preset_views.py, edit_views.py, new_views.py,
+│   │   folder_views.py                                    thin HTTP layer
+│   ├── workspace.py          open folder, recent and favourite folders
 │   ├── script_editor.py      safe saving of script files (backup, conflicts, line endings)
 │   ├── discovery.py          approved-script catalogue
 │   ├── metadata.py           sidecar JSON read/write, backups

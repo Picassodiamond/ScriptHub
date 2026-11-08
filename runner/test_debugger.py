@@ -1,5 +1,6 @@
 """Step debugger: markers, local Python/Bash debugging, SSH (fake ssh), web endpoint."""
 import json
+import os
 import shutil
 import time
 import unittest
@@ -302,19 +303,15 @@ class RemoteDebugTests(DebugMixin, FakeSshRemoteTests):
         self.assertEqual(self.read_log(rid, "stdout").split(), ["one", "a", "b", "two", "three"])
 
 
-from runner import adhoc_views  # noqa: E402
 from runner.process_manager import manager  # noqa: E402
-from runner.test_editor_adhoc import WebCase  # noqa: E402
+from runner.test_editor import WebCase  # noqa: E402
 
 
 class DebugWebTests(WebCase):
     CODE = "x = 1\ny = x + 1\nprint(y)\n"
 
-    def post(self, **over):
-        form = {"language": ".py", "code": self.CODE, "host": "local", "timeout": "60",
-                "arguments": "", "cwd": "", "mode": "debug"}
-        form.update(over)
-        return self.client.post("/adhoc/", form)
+    def post(self, mode="debug", **post):
+        return self.start_script(self.CODE, ".py", mode=mode, **post)
 
     def debug_url(self, rid):
         return f"/executions/{rid}/debug/"
@@ -358,13 +355,6 @@ class DebugWebTests(WebCase):
         self.assertIsNone(history.read_meta(rid)["debug"])
         self.assertEqual(self.client.post(self.debug_url(rid), {"action": "step"}).status_code, 409)
 
-    def test_mode_is_restored_for_edit_and_run_again(self):
-        rid = self.run_id_of(self.post())
-        self.assertTrue(wait_for(lambda: (manager.debug_state(rid) or {}).get("state") == "paused", 20))
-        manager.debug_command(rid, "detach")
-        self.wait_final(rid)
-        self.assertEqual(adhoc_views._form_from_run(rid)["mode"], "debug")
-
     def test_legacy_trace_checkbox_still_means_trace(self):
         rid = self.run_id_of(self.post(mode="", trace="1"))
         meta = self.wait_final(rid)
@@ -372,16 +362,6 @@ class DebugWebTests(WebCase):
         self.assertIsNone(meta["debug"])
 
     def test_batch_cannot_be_debugged(self):
-        form = {"language": ".bat", "code": "@echo off\r\necho hi\r\n", "host": "local", "timeout": "60",
-                "arguments": "", "cwd": "", "mode": "debug"}
-        spec, errors = adhoc_views.validate(form, config.load_config())
-        self.assertIsNone(spec)
-        self.assertIn("Step debugging is available for Python and Bash scripts only.", errors)
-
-    def test_python_debug_spec(self):
-        form = {"language": ".py", "code": self.CODE, "host": "local", "timeout": "60",
-                "arguments": "", "cwd": "", "mode": "debug"}
-        spec, errors = adhoc_views.validate(form, config.load_config())
-        self.assertEqual(errors, [])
-        self.assertTrue(spec.debug)
-        self.assertEqual(spec.trace, {})
+        r = self.start_script("@echo off\r\necho hi\r\n", ".bat", mode="debug")
+        if os.name == "nt":
+            self.assertContains(r, "Python and Bash scripts only", status_code=400)

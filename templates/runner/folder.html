@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}Open folder{% endblock %}
+{% block crumbs %}<span>Workbench</span>{% endblock %}
+{% block heading %}<span class="t">Open folder</span>{% endblock %}
+{% block actions %}
+{% if ws.folder %}
+<form method="post" action="{% url 'folder_close' %}">{% csrf_token %}
+  <button class="btn btn-ghost btn-sm" type="submit" title="Close {{ ws.folder.path }}"><svg class="i"><use href="#i-x"/></svg> Close folder</button>
+</form>
+{% endif %}
+{% endblock %}
+{% block content %}
+<div class="page page-narrow">
+
+<section class="panel">
+  <div class="panel-head"><h2>Open a folder</h2>{% if ws.folder %}<span class="spacer"></span><span class="faint small">Open now: <span class="mono" title="{{ ws.folder.path }}">{{ ws.folder.name }}</span></span>{% endif %}</div>
+  <div class="panel-body">
+    <form method="post" action="{% url 'folder_open' %}" class="inline-form" id="open-form">{% csrf_token %}
+      <input class="input mono" type="text" name="path" id="folder-path" value="{{ browser.path }}" placeholder="C:\scripts   or   /home/me/scripts" required aria-label="Folder path">
+      {% if desktop %}<button type="button" class="btn" data-pick-folder="#folder-path" data-pick-submit data-title="Open a script folder"><svg class="i"><use href="#i-folder"/></svg> Browse…</button>{% endif %}
+      <button class="btn btn-primary" type="submit">Open</button>
+    </form>
+    <p class="help" style="margin:8px 0 0">The folder is scanned recursively for scripts; nothing runs during the scan. It is reopened the next time ScriptHub starts.</p>
+  </div>
+
+  <div class="fb">
+    <div class="fb-bar">
+      {% for p in browser.places %}<a class="chip" href="?browse={{ p.path|urlencode }}">{{ p.name }}</a>{% endfor %}
+    </div>
+    {% if browser.path %}
+    <div class="fb-crumbs mono small">
+      {% for c in browser.crumbs %}<a href="?browse={{ c.path|urlencode }}">{{ c.name }}</a>{% if not forloop.last %}<span class="sep">›</span>{% endif %}{% endfor %}
+    </div>
+    {% if browser.error %}<div class="fb-msg error-text small">{{ browser.error }}</div>{% endif %}
+    <ul class="fb-list">
+      {% if browser.parent %}<li><a class="fb-dir" href="?browse={{ browser.parent|urlencode }}"><svg class="i i-sm"><use href="#i-back"/></svg> ..</a></li>{% endif %}
+      {% for d in browser.dirs %}
+      <li>
+        <a class="fb-dir" href="?browse={{ d.path|urlencode }}"><svg class="i i-sm"><use href="#i-folder"/></svg> <span class="clamp-1">{{ d.name }}</span></a>
+        <form method="post" action="{% url 'folder_open' %}">{% csrf_token %}<input type="hidden" name="path" value="{{ d.path }}"><button class="btn btn-ghost btn-sm" type="submit">Open</button></form>
+      </li>
+      {% empty %}
+      {% if not browser.error %}<li class="fb-msg faint small">No sub-folders.</li>{% endif %}
+      {% endfor %}
+      {% if browser.more %}<li class="fb-msg faint small">Only the first 500 sub-folders are listed; type the path above.</li>{% endif %}
+    </ul>
+    {% else %}
+    <div class="fb-msg faint small">Pick a drive or your home folder above, or type a path.</div>
+    {% endif %}
+  </div>
+</section>
+
+<section class="panel">
+  <div class="panel-head"><h2>Favourites <span class="count-pill">{{ ws.favorites|length }}</span></h2></div>
+  {% if ws.favorites %}
+  <ul class="folder-list">{% for x in ws.favorites %}{% include "runner/_folder_row.html" %}{% endfor %}</ul>
+  {% else %}
+  <div class="panel-body muted small">Star a folder to keep it here.</div>
+  {% endif %}
+</section>
+
+<section class="panel">
+  <div class="panel-head"><h2>Recent <span class="count-pill">{{ ws.recent|length }}</span></h2></div>
+  {% if ws.recent %}
+  <ul class="folder-list">{% for x in ws.recent %}{% include "runner/_folder_row.html" with recent=True %}{% endfor %}</ul>
+  {% else %}
+  <div class="panel-body muted small">Folders you open are listed here.</div>
+  {% endif %}
+</section>
+</div>
+{% endblock %}

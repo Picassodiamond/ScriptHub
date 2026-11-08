@@ -5,11 +5,5 @@
 {% block crumbs %}<a href="{% url 'library' %}">Library</a><span class="sep">/</span><span>{{ script.category }}</span><span class="sep">/</span><span class="mono">{{ script.relative }}</span>{% endblock %}
 {% block heading %}<span class="lang lang-lg lang-{{ script.extension|slice:'1:' }}">{{ script.extension|slice:'1:' }}</span><span class="t">{{ script.name }}</span>{% if not script.enabled %}<span class="badge badge-off">Disabled</span>{% endif %}{% endblock %}
 {% block actions %}{% endblock %}
-{% block tabs %}
-<nav class="wb-tabs" aria-label="Script">
-  <a class="tab {% if url_name == 'script_detail' %}is-active{% endif %}" href="{% url 'script_detail' script.id %}" data-hotkey="i" data-hint="Script overview"><svg class="i"><use href="#i-list"/></svg>Overview <kbd>I</kbd></a>
-  {% if script.enabled and script.meta_valid %}{% url 'script_run' script.id as script_tab %}{% elif editing_enabled %}{% url 'script_edit' script.id as script_tab %}{% else %}{% url 'script_source' script.id as script_tab %}{% endif %}
-  <a class="tab {% if url_name == 'script_run' or url_name == 'script_start' or url_name == 'script_source' or url_name == 'script_edit' %}is-active{% endif %}" href="{{ script_tab }}" data-hotkey="r|s" data-hint="Script: run, view and edit"><svg class="i"><use href="#i-code"/></svg>Script <kbd>R</kbd></a>
-  <a class="tab {% if url_name == 'script_configure' or url_name == 'script_configure_raw' %}is-active{% endif %}" href="{% url 'script_configure' script.id %}" data-hotkey="c" data-hint="Configure metadata and parameters"><svg class="i"><use href="#i-sliders"/></svg>Configure <kbd>C</kbd></a>
-</nav>
-{% endblock %}
+{# Pages with a right column (Overview, Run, Review, Configure) empty this block and put the tabs at the top of that column. #}
+{% block tabs %}{% include "runner/_script_tabs.html" %}{% endblock %}

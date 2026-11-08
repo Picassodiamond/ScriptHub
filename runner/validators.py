@@ -27,10 +27,10 @@ def validate_config(data: dict) -> dict:
     errors = []
     clean = dict(data)
 
-    dirs = data.get("script_directories")
+    dirs = data.get("script_directories", [])     # legacy, only seeds runner/workspace.py
     if not isinstance(dirs, list):
         errors.append("script_directories must be a list.")
-    else:
+    elif "script_directories" in data:
         seen, out = set(), []
         for d in dirs:
             if not isinstance(d, str) or not d.strip():
@@ -92,9 +92,9 @@ def validate_config(data: dict) -> dict:
                 env_out[k] = v
         clean["environment"] = env_out
 
-    for key in ("enable_adhoc", "enable_script_editing"):
-        if not isinstance(data.get(key), bool):
-            errors.append(f"{key} must be true or false.")
+    clean.pop("enable_adhoc", None)          # the Ad-hoc screen was removed
+    if not isinstance(data.get("enable_script_editing"), bool):
+        errors.append("enable_script_editing must be true or false.")
 
     for key, lo, hi, label in (
         ("max_concurrent_executions", 1, 64, "Max concurrent executions"),

@@ -1,0 +1,17 @@
+{# A favourite or recent folder on the Open folder page. `recent` adds "remove from list". #}
+<li class="{% if x.is_open %}is-open{% endif %}{% if not x.exists %} is-missing{% endif %}">
+  <form method="post" action="{% url 'folder_favorite' %}">{% csrf_token %}
+    <input type="hidden" name="path" value="{{ x.path }}"><input type="hidden" name="on" value="{% if x.favorite %}0{% else %}1{% endif %}">
+    <button class="btn btn-ghost btn-icon btn-sm star{% if x.favorite %} is-on{% endif %}" type="submit" title="{% if x.favorite %}Remove from favourites{% else %}Add to favourites{% endif %}" aria-pressed="{% if x.favorite %}true{% else %}false{% endif %}"><svg class="i"><use href="#i-star"/></svg></button>
+  </form>
+  <div class="fl-text">
+    <div class="strong clamp-1">{{ x.name }}{% if x.is_open %} <span class="badge badge-accent">open</span>{% endif %}</div>
+    <div class="mono small faint clamp-1" title="{{ x.path }}">{{ x.path }}{% if not x.exists %} · <span class="error-text">not found</span>{% endif %}</div>
+  </div>
+  {% if x.exists and not x.is_open %}
+  <form method="post" action="{% url 'folder_open' %}">{% csrf_token %}<input type="hidden" name="path" value="{{ x.path }}"><button class="btn btn-sm" type="submit">Open</button></form>
+  {% endif %}
+  {% if recent %}
+  <form method="post" action="{% url 'folder_forget' %}">{% csrf_token %}<input type="hidden" name="path" value="{{ x.path }}"><button class="btn btn-ghost btn-icon btn-sm" type="submit" title="Remove from the recent list"><svg class="i"><use href="#i-x"/></svg></button></form>
+  {% endif %}
+</li>

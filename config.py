@@ -22,8 +22,10 @@ METADATA_OVERRIDE_DIR = RUNTIME_DIR / "metadata_overrides"
 
 log = logging.getLogger(__name__)
 
+# The scanned script folder is not a setting: it is opened from the UI and kept in
+# runtime/workspace.json (runner/workspace.py). A "script_directories" list in an
+# older config.json is still read once, to seed that state.
 DEFAULTS = {
-    "script_directories": ["./scripts"],
     # file extension -> interpreter command ("" never allowed). Only these
     # extensions are ever treated as scripts.
     "interpreters": {
@@ -35,7 +37,6 @@ DEFAULTS = {
     "ssh_executable": "ssh",
     "ssh_connect_timeout": 10,
     "environment": {},  # extra environment variables for every run
-    "enable_adhoc": True,            # the Ad-hoc script screen
     "enable_script_editing": True,   # editing script files from the browser
     "max_concurrent_executions": 3,
     "max_concurrent_per_host": 3,

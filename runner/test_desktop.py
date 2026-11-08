@@ -10,7 +10,7 @@ from pathlib import Path
 from unittest import mock
 
 from runner import desktop, desktop_app, discovery, history
-from runner.test_editor_adhoc import WebCase
+from runner.test_editor import WebCase
 
 TOKEN = "test-token-123"
 
@@ -51,7 +51,7 @@ class TokenGateTests(DesktopCase):
             self.assertEqual(page.status_code, 200)
             self.assertContains(page, 'data-desktop="1"')
             self.assertContains(self.client.get(f"/scripts/{self.sid}/"), f'data-reveal-script="{self.sid}"')
-            self.assertContains(self.client.get("/settings/"), 'data-pick-folder="#add-dir"')
+            self.assertContains(self.client.get("/folder/"), 'data-pick-folder="#folder-path"')
 
 
 class DesktopEndpointTests(DesktopCase):

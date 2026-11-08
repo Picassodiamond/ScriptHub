@@ -150,10 +150,11 @@ def _scan_now():
     interpreters = {k.lower(): v for k, v in cfg["interpreters"].items()}
     scripts: dict[str, Script] = {}
     problems: list[str] = []
-    for configured in cfg["script_directories"]:
-        root = config.resolve_dir(configured)
+    from . import workspace
+    for root in workspace.roots():
+        root = root.resolve()
         if not root.is_dir():
-            problems.append(f"Directory not found: {root}")
+            problems.append(f"Folder not found: {root}")
             continue
         for dirpath, dirnames, filenames in os.walk(root, followlinks=False):
             dirnames[:] = sorted(

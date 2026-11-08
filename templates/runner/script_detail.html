@@ -1,6 +1,6 @@
 {% extends "runner/_script_base.html" %}
 {% load static %}
-{% block body_mod %}fill adhoc-page{% endblock %}
+{% block body_mod %}fill split-page{% endblock %}
 {% block actions %}
 <form method="post" action="{% url 'script_toggle' script.id %}" class="toggle-form" title="{% if script.enabled %}Enabled — click to disable{% else %}Disabled — click to enable{% endif %}">{% csrf_token %}
   <input type="hidden" name="enabled" value="{% if script.enabled %}0{% else %}1{% endif %}">
@@ -8,13 +8,15 @@
 </form>
 {% if script.enabled and script.meta_valid %}<a class="btn btn-primary play" href="{% url 'script_run' script.id %}"><svg class="i"><use href="#i-play"/></svg> Run</a>{% endif %}
 {% endblock %}
+{% block tabs %}{% endblock %}
 {% block content %}
 {% if script.meta_error %}<div class="flash flash-error notes"><span>{{ script.meta_error }}</span></div>{% endif %}
 
-<div class="adhoc adhoc-wide">
-  <div class="adhoc-main">{% include "runner/_designer_doc.html" %}</div>
+<div class="split split-wide">
+  <div class="split-main">{% include "runner/_script_doc.html" with back="script_detail" %}</div>
 
-  <aside class="adhoc-side">
+  <aside class="split-side">
+    {% include "runner/_script_tabs.html" with side=True %}
     {% if script.enabled and script.meta_valid %}
     <section class="panel">
       <div class="panel-head"><h2>Run with saved parameters</h2><span class="spacer"></span>
@@ -39,7 +41,7 @@
         {% endfor %}
       </ul>
       {% else %}
-      <div class="panel-body muted small">Nothing saved yet. Every run remembers its values, and you can name sets as presets on the <a href="{% url 'script_run' script.id %}">Script</a> tab.</div>
+      <div class="panel-body muted small">Nothing saved yet. Every run remembers its values, and you can name sets as presets on the <a href="{% url 'script_run' script.id %}">Run</a> tab.</div>
       {% endif %}
     </section>
     {% endif %}
@@ -108,5 +110,6 @@
 {% endblock %}
 {% block scripts %}
 <script src="{% static 'js/highlight.js' %}"></script>
+{% if ed %}<script src="{% static 'js/editor.js' %}"></script>{% endif %}
 <script src="{% static 'js/designer.js' %}"></script>
 {% endblock %}

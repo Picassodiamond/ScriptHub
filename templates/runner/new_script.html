@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}New script{% endblock %}
+{% block crumbs %}<a href="{% url 'library' %}">Library</a>{% if folder %}<span class="sep">/</span><span class="mono" title="{{ folder }}">{{ folder.name }}</span>{% endif %}{% endblock %}
+{% block heading %}<span class="t">New script</span>{% endblock %}
+{% block actions %}{% if not blocked %}<button class="btn btn-primary" type="submit" form="new-form" data-hotkey="Ctrl+Enter" data-hint="Create the script"><svg class="i"><use href="#i-plus"/></svg> Create <kbd>Ctrl</kbd><kbd>↵</kbd></button>{% endif %}{% endblock %}
+{% block content %}
+<div class="page page-narrow">
+{% if blocked %}
+<div class="flash flash-error"><span>{{ blocked }}</span></div>
+{% else %}
+{% if errors %}<div class="flash flash-error"><div><strong>Not created.</strong><ul class="err-list">{% for e in errors %}<li>{{ e }}</li>{% endfor %}</ul></div></div>{% endif %}
+<form method="post" class="panel" id="new-form" novalidate>{% csrf_token %}
+  <div class="panel-head"><h2>Create in <span class="mono" title="{{ folder }}">{{ folder.name }}</span></h2></div>
+  <div class="panel-body">
+    <div class="form-grid">
+      <div class="field"><label class="field-label" for="n_file">File name</label>
+        <input class="input mono" id="n_file" name="filename" value="{{ form.filename }}" maxlength="80" placeholder="cleanup_logs" required autofocus></div>
+      <div class="field"><label class="field-label" for="n_lang">Language</label>
+        <select class="input" id="n_lang" name="language">
+          {% for ext, label in languages %}<option value="{{ ext }}" {% if ext == form.language %}selected{% endif %}>{{ label }} ({{ ext }})</option>{% endfor %}
+        </select></div>
+      <div class="field"><label class="field-label" for="n_sub">Sub-folder <span class="faint small">optional</span></label>
+        <input class="input mono" id="n_sub" name="subfolder" value="{{ form.subfolder }}" list="n_sub_list" placeholder="e.g. maintenance">
+        <datalist id="n_sub_list">{% for f in sub_folders %}<option value="{{ f }}">{% endfor %}</datalist>
+        <div class="help">Relative to the open folder; created if it does not exist.</div></div>
+      <div class="field"><label class="field-label" for="n_cat">Category <span class="faint small">optional</span></label>
+        <input class="input" id="n_cat" name="category" value="{{ form.category }}" list="n_cat_list" maxlength="60" placeholder="defaults to the folder name">
+        <datalist id="n_cat_list">{% for c in categories %}<option value="{{ c }}">{% endfor %}</datalist></div>
+      <div class="field field-wide"><label class="field-label" for="n_name">Display name <span class="faint small">optional</span></label>
+        <input class="input" id="n_name" name="name" value="{{ form.name }}" maxlength="120" placeholder="from the file name"></div>
+    </div>
+    <p class="help" style="margin:0">The script starts with a few lines of example code and a metadata file next to it. Existing files are never overwritten. It then opens in the editor.</p>
+  </div>
+  <div class="panel-foot">
+    <button class="btn btn-primary btn-sm" type="submit"><svg class="i"><use href="#i-plus"/></svg> Create script</button>
+    <span class="faint small mono" title="{{ folder }}">{{ folder }}</span>
+  </div>
+</form>
+{% endif %}
+</div>
+{% endblock %}

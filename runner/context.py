@@ -50,6 +50,16 @@ def _palette(tree):
     ]
 
 
+def _folder():
+    from . import workspace
+    return workspace.overview()
+
+
+def _folder_palette(folder):
+    return [{"path": x["path"], "name": x["name"], "favorite": x["favorite"]}
+            for x in folder["favorites"] + folder["recent"] if x["exists"] and not x["is_open"]]
+
+
 def common(request):
     import config
     from . import desktop
@@ -59,10 +69,10 @@ def common(request):
     counts = manager.counts()
     cfg = config.load_config()
     tree = SimpleLazyObject(_tree)
+    folder = SimpleLazyObject(_folder)
     return {
         "app_version": APP_VERSION,
         "desktop": desktop.enabled(),
-        "adhoc_enabled": cfg["enable_adhoc"],
         "editing_enabled": cfg["enable_script_editing"],
         "nav_active": (match.url_name or "").split("_")[0] if match else "",
         "url_name": (match.url_name or "") if match else "",
@@ -72,6 +82,8 @@ def common(request):
         "live_queued": counts["queued"],
         "wb_tree": tree,
         "wb_runs": SimpleLazyObject(_runs),
+        "wb_folder": folder,                         # open script folder, favourites, recent
+        "wb_folder_palette": lambda: _folder_palette(folder),
         # A plain callable: templates call it, and json_script then gets a real list.
         "wb_palette": lambda: _palette(tree),
     }

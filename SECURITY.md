@@ -31,8 +31,8 @@ Never expose it to an untrusted network without authentication in front of it.
 
 ## What you should know
 
-* **Ad-hoc scripts and in-browser editing are arbitrary code execution** by design.
-  Switch them off in *Settings → Features* if other people can open the app.
+* **Creating and editing scripts in the browser is arbitrary code execution** by design.
+  Switch it off in *Settings → Features* if other people can open the app.
 * Saved parameters (`*.params.json`) are written next to your scripts and may contain
   host names, paths or other values you consider internal. Review them before you commit
   or share a script folder.

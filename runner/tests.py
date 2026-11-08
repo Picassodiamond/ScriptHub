@@ -268,6 +268,22 @@ class PageTests(SimpleTestCase):
         self.assertEqual(r.status_code, 302)
         self.assertEqual(json.loads((self.scripts / "tool.json").read_text())["name"], "Via raw")
 
+    def test_script_pages_share_the_centre_and_put_tabs_on_the_right(self):
+        for page in ("", "run", "configure"):
+            html = self.client.get(self.url(page) if page else f"/scripts/{self.sid}/").content.decode()
+            for panel in ('id="doc-code-panel"', 'id="doc-meta-panel"', 'id="doc-params-panel"', 'name="raw_json"'):
+                self.assertIn(panel, html, f"{page or 'overview'}: {panel}")
+            centre, side = html.split('class="split-side"', 1)
+            self.assertNotIn('class="wb-tabs', centre, page)               # no tab strip above the centre
+            self.assertIn('class="wb-tabs side-tabs"', side, page)          # it heads the right column
+
+    def test_raw_json_save_returns_to_the_page_it_came_from(self):
+        body = {"raw_json": json.dumps({"name": "Back", "parameters": []})}
+        r = self.client.post(self.url("configure/raw"), {**body, "back": "script_detail"})
+        self.assertEqual(r["Location"], f"/scripts/{self.sid}/")
+        r = self.client.post(self.url("configure/raw"), {**body, "back": "https://evil.example/"})
+        self.assertEqual(r["Location"], self.url("configure"))
+
     def test_broken_metadata_blocks_run_and_can_be_repaired(self):
         (self.scripts / "tool.json").write_text("{ broken")
         discovery.scan(force=True)

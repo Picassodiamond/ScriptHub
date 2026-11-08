@@ -11,18 +11,32 @@
   var $ = function (id) { return document.getElementById(id); };
 
   // ------------------------------------------------------- centre tabs --
+  // The centre is the same on Overview / Run / Configure, so the picked tab is kept
+  // when switching between them (unless the page asks for one: ?tab=params, JSON errors).
   var tabs = [].slice.call(document.querySelectorAll('[data-doc-tab]'));
+  var TAB_KEY = 'scripthub.docTab';
+  function activate(t, focus) {
+    tabs.forEach(function (x) {
+      x.classList.toggle('is-active', x === t);
+      var panel = $(x.dataset.docTab);
+      if (panel) panel.hidden = x !== t;
+    });
+    var ta = focus && $(t.dataset.docTab).querySelector('textarea');
+    if (ta) ta.focus();
+  }
   tabs.forEach(function (t) {
     t.addEventListener('click', function () {
-      tabs.forEach(function (x) {
-        x.classList.toggle('is-active', x === t);
-        var panel = $(x.dataset.docTab);
-        if (panel) panel.hidden = x !== t;
-      });
-      var ta = $(t.dataset.docTab).querySelector('textarea');
-      if (ta) ta.focus();
+      activate(t, true);
+      try { sessionStorage.setItem(TAB_KEY, t.dataset.docTab); } catch (e) { /* storage unavailable */ }
     });
   });
+  var docEl = document.querySelector('.doc[data-doc-default]');
+  if (docEl && !docEl.getAttribute('data-doc-default')) {
+    var saved = null;
+    try { saved = sessionStorage.getItem(TAB_KEY); } catch (e) { /* storage unavailable */ }
+    var pick = tabs.filter(function (t) { return t.dataset.docTab === saved; })[0];
+    if (pick) activate(pick, false);
+  }
   // Saved parameters: grid / raw file switch.
   var pviews = [].slice.call(document.querySelectorAll('[data-pview]'));
   pviews.forEach(function (b) {

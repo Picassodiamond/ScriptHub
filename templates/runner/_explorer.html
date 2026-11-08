@@ -1,10 +1,36 @@
-{# Side panel: script explorer grouped by category. Highlights the script of the current page. #}
+{# Side panel: the open folder (switcher menu) and its scripts grouped by category. Highlights the script of the current page. #}
 <div class="side-head">
-  <span class="side-title">Explorer</span>
+  {% with f=wb_folder.folder %}
+  <details class="folder-menu" data-menu>
+    <summary class="folder-current" title="{% if f %}{{ f.path }} — switch folder{% else %}Open a script folder{% endif %}">
+      <svg class="i i-sm"><use href="#i-{% if f and f.favorite %}star{% else %}folder{% endif %}"/></svg>
+      <span class="clamp-1">{% if f %}{{ f.name }}{% else %}No folder open{% endif %}</span>
+      <span class="caret" aria-hidden="true"></span>
+    </summary>
+    <div class="menu" role="menu">
+      <a class="menu-item" href="{% url 'folder' %}" role="menuitem"><svg class="i i-sm"><use href="#i-folder"/></svg><span>Open folder…</span></a>
+      {% if wb_folder.favorites %}<div class="menu-label">Favourites</div>
+      {% for x in wb_folder.favorites %}{% include "runner/_folder_menu_item.html" %}{% endfor %}{% endif %}
+      {% if wb_folder.recent %}<div class="menu-label">Recent</div>
+      {% for x in wb_folder.recent %}{% include "runner/_folder_menu_item.html" %}{% endfor %}{% endif %}
+      {% if f %}
+      <div class="menu-sep"></div>
+      <form method="post" action="{% url 'folder_favorite' %}">{% csrf_token %}
+        <input type="hidden" name="path" value="{{ f.path }}"><input type="hidden" name="on" value="{% if f.favorite %}0{% else %}1{% endif %}"><input type="hidden" name="next" value="{{ request.get_full_path }}">
+        <button class="menu-item" type="submit" role="menuitem"><svg class="i i-sm"><use href="#i-star"/></svg><span>{% if f.favorite %}Remove from favourites{% else %}Add to favourites{% endif %}</span></button>
+      </form>
+      <form method="post" action="{% url 'folder_close' %}">{% csrf_token %}
+        <button class="menu-item" type="submit" role="menuitem"><svg class="i i-sm"><use href="#i-x"/></svg><span>Close folder</span></button>
+      </form>
+      {% endif %}
+    </div>
+  </details>
+  {% endwith %}
   <div class="side-actions">
+    {% if editing_enabled and wb_folder.folder %}<a class="btn btn-ghost btn-icon btn-sm" href="{% url 'script_new' %}{% if script.id %}?from={{ script.id }}{% endif %}" data-new-script data-hotkey="g n" data-hint="New script" title="New script in this folder  (g n)"><svg class="i"><use href="#i-plus"/></svg></a>{% endif %}
     <button type="button" class="btn btn-ghost btn-icon btn-sm" data-tree-collapse title="Collapse all"><svg class="i"><use href="#i-collapse"/></svg></button>
     <form method="post" action="{% url 'library_refresh' %}">{% csrf_token %}
-      <button class="btn btn-ghost btn-icon btn-sm" type="submit" title="Rescan script directories"><svg class="i"><use href="#i-refresh"/></svg></button>
+      <button class="btn btn-ghost btn-icon btn-sm" type="submit" title="Rescan the folder"><svg class="i"><use href="#i-refresh"/></svg></button>
     </form>
   </div>
 </div>
@@ -32,7 +58,8 @@
       </div>
     </details>
     {% empty %}
-    <p class="tree-empty">No scripts yet. Add a directory in <a href="{% url 'settings' %}">Settings</a>.</p>
+    {% if wb_folder.folder %}<p class="tree-empty">No scripts in this folder. Files with an extension listed under Settings → Interpreters are shown.</p>
+    {% else %}<div class="tree-empty"><p>No folder open.</p><a class="btn btn-primary btn-sm" href="{% url 'folder' %}"><svg class="i"><use href="#i-folder"/></svg> Open folder…</a></div>{% endif %}
     {% endfor %}
     <p class="tree-empty" id="tree-none" hidden>No match.</p>
   </div>

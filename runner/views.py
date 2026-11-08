@@ -6,7 +6,6 @@ from django.views.decorators.http import require_POST
 
 import config
 from . import discovery, history, metadata, ssh_hosts
-from .security import clean_directory_input
 from .validators import ValidationError, validate_config
 
 
@@ -135,7 +134,6 @@ def _text_to_map(text, what):
 def _settings_form(cfg):
     form = {k: cfg[k] for k, _ in INT_SETTINGS}
     form.update(
-        enable_adhoc=cfg["enable_adhoc"],
         enable_script_editing=cfg["enable_script_editing"],
         ssh_executable=cfg["ssh_executable"],
         environment=_map_to_text(cfg["environment"]),
@@ -147,18 +145,10 @@ def _settings_form(cfg):
 
 def _render_settings(request, form=None, errors=None, status=200):
     cfg = config.load_config()
-    dirs = []
-    for configured in cfg["script_directories"]:
-        resolved = config.resolve_dir(configured)
-        dirs.append({"configured": configured, "resolved": resolved, "exists": resolved.is_dir()})
-    scripts, _ = discovery.scan()
-    for d in dirs:
-        d["count"] = sum(1 for s in scripts if s.root == d["resolved"])
     return render(
         request,
         "runner/settings.html",
         {
-            "directories": dirs,
             "form": form if form is not None else _settings_form(cfg),
             "errors": errors or [],
             "ssh_hosts": ssh_hosts.list_hosts(),
@@ -174,7 +164,7 @@ def settings_view(request):
 @require_POST
 def settings_save(request):
     """Validate and save the editable settings (limits, retention, interpreters,
-    SSH, environment). Script directories have their own add/remove forms."""
+    SSH, environment). The script folder is not a setting (see folder_views)."""
     from .script_views import _text_to_env
 
     cfg = config.load_config()
@@ -182,10 +172,8 @@ def settings_save(request):
     form["ssh_executable"] = request.POST.get("ssh_executable", "").strip()
     for key in ("environment", "interpreters", "remote_interpreters"):
         form[key] = request.POST.get(key, "")
-    for key in ("enable_adhoc", "enable_script_editing"):      # checkboxes: absent = off
-        form[key] = request.POST.get(key) == "on"
+    form["enable_script_editing"] = request.POST.get("enable_script_editing") == "on"   # checkbox: absent = off
     errors, new = [], dict(cfg)
-    new["enable_adhoc"] = form["enable_adhoc"]
     new["enable_script_editing"] = form["enable_script_editing"]
 
     for key, label in INT_SETTINGS:
@@ -222,47 +210,4 @@ def settings_test_host(request):
         ok, detail = ssh_hosts.test_connection(host)
         (messages.success if ok else messages.error)(
             request, f"{host}: connected ({detail})" if ok else f"{host}: {detail}")
-    return redirect("settings")
-
-
-@require_POST
-def settings_add_directory(request):
-    try:
-        value = clean_directory_input(request.POST.get("directory", ""))
-        resolved = config.resolve_dir(value)
-        if not resolved.is_dir():
-            raise ValueError(f"Not an existing directory: {resolved}")
-        cfg = config.load_config()
-        existing = {config.resolve_dir(d) for d in cfg["script_directories"]}
-        if resolved in existing:
-            raise ValueError("That directory is already configured.")
-        cfg["script_directories"].append(value)
-        config.save_config(cfg)
-    except ValueError as exc:
-        messages.error(request, str(exc))
-    except ValidationError as exc:
-        for e in exc.errors:
-            messages.error(request, e)
-    else:
-        discovery.scan(force=True)
-        messages.success(request, f"Added {resolved}.")
-    return redirect("settings")
-
-
-@require_POST
-def settings_remove_directory(request):
-    value = request.POST.get("directory", "")
-    cfg = config.load_config()
-    if value not in cfg["script_directories"]:
-        messages.error(request, "That directory is not configured.")
-    else:
-        cfg["script_directories"].remove(value)
-        try:
-            config.save_config(cfg)
-        except ValidationError as exc:
-            for e in exc.errors:
-                messages.error(request, e)
-        else:
-            discovery.scan(force=True)
-            messages.success(request, f"Removed {value}.")
     return redirect("settings")

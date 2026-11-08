@@ -15,8 +15,7 @@ from . import discovery, executor, history, presets, ssh_hosts
 from . import parameter_service as ps
 from .executor import ExecutionError, ExecutionSpec
 from .process_manager import manager
-from .edit_views import editor_context
-from .script_views import LANGUAGES, source_context
+from .script_views import LANGUAGES, doc_context, source_context
 
 
 def client_address(request) -> str:
@@ -112,10 +111,7 @@ def _form_context(script, params, raw, errors, hosts, host, host_error):
         "hosts": hosts,
         "host": host,
         "host_error": host_error,
-        **source_context(script),
-        **editor_context(script),
-        "pgrid": presets.grid(script, params),
-        "pfile": presets.file_info(script),
+        **doc_context(script),
     }
 
 

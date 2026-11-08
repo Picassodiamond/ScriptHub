@@ -49,7 +49,7 @@ def script_detail(request, script_id):
     return render(request, "runner/script_detail.html", {"script": script, "rows": rows, "runs": runs,
                                                          "presets": presets.list_presets(script),
                                                          "recent": presets.recent_runs(script)[:5],
-                                                         **source_context(script)})
+                                                         **doc_context(script)})
 
 
 # -------------------------------------------------------------- configure ---
@@ -122,7 +122,7 @@ def _configure_response(request, script, *, form, params, raw_text, errors=None,
             "default_platform_labels": ", ".join(
                 discovery.PLATFORM_LABELS[p] for p in discovery.default_platforms(script.extension)),
             "hosts": ssh_hosts.allowed_hosts([form.get("host", "")]),
-            **source_context(script),
+            **doc_context(script, raw_text=raw_text),
         },
         status=status,
     )
@@ -221,6 +221,9 @@ def script_configure(request, script_id):
     )
 
 
+RAW_BACK_PAGES = ("script_detail", "script_run", "script_configure")   # where a raw JSON save may return to
+
+
 @require_POST
 def script_configure_raw(request, script_id):
     script = _get_script_or_404(script_id)
@@ -240,7 +243,10 @@ def script_configure_raw(request, script_id):
         else:
             discovery.scan(force=True)
             messages.success(request, "Metadata saved from raw JSON.")
-            return redirect("script_configure", script_id=script.id)
+            back = request.POST.get("back")
+            if back not in RAW_BACK_PAGES:
+                back = "script_configure"
+            return redirect(back, script_id=script.id)
     cur, _src, _err = metadata.load_raw(script.path, script.id)
     return _configure_response(
         request, script, form=_info_form(cur, script), params=_param_list(cur),
@@ -278,6 +284,17 @@ def source_context(script):
     return {"src_lines": text.splitlines() if not error else [], "src_error": error,
             "src_truncated": truncated, "src_lang": LANGUAGES.get(script.extension, ""),
             "meta_lines": meta_text.splitlines()}
+
+
+def doc_context(script, raw_text=None):
+    """The shared centre of the script pages (Overview, Script, Configure): the script
+    (editable when editing is on), its metadata JSON (editable) and its saved parameters."""
+    from .edit_views import editor_context
+    if raw_text is None:
+        data, _src, _err = metadata.load_raw(script.path, script.id)
+        raw_text = _raw_text(script, data)
+    return {**source_context(script), **editor_context(script), "raw_text": raw_text,
+            "pgrid": presets.grid(script, _params_of(script)), "pfile": presets.file_info(script)}
 
 
 def script_source(request, script_id):

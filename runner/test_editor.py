@@ -1,6 +1,6 @@
-"""Script editing and ad-hoc scripts.
+"""Script editing (service and web).
 
-python manage.py test runner.test_editor_adhoc
+python manage.py test runner.test_editor
 """
 import json
 import os
@@ -221,6 +221,20 @@ class WebCase(TempCase):
     def run_id_of(response):
         return response["Location"].rstrip("/").split("/")[-1]
 
+    _n = 0
+
+    def start_script(self, code, ext=".py", mode="normal", **post):
+        """Write ``code`` as a new script in the scanned folder and start it like the Run
+        form does (Review -> Run now). Returns the response of the start request."""
+        WebCase._n += 1
+        path = self.root / f"t{WebCase._n}{ext}"
+        path.write_bytes(code.encode("utf-8"))            # bytes: no newline conversion
+        (self.root / f"t{WebCase._n}.json").write_text(json.dumps({"name": f"T{WebCase._n}", "parameters": []}))
+        sid = discovery.script_id(path.resolve())
+        discovery.scan(force=True)
+        form = {"host": "local", "mode": mode, "submit_token": f"tok-{time.monotonic_ns()}", **post}
+        return self.client.post(f"/scripts/{sid}/start/", form)
+
 
 class WebEditTests(WebCase):
     def setUp(self):
@@ -326,217 +340,9 @@ class WebEditTests(WebCase):
                 "polling_interval": "2000", "history_retention_days": "90", "log_retention_days": "30",
                 "ssh_connect_timeout": "10", "ssh_executable": "ssh", "environment": "",
                 "interpreters": ".py=python", "remote_interpreters": ".py=python3"}
-        self.client.post("/settings/save/", form)                                   # both boxes unticked
+        self.client.post("/settings/save/", form)                                   # box unticked
+        self.assertFalse(config.load_config()["enable_script_editing"])
+        self.client.post("/settings/save/", {**form, "enable_script_editing": "on"})
         cfg = config.load_config()
-        self.assertEqual((cfg["enable_adhoc"], cfg["enable_script_editing"]), (False, False))
-        self.client.post("/settings/save/", {**form, "enable_adhoc": "on", "enable_script_editing": "on"})
-        cfg = config.load_config()
-        self.assertEqual((cfg["enable_adhoc"], cfg["enable_script_editing"]), (True, True))
-
-
-# ---------------------------------------------------------------- web: ad-hoc
-class AdhocTests(WebCase):
-    def post(self, **over):
-        form = {"language": ".py", "code": "print('hi')\n", "host": "local", "timeout": "60", "arguments": "", "cwd": ""}
-        form.update(over)
-        return self.client.post("/adhoc/", form)
-
-    def test_page_offers_starter_code_languages_and_hosts(self):
-        r = self.client.get("/adhoc/")
-        self.assertContains(r, "Hello from ScriptHub")
-        self.assertContains(r, "Python (.py)")
-        self.assertContains(r, "This computer (local)")
-        self.assertContains(r, 'data-lang="python"')
-        self.assertContains(r, "runs exactly what you enter")                       # the warning is shown
-        self.assertContains(self.client.get("/"), "Ad-hoc")                         # nav link
-
-    def test_run_python_with_arguments_end_to_end(self):
-        code = "import sys, os\nprint('args=', sys.argv[1:])\nprint('cwd=', os.getcwd())\n"
-        r = self.post(code=code, arguments="--flag\nvalue with spaces\n\n  \n$HOME; rm -rf /")
-        self.assertEqual(r.status_code, 302, r.content[:400])
-        run_id = self.run_id_of(r)
-        meta = self.wait_final(run_id)
-        self.assertEqual((meta["status"], meta["exit_code"]), ("success", 0), history.log_path(run_id, "stderr").read_text())
-        out = history.log_path(run_id, "stdout").read_text()
-        self.assertIn("['--flag', 'value with spaces', '$HOME; rm -rf /']", out)     # exact arguments, no shell
-        self.assertIn(str(Path.home()), out)                                        # default cwd is the home folder
-        self.assertTrue(meta["adhoc"]["language"] == ".py" and len(meta["adhoc"]["arguments"]) == 3)
-        self.assertEqual(meta["script_id"], "adhoc")
-        self.assertEqual(meta["initiator"], "127.0.0.1")                            # who started it
-
-    def test_the_code_that_ran_is_kept_with_the_run(self):
-        run_id = self.run_id_of(self.post(code="print('keep me')\n"))
-        meta = self.wait_final(run_id)
-        stored = Path(meta["script_path"])
-        self.assertEqual(stored.parent, history.run_dir(run_id))
-        self.assertEqual(stored.read_text(), "print('keep me')\n")
-        page = self.client.get(f"/executions/{run_id}/")
-        self.assertContains(page, "print(&#x27;keep me&#x27;)")
-        self.assertContains(page, "Edit &amp; run again")
-        self.assertNotContains(page, f"/scripts/adhoc/run/")
-        shutil.rmtree(history.run_dir(run_id))                                      # retention / delete removes it too
-        self.assertFalse(stored.exists())
-
-    def test_edit_and_run_again_prefills_the_screen(self):
-        run_id = self.run_id_of(self.post(code="print('again')\n", arguments="x\ny", cwd=str(self.tmp)))
-        self.wait_final(run_id)
-        r = self.client.get(f"/adhoc/?from={run_id}")
-        self.assertContains(r, "print(&#x27;again&#x27;)")
-        self.assertContains(r, ">x\ny</textarea>")
-        self.assertContains(r, f'value="{self.tmp}"')
-        self.assertContains(self.client.get("/adhoc/?from=RUN-19990101-001"), "Hello from ScriptHub")   # unknown id: starter
-        self.assertContains(self.client.get("/adhoc/?from=../../etc"), "Hello from ScriptHub")
-
-    def test_failure_and_stderr_are_reported(self):
-        run_id = self.run_id_of(self.post(code="import sys\nprint('boom', file=sys.stderr)\nsys.exit(5)\n"))
-        meta = self.wait_final(run_id)
-        self.assertEqual((meta["status"], meta["exit_code"]), ("failed", 5))
-        self.assertIn("boom", history.log_path(run_id, "stderr").read_text())
-
-    def test_timeout_applies(self):
-        run_id = self.run_id_of(self.post(code="import time\ntime.sleep(60)\n", timeout="2"))
-        self.assertEqual(self.wait_final(run_id)["status"], "timed_out")
-
-    @unittest.skipUnless(HAS_BASH, "bash needed")
-    def test_shell_scripts_are_stored_with_unix_line_endings(self):
-        run_id = self.run_id_of(self.post(language=".sh", code="echo one\r\necho two\r\n"))
-        meta = self.wait_final(run_id)
-        self.assertEqual(meta["status"], "success", history.log_path(run_id, "stderr").read_text())
-        self.assertNotIn(b"\r", Path(meta["script_path"]).read_bytes())
-        self.assertEqual(history.log_path(run_id, "stdout").read_text().split(), ["one", "two"])
-
-    @unittest.skipUnless(os.name == "nt", "batch files are Windows-only")
-    def test_batch_runs_and_rejects_dangerous_arguments(self):
-        run_id = self.run_id_of(self.post(language=".bat", code="@echo off\necho Hello %~1\n", arguments="World"))
-        meta = self.wait_final(run_id)
-        self.assertEqual(meta["status"], "success", history.log_path(run_id, "stderr").read_text())
-        self.assertIn("Hello World", history.log_path(run_id, "stdout").read_text())
-        before = len(history.list_run_ids())
-        for bad in ("a & calc", "x | dir", "%PATH%", 'q"w'):
-            r = self.post(language=".bat", code="@echo off\n", arguments=bad)
-            self.assertEqual(r.status_code, 400)
-            self.assertContains(r, "not allowed for batch files", status_code=400)
-        self.assertEqual(len(history.list_run_ids()), before)
-
-    def test_validation_errors_start_nothing_and_keep_the_code(self):
-        before = len(history.list_run_ids())
-        cases = [
-            ({"code": "   \n"}, "Enter the script to run"),
-            ({"language": ".exe"}, "Choose a language"),
-            ({"host": "not-a-configured-host"}, "Choose one of the listed hosts"),
-            ({"timeout": "soon"}, "Timeout must be"),
-            ({"timeout": "0"}, "Timeout must be"),
-            ({"arguments": "\n".join(["a"] * 60)}, "at most 50 arguments"),
-            ({"cwd": "bad\x00dir"}, "invalid characters"),
-            ({"code": "print(1)\x00"}, "null character"),
-            ({"code": "x" * (200 * 1024 + 10)}, "larger than 200 KB"),
-        ]
-        for over, message in cases:
-            with self.subTest(message=message):
-                r = self.post(**over)
-                self.assertEqual(r.status_code, 400)
-                self.assertContains(r, message, status_code=400)
-        r = self.post(code="my precious code\n", host="nope")
-        self.assertContains(r, "my precious code", status_code=400)                 # nothing typed is lost
-        self.assertEqual(len(history.list_run_ids()), before)
-
-    def test_batch_cannot_run_remotely(self):
-        from runner import ssh_hosts
-        with mock.patch.object(ssh_hosts, "list_hosts", return_value=["srv1"]):
-            r = self.post(language=".bat", code="@echo off\n", host="srv1")
-        self.assertEqual(r.status_code, 400)
-        self.assertContains(r, "Batch files can only run", status_code=400)
-
-    def test_language_must_be_configured_for_the_chosen_host(self):
-        from runner import ssh_hosts
-        self.write_config(interpreters={".py": "python"}, remote_interpreters={".sh": "bash"})
-        with mock.patch.object(ssh_hosts, "list_hosts", return_value=["srv1"]):
-            r = self.post(language=".py", host="srv1")                              # no remote python configured
-        self.assertContains(r, "No interpreter is configured", status_code=400)
-
-    def test_can_be_switched_off(self):
-        self.write_config(enable_adhoc=False)
-        self.assertEqual(self.client.get("/adhoc/").status_code, 403)
-        before = len(history.list_run_ids())
-        self.assertEqual(self.post().status_code, 403)
-        self.assertEqual(self.client.post("/adhoc/save/", {"language": ".py", "code": "x"}).status_code, 403)
-        self.assertEqual(len(history.list_run_ids()), before)
-        self.assertNotContains(self.client.get("/"), 'href="/adhoc/"')
-
-    def test_recent_runs_are_listed(self):
-        run_id = self.run_id_of(self.post(code="print('listed')\n"))
-        self.wait_final(run_id)
-        r = self.client.get("/adhoc/")
-        self.assertContains(r, "Recent ad-hoc runs")
-        self.assertContains(r, f"/adhoc/?from={run_id}")
-        self.assertContains(self.client.get("/history/?q=adhoc"), run_id)           # searchable in History
-
-
-class AdhocSaveToLibraryTests(WebCase):
-    def save(self, **over):
-        form = {"language": ".py", "code": "print('saved')\n", "lib_dir": str(self.root), "subfolder": "",
-                "filename": "my_tool", "display_name": "My Tool", "category": "Maintenance"}
-        form.update(over)
-        return self.client.post("/adhoc/save/", form)
-
-    def test_saves_script_and_metadata_and_it_appears_in_the_library(self):
-        r = self.save(subfolder="ops/nightly")
-        self.assertEqual(r.status_code, 302, r.content[:300])
-        script = self.root / "ops" / "nightly" / "my_tool.py"
-        self.assertEqual(script.read_text(), "print('saved')\n")
-        meta = json.loads((self.root / "ops" / "nightly" / "my_tool.json").read_text())
-        self.assertEqual((meta["name"], meta["category"], meta["parameters"]), ("My Tool", "Maintenance", []))
-        found = [s for s in discovery.scan(force=True)[0] if s.path.name == "my_tool.py"]
-        self.assertEqual(len(found), 1)
-        self.assertEqual((found[0].name, found[0].category), ("My Tool", "Maintenance"))
-        self.assertTrue(found[0].meta_valid)
-        self.assertIn(found[0].id, r["Location"])
-        self.assertContains(self.client.get(r["Location"]), "My Tool")
-
-    def test_existing_files_are_never_overwritten(self):
-        (self.root / "my_tool.py").write_text("ORIGINAL")
-        r = self.save()
-        self.assertEqual(r.status_code, 400)
-        self.assertContains(r, "already exists", status_code=400)
-        self.assertEqual((self.root / "my_tool.py").read_text(), "ORIGINAL")
-        (self.root / "other.json").write_text("{}")
-        self.assertEqual(self.save(filename="other").status_code, 400)             # its metadata file would be clobbered
-
-    def test_path_traversal_and_bad_names_are_rejected(self):
-        outside_before = set(p.name for p in self.tmp.iterdir())
-        cases = [
-            {"subfolder": "../escape"}, {"subfolder": "a/../../escape"}, {"subfolder": "..\\escape"},
-            {"subfolder": "/etc"}, {"subfolder": "C:\\Windows"}, {"subfolder": "bad|name"},
-            {"filename": "../evil"}, {"filename": "..\\evil"}, {"filename": "/abs/evil"}, {"filename": ".hidden"},
-            {"filename": "bad name"}, {"filename": ""}, {"filename": "x" * 200},
-            {"lib_dir": str(self.tmp)}, {"lib_dir": "/not/configured"}, {"lib_dir": ""},
-        ]
-        for over in cases:
-            with self.subTest(over=over):
-                r = self.save(**over)
-                self.assertEqual(r.status_code, 400, r.content[:200])
-        self.assertEqual(set(p.name for p in self.tmp.iterdir()), outside_before)   # nothing created outside scripts/
-        self.assertEqual([p for p in self.root.rglob("*") if p.is_file()], [])
-
-    def test_empty_script_and_unknown_language_are_rejected(self):
-        self.assertEqual(self.save(code="  ").status_code, 400)
-        self.assertEqual(self.save(language=".exe").status_code, 400)
-        self.assertEqual(self.save(code="a\x00b").status_code, 400)
-
-    def test_batch_scripts_are_saved_with_crlf_and_shell_with_lf(self):
-        self.save(language=".bat", filename="b", code="@echo off\necho hi\n")
-        self.assertEqual((self.root / "b.bat").read_bytes(), b"@echo off\r\necho hi\r\n")
-        self.save(language=".sh", filename="s", code="echo a\r\necho b\r\n")
-        self.assertEqual((self.root / "s.sh").read_bytes(), b"echo a\necho b\n")
-
-    def test_extension_is_added_once(self):
-        self.save(filename="report.py")
-        self.assertTrue((self.root / "report.py").is_file())
-        self.assertFalse((self.root / "report.py.py").exists())
-
-    def test_form_keeps_what_was_typed_when_saving_fails(self):
-        r = self.save(filename="../bad", code="print('do not lose me')\n")
-        self.assertContains(r, "do not lose me", status_code=400)
-
-    def test_get_on_the_save_url_just_redirects(self):
-        self.assertEqual(self.client.get("/adhoc/save/").status_code, 302)
+        self.assertTrue(cfg["enable_script_editing"])
+        self.assertNotIn("enable_adhoc", cfg)                                       # removed feature

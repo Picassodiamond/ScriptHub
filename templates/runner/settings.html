@@ -4,7 +4,6 @@
 <div class="side-head"><span class="side-title">Settings</span></div>
 <div class="side-body">
   <nav class="side-nav" aria-label="Settings sections">
-    <a href="#directories"><svg class="i"><use href="#i-folder"/></svg> Script directories</a>
     <a href="#features"><svg class="i"><use href="#i-zap"/></svg> Features</a>
     <a href="#execution"><svg class="i"><use href="#i-play"/></svg> Execution</a>
     <a href="#retention"><svg class="i"><use href="#i-clock"/></svg> Retention</a>
@@ -20,45 +19,6 @@
 {% block actions %}<button class="btn btn-primary btn-sm" type="submit" form="settings-form"><svg class="i"><use href="#i-save"/></svg> Save settings</button>{% endblock %}
 {% block content %}
 <div class="page page-narrow">
-<section class="panel" id="directories">
-  <div class="panel-head"><h2>Script directories</h2></div>
-  <div class="panel-body">
-    <p class="muted small">Scanned recursively. Only files whose extension is listed under <a href="#interpreters">Interpreters</a> are catalogued; nothing is executed during discovery.</p>
-  </div>
-  <div class="table-wrap">
-  <table class="table">
-    <tbody>
-    {% for d in directories %}
-    <tr>
-      <td>
-        <div class="mono">{{ d.resolved }}</div>
-        <div class="muted small">
-          {% if d.exists %}{{ d.count }} script{{ d.count|pluralize }}{% else %}<span class="error-text">Directory not found</span>{% endif %}
-          {% if d.configured != d.resolved|stringformat:"s" %} · configured as <span class="mono">{{ d.configured }}</span>{% endif %}
-        </div>
-      </td>
-      <td class="actions">
-        <form method="post" action="{% url 'settings_remove_directory' %}" data-confirm="Remove this directory from the library? Files are not deleted.">{% csrf_token %}
-          <input type="hidden" name="directory" value="{{ d.configured }}">
-          <button class="btn btn-danger btn-sm" type="submit">Remove</button>
-        </form>
-      </td>
-    </tr>
-    {% empty %}
-    <tr><td class="muted">No directories configured.</td></tr>
-    {% endfor %}
-    </tbody>
-  </table>
-  </div>
-  <div class="panel-foot">
-    <form method="post" action="{% url 'settings_add_directory' %}" class="inline-form" style="flex:1">{% csrf_token %}
-      <input class="input mono" type="text" name="directory" id="add-dir" placeholder="C:\scripts   or   ./more_scripts" required>
-      {% if desktop %}<button type="button" class="btn" data-pick-folder="#add-dir" data-title="Add a script directory"><svg class="i"><use href="#i-folder"/></svg> Browse…</button>{% endif %}
-      <button class="btn" type="submit"><svg class="i"><use href="#i-plus"/></svg> Add directory</button>
-    </form>
-  </div>
-</section>
-
 {% if errors %}
 <div class="flash flash-error"><div><strong>Not saved.</strong><ul class="err-list">{% for e in errors %}<li>{{ e }}</li>{% endfor %}</ul></div></div>
 {% endif %}
@@ -69,8 +29,7 @@
     <div class="panel-body">
       <div class="flash flash-warning" style="margin-bottom:14px"><span>This application has no login. Anyone who can open it can use every feature that is switched on here.</span></div>
       <div class="check-row">
-        <label class="check"><input type="checkbox" name="enable_adhoc" {% if form.enable_adhoc %}checked{% endif %}><span>Ad-hoc scripts <span class="muted small">(type code and run it once)</span></span></label>
-        <label class="check"><input type="checkbox" name="enable_script_editing" {% if form.enable_script_editing %}checked{% endif %}><span>Edit scripts in the browser</span></label>
+        <label class="check"><input type="checkbox" name="enable_script_editing" {% if form.enable_script_editing %}checked{% endif %}><span>Create and edit scripts in the browser</span></label>
       </div>
     </div>
   </section>

@@ -87,10 +87,6 @@ class ExecutionManager:
             if spec.debug and spec.trace is None:
                 spec.trace = {}            # debugging always reports the running line too
             run_id, run_dir = history.allocate_run_dir()
-            if spec.inline_source is not None:
-                source_file = run_dir / f"adhoc{spec.extension}"
-                source_file.write_bytes(spec.inline_source)
-                spec.script_path = str(source_file)
             if spec.trace is not None:
                 # What the console shows next to the output: the source as it was when the run started.
                 try:
@@ -116,7 +112,6 @@ class ExecutionManager:
                 "remote_pid": None,
                 "timeout": spec.timeout,
                 "initiator": initiator,
-                "adhoc": spec.adhoc,
                 "trace": {"enabled": True, "stopped": False} if spec.trace is not None else None,
                 "debug": {"enabled": True} if spec.debug else None,
                 "owner_pid": os.getpid(),

@@ -1,13 +1,14 @@
 {% extends "runner/_script_base.html" %}
 {% load static %}
 {% block title %}Run {{ script.name }}{% endblock %}
-{% block body_mod %}{% if not blocked %}fill adhoc-page{% endif %}{% endblock %}
+{% block body_mod %}{% if not blocked %}fill split-page{% endif %}{% endblock %}
 {% block actions %}
 {% if not blocked %}
 <a class="btn btn-ghost btn-sm" href="{% url 'script_run' script.id %}?preset=-" title="Discard changes and load the script's defaults">Defaults</a>
 <button class="btn btn-primary" type="submit" form="run-form" data-hotkey="Ctrl+Enter" data-hint="Continue to review">Review &amp; confirm <kbd>Ctrl</kbd><kbd>↵</kbd></button>
 {% endif %}
 {% endblock %}
+{% block tabs %}{% if blocked %}{{ block.super }}{% endif %}{% endblock %}
 {% block content %}
 {% if blocked %}
 <div class="flash flash-error"><span>{{ blocked }}</span></div>
@@ -16,106 +17,13 @@
 {% if has_errors %}<div class="flash flash-error notes"><span>{% if host_error %}{{ host_error }}{% else %}Please correct the highlighted fields.{% endif %}</span></div>{% endif %}
 {% for w in preset_warnings %}<div class="flash flash-warning notes"><span>{{ w }}</span></div>{% endfor %}
 
-<div class="adhoc">
-  <div class="adhoc-main">
-    <section class="doc" aria-label="Script">
-      <div class="doc-bar" role="tablist">
-        {% with ptab=request.GET.tab %}
-        <button type="button" class="doc-tab{% if ptab != 'params' %} is-active{% endif %}" data-doc-tab="doc-code-panel" role="tab"><span class="lang lang-{{ script.extension|slice:'1:' }}">{{ script.extension|slice:'1:' }}</span>{{ script.path.name }}</button>
-        {% if meta_lines %}<button type="button" class="doc-tab" data-doc-tab="doc-meta-panel" role="tab"><span class="lang">json</span>{{ script.meta_source.name }}</button>{% endif %}
-        <button type="button" class="doc-tab{% if ptab == 'params' %} is-active{% endif %}" data-doc-tab="doc-params-panel" role="tab" data-hotkey="p" data-hint="Saved parameters"><svg class="i i-sm"><use href="#i-sliders"/></svg>Saved parameters <span class="count-pill">{{ pgrid.columns|length }}</span></button>
-        {% endwith %}
-        <span class="spacer"></span>
-        <span class="faint small mono hide-sm" id="doc-refs"></span>
-        {% if ed %}
-        <span class="faint small hide-sm" title="Line endings are kept when saving">{{ ed.newline }}{% if not ed.writable %} · <span class="error-text">read-only file</span>{% endif %}</span>
-        <form method="post" action="{% url 'script_restore' script.id %}" id="restore-form" data-confirm="Swap this file with its previous version ({{ script.path.name }}.bak)? What you have now becomes the backup." {% if not has_backup %}hidden{% endif %}>{% csrf_token %}
-          <button class="btn btn-ghost btn-sm" type="submit" title="Swap with the previous saved version"><svg class="i"><use href="#i-refresh"/></svg> <span class="hide-sm">Restore previous</span></button>
-        </form>
-        {% endif %}
-        {% if desktop %}<button type="button" class="btn btn-ghost btn-icon btn-sm" data-reveal-script="{{ script.id }}" title="Show in folder"><svg class="i"><use href="#i-folder"/></svg></button>{% endif %}
-        <button type="button" class="btn btn-ghost btn-icon btn-sm" data-copy-source title="Copy the script"><svg class="i"><use href="#i-copy"/></svg><span hidden>Copy</span></button>
-        <a class="btn btn-ghost btn-icon btn-sm" href="{% url 'script_source' script.id %}?download=1" title="Download"><svg class="i"><use href="#i-download"/></svg></a>
-        {% if ed %}
-        <a class="btn btn-ghost btn-icon btn-sm" href="{% url 'script_edit' script.id %}" title="Full-screen editor"><svg class="i"><use href="#i-external"/></svg></a>
-        <button class="btn btn-sm" type="submit" form="edit-form" name="action" value="save" data-save data-hotkey="Ctrl+s" data-hint="Save the script" title="Save the script (Ctrl+S)"><svg class="i"><use href="#i-save"/></svg> Save</button>
-        {% endif %}
-      </div>
-      <div class="doc-panel" id="doc-code-panel"{% if request.GET.tab == 'params' %} hidden{% endif %}>
-        {% if ed %}
-        <form method="post" action="{% url 'script_edit' script.id %}" id="edit-form" class="editor-fill" novalidate>{% csrf_token %}
-          <input type="hidden" name="base_hash" value="{{ ed.hash }}">
-          {% include "runner/_editor.html" with editor_id="script-editor" editor_lang=src_lang editor_text=ed.text warn_unsaved=True %}
-        </form>
-        {% else %}
-        {% if ed_error %}<div class="doc-msg">{{ ed_error }} It is shown read-only.</div>{% endif %}
-        {% if src_error %}<div class="doc-msg">{{ src_error }}</div>
-        {% else %}<pre class="source doc-src" id="doc-src" data-lang="{{ src_lang }}"><code>{% for line in src_lines %}<span class="ln">{{ line }}</span>{% endfor %}</code></pre>{% endif %}
-        {% endif %}
-      </div>
-      {% if meta_lines %}
-      <div class="doc-panel" id="doc-meta-panel" hidden>
-        <pre class="source doc-src" data-lang="json"><code>{% for line in meta_lines %}<span class="ln">{{ line }}</span>{% endfor %}</code></pre>
-      </div>
-      {% endif %}
-      <div class="doc-panel" id="doc-params-panel"{% if request.GET.tab != 'params' %} hidden{% endif %}>
-        <div class="pg-toolbar">
-          <span class="mono small" title="{{ pfile.path }}">{{ pfile.name }}</span>
-          <span class="faint small hide-sm">{{ pfile.where }}</span>
-          <span class="spacer"></span>
-          <span class="faint small hide-sm">Highlighted = differs from the script's default</span>
-          <div class="seg" role="group" aria-label="View">
-            <button type="button" class="seg-btn is-active" data-pview="grid">Compare</button>
-            <button type="button" class="seg-btn" data-pview="raw">File</button>
-          </div>
-        </div>
-        <div class="pgrid-wrap" data-pview-panel="grid">
-          {% if pgrid.columns %}
-          <table class="pgrid">
-            <thead>
-              <tr>
-                <th class="pg-param">Parameter</th>
-                {% for c in pgrid.columns %}
-                <th class="pg-col{% if c.kind == 'recent' %} is-recent{% endif %}{% if source and source.key == c.key %} is-current{% endif %}">
-                  <div class="pgc-name"><svg class="i i-sm"><use href="#i-{% if c.kind == 'recent' %}clock{% else %}save{% endif %}"/></svg><span class="clamp-1" title="{{ c.name }}">{{ c.name }}</span></div>
-                  <div class="pgc-when">{% if c.kind == 'recent' and c.run_id and c.name != c.run_id %}{{ c.run_id }} · {% endif %}{{ c.saved_at|slice:":16" }}</div>
-                  <div class="pgc-actions">
-                    <a class="btn btn-primary btn-sm play" href="{% url 'script_run' script.id %}?preset={{ c.key|urlencode }}&amp;review=1" title="Review and run with these values"><svg class="i"><use href="#i-play"/></svg> Run</a>
-                    <a class="btn btn-ghost btn-sm" href="{% url 'script_run' script.id %}?preset={{ c.key|urlencode }}" title="Load into the form to change them first">Load</a>
-                    {% if c.kind == 'preset' %}
-                    <form method="post" action="{% url 'preset_delete' script.id %}" data-confirm="Delete the preset “{{ c.name }}”?">{% csrf_token %}
-                      <input type="hidden" name="slug" value="{{ c.key }}"><input type="hidden" name="tab" value="params">
-                      <button class="btn btn-ghost btn-icon btn-sm" type="submit" title="Delete this preset"><svg class="i"><use href="#i-trash"/></svg></button>
-                    </form>
-                    {% endif %}
-                  </div>
-                </th>
-                {% endfor %}
-              </tr>
-            </thead>
-            <tbody>
-              {% for r in pgrid.rows %}
-              <tr class="{% if r.varies %}varies{% endif %}" data-terms="{% if r.name != 'host' %}{{ r.name }}{% endif %}">
-                <th class="pg-param">{{ r.label }}{% if r.name != 'host' %}<div class="faint mono small">{{ r.name }}</div>{% endif %}</th>
-                {% for cell in r.cells %}<td class="{% if cell.changed %}is-changed{% endif %}{% if cell.muted %} is-muted{% endif %}">{{ cell.text }}</td>{% endfor %}
-              </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-          {% else %}
-          <div class="empty">
-            <svg class="i"><use href="#i-sliders"/></svg>
-            <h2>Nothing saved yet</h2>
-            <p>Every run remembers the values it was started with, and you can name a set with<br>“Save current values as” on the right. They are kept in <span class="mono">{{ pfile.name }}</span> next to the script.</p>
-          </div>
-          {% endif %}
-        </div>
-        <pre class="source doc-src pg-raw" data-pview-panel="raw" data-lang="json" hidden><code>{% for line in pfile.text.splitlines %}<span class="ln">{{ line }}</span>{% empty %}<span class="ln">(the file does not exist yet)</span>{% endfor %}</code></pre>
-      </div>
-    </section>
+<div class="split split-wide">
+  <div class="split-main">
+    {% include "runner/_script_doc.html" with back="script_run" %}
   </div>
 
-  <aside class="adhoc-side">
+  <aside class="split-side">
+    {% include "runner/_script_tabs.html" with side=True %}
     {% include "runner/_stepper.html" with step=1 %}
     <form method="post" class="panel" id="run-form" novalidate>{% csrf_token %}
       <div class="panel-head"><h2>Run configuration</h2><span class="spacer"></span>
@@ -156,7 +64,7 @@
             </optgroup>{% endif %}
           </select>
           <noscript><button class="btn btn-sm" type="submit">Load</button></noscript>
-          <div class="help">The form opens with your last run's values. Compare every set in the <strong>Saved parameters</strong> tab.</div>
+          <div class="help">The form opens with your last run's values. Compare every set in the <span class="mono">.params.json</span> tab in the centre.</div>
         </form>
         <div class="field">
           <label class="field-label" for="preset-name">Save current values as</label>

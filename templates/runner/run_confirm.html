@@ -1,16 +1,18 @@
 {% extends "runner/_script_base.html" %}
 {% load static %}
 {% block title %}Confirm {{ script.name }}{% endblock %}
-{% block body_mod %}fill adhoc-page{% endblock %}
+{% block body_mod %}fill split-page{% endblock %}
 {% block actions %}
 <button class="btn btn-ghost btn-sm" type="submit" form="back-form" data-hotkey="Escape" data-hint="Back to the parameters"><svg class="i"><use href="#i-back"/></svg> Back to edit <kbd>Esc</kbd></button>
 <button class="btn btn-primary play" type="submit" form="start-form" data-once data-hotkey="Ctrl+Enter" data-hint="Run now"><svg class="i"><use href="#i-play"/></svg> Run now <kbd>Ctrl</kbd><kbd>↵</kbd></button>
 {% endblock %}
+{% block tabs %}{% endblock %}
 {% block content %}
-<div class="adhoc">
-  <div class="adhoc-main">{% include "runner/_designer_doc.html" %}</div>
+<div class="split split-wide">
+  <div class="split-main">{% include "runner/_designer_doc.html" %}</div>
 
-  <aside class="adhoc-side">
+  <aside class="split-side">
+    {% include "runner/_script_tabs.html" with side=True %}
     {% include "runner/_stepper.html" with step=2 %}
 
     <section class="panel">
