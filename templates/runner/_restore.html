@@ -1,6 +1,6 @@
-{# Restore a backup (runtime/backups/<id>/): "Restore previous" = the newest; "Versions…" picks any. What is
+{% comment %}Restore a backup (runtime/backups/<id>/): "Restore previous" = the newest; "Versions…" picks any. What is
    there now is backed up first, so a restore can be undone. Hidden when there is no backup. id="restore-form":
-   designer.js swaps it for the fresh one after an in-place save. #}
+   designer.js swaps it for the fresh one after an in-place save.{% endcomment %}
 <form method="post" action="{% url 'script_restore' script.id %}" id="restore-form" class="restore-form"
       data-confirm="Put back this version of {{ script.path.name }}? What you have now is kept as a backup."{% if not backup_versions %} hidden{% endif %}>{% csrf_token %}
   <button class="btn btn-ghost btn-sm" type="submit" name="previous" value="1" title="Restore the previous version"><svg class="i"><use href="#i-refresh"/></svg> <span class="hide-sm">Restore previous</span></button>

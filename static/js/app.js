@@ -510,8 +510,15 @@
     if (picking) return;
     picking = true;
     document.documentElement.style.cursor = 'progress';
-    post('/desktop/pick-file/', { initial: document.body.dataset.folder || '', title: 'Open a script' })
-      .then(function (j) { if (j.path) postForm('/folder/open/', { path: j.path }); })
+    post('/desktop/pick-file/', { initial: document.body.dataset.folder || '', title: 'Open scripts' })
+      .then(function (j) {
+        var paths = j.paths || (j.path ? [j.path] : []);
+        if (!paths.length) return;
+        var f = document.createElement('form'); f.method = 'post'; f.action = '/folder/open/'; f.hidden = true;
+        var tok = document.createElement('input'); tok.type = 'hidden'; tok.name = 'csrfmiddlewaretoken'; tok.value = csrf(); f.appendChild(tok);
+        paths.forEach(function (p) { var i = document.createElement('input'); i.type = 'hidden'; i.name = 'path'; i.value = p; f.appendChild(i); });
+        document.body.appendChild(f); f.submit();                       // several scripts: each becomes a tab
+      })
       .catch(function () { location.href = '/folder/'; })
       .finally(function () { picking = false; document.documentElement.style.cursor = ''; });
   }

@@ -1077,3 +1077,14 @@ button.doc-tab.is-active { background: var(--code-bg); color: var(--text); box-s
 /* Restore previous + Versions… (backups in runtime/backups/<id>/) */
 .restore-form { display: inline-flex; align-items: center; gap: 4px; margin: 0; }
 .restore-pick { width: auto; max-width: 170px; }
+
+/* script tabs: the scripts open in the centre bar (like editor tabs); runs follow them */
+a.doc-tab { color: var(--muted); text-decoration: none; border-right: 1px solid var(--line); background: transparent; box-shadow: none; }   /* only the selected script is highlighted */
+a.doc-tab:hover { color: var(--text); text-decoration: none; background: var(--hover); }
+.doc-tab .tab-x { margin-left: 2px; padding: 0 3px; border-radius: 4px; color: var(--faint); font-family: var(--font); line-height: 1; visibility: hidden; }
+.doc-tab:hover .tab-x, .doc-tab.is-active .tab-x, .doc-run-tab .tab-x { visibility: visible; }
+.doc-tab .tab-x:hover { color: var(--text); background: var(--hover); }
+
+/* script tabs keep a readable name; long names end in an ellipsis */
+.doc-bar > .doc-script-tab { flex: 0 1 auto; min-width: 104px; max-width: 220px; }
+.doc-tab .tab-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

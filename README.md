@@ -136,6 +136,7 @@ dark theme* switches, remembered per browser):
 | **Home** (`/`, the app icon) | Counts of scripts, running, successful and failed executions; recent executions; **Quick run** and most-used scripts. |
 | **Script Library** (`/scripts/`) | Every script as a dense table (or cards). Search (`/` focuses it), filter by **category, platform and language**. |
 | **Open folder** (`/folder/`) | Fallback when the system folder dialog is not available (browser on another machine): type a path or click through the folder list; favourites (star) and recent folders. The explorer's folder name is a quick switcher with the same lists. |
+| **Script tabs** | Every script you open gets a tab in the centre bar, like an editor's open files (remembered per folder; × closes the tab, not the script). The selected tab is the script the right column (Overview / Parameters / Run) and the Saved values panel show; clicking another tab, or another script in the explorer, opens it on the same right-hand tab. Its run tabs follow it. |
 | **Script pages** | The centre is the same on Overview, Parameters and Run: the script (an editor with syntax colours, line numbers, auto-indent, or read-only when editing is off; its metadata block is at the top) with copy, download, **Restore previous** and a full-screen editor, a tab for each run started there, and under it the collapsible **Saved values** panel (**Ctrl+J**). The **Overview / Parameters / Run** tabs head the right column, so switching only changes that column. A script page has **one Save** (centre tab bar, **Ctrl+S** anywhere): it saves whatever changed — the script, the Overview settings, the parameter definitions (editing the metadata block in the script and a form together is refused, as they are the same settings); a dot marks unsaved changes. |
 | **Script › Overview** | The script's settings on the right: name, category, description, interpreter, default host, working directory, environment, platforms; below, recent runs. (The old `/configure/` URL opens this page.) |
 | **Script › Parameters** | The **parameter definitions** the run form is built from (click a row to edit; hover to see where the script uses it). |
@@ -220,9 +221,11 @@ The names used before the rename (`SCRIPT_RUNNER_DEBUG`, `SCRIPT_RUNNER_ALLOWED_
 
 ## Script folder
 
-ScriptHub works on **one folder at a time**, like an editor's *Open Folder*, or on a
-**single script** (*File → Open file…*: the explorer then shows just that script;
-New script needs a folder). It is not a setting: on first start the Overview asks you to open one (or the bundled
+ScriptHub works on **one folder at a time**, like an editor's *Open Folder*, plus any
+number of **script files** opened on their own (*File → Open file…*, several at once;
+with no folder open the explorer shows just those files; New script needs a folder).
+Each opened file can be closed again (*File → Close <file>* / *Close opened files*).
+It is not a setting: on first start the Overview asks you to open one (or the bundled
 `./scripts` examples), and the folder you open is reopened on the next start.
 
 * **Open folder…** / **Open file…** (File menu, Ctrl+K) show the system dialog

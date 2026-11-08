@@ -97,8 +97,8 @@ def script_new(request):
         return _blocked(request, "Creating and editing scripts from the browser is turned off in Settings.")
     root = workspace.current()
     if root is None or not root.is_dir():
-        messages.info(request, "A single script is open; open a folder to create new scripts in it." if root and root.is_file()
-                      else "Open a script folder first; new scripts are saved in it.")
+        messages.info(request, "Only script files are open; open a folder to create new scripts in it."
+                      if workspace.current_is_file() else "Open a script folder first; new scripts are saved in it.")
         return redirect("folder")
 
     if request.method != "POST":

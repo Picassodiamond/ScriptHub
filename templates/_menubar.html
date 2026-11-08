@@ -8,8 +8,8 @@ open switches, Esc / outside click closes). data-action items are handled in app
   <details class="mb-menu" data-menu>
     <summary role="menuitem">File</summary>
     <div class="menu" role="menu">
-      {% if editing_enabled and f and not f.is_file %}<a class="menu-item" href="{% url 'script_new' %}{% if script.id %}?from={{ script.id }}{% endif %}" role="menuitem"><svg class="i i-sm"><use href="#i-plus"/></svg><span>New script</span><kbd>g n</kbd></a>
-      {% else %}<span class="menu-item is-disabled" title="{% if not editing_enabled %}Script editing is off in Settings{% elif f.is_file %}A single script is open: open a folder to create scripts in it{% else %}Open a folder first{% endif %}"><svg class="i i-sm"><use href="#i-plus"/></svg><span>New script</span><kbd>g n</kbd></span>{% endif %}
+      {% if editing_enabled and f %}<a class="menu-item" href="{% url 'script_new' %}{% if script.id %}?from={{ script.id }}{% endif %}" role="menuitem"><svg class="i i-sm"><use href="#i-plus"/></svg><span>New script</span><kbd>g n</kbd></a>
+      {% else %}<span class="menu-item is-disabled" title="{% if not editing_enabled %}Script editing is off in Settings{% else %}Open a folder to create scripts in it{% endif %}"><svg class="i i-sm"><use href="#i-plus"/></svg><span>New script</span><kbd>g n</kbd></span>{% endif %}
       <div class="menu-sep"></div>
       <a class="menu-item" href="{% url 'folder' %}" role="menuitem" data-open-file><svg class="i i-sm"><use href="#i-file"/></svg><span>Open file…</span></a>
       <a class="menu-item" href="{% url 'folder' %}" role="menuitem" data-open-folder data-hotkey="g f" data-hint="Open folder"><svg class="i i-sm"><use href="#i-folder-open"/></svg><span>Open folder…</span><kbd>g f</kbd></a>
@@ -33,7 +33,18 @@ open switches, Esc / outside click closes). data-action items are handled in app
         <button class="menu-item" type="submit" role="menuitem"><svg class="i i-sm"><use href="#i-star"/></svg><span>{% if f.favorite %}Remove from favourites{% else %}Add to favourites{% endif %}</span></button>
       </form>
       <form method="post" action="{% url 'folder_close' %}">{% csrf_token %}
-        <button class="menu-item" type="submit" role="menuitem"><svg class="i i-sm"><use href="#i-x"/></svg><span>Close {% if f.is_file %}file{% else %}folder{% endif %}</span></button>
+        <button class="menu-item" type="submit" role="menuitem"><svg class="i i-sm"><use href="#i-x"/></svg><span>Close folder</span></button>
+      </form>
+      {% endif %}
+      {% if wb_folder.files %}
+      {% if not f %}<div class="menu-sep"></div>{% endif %}
+      {% for x in wb_folder.files %}{% if x.path == script.path|stringformat:"s" %}
+      <form method="post" action="{% url 'folder_close_file' %}">{% csrf_token %}<input type="hidden" name="path" value="{{ x.path }}">
+        <button class="menu-item" type="submit" role="menuitem"><svg class="i i-sm"><use href="#i-x"/></svg><span>Close {{ x.name }}</span></button>
+      </form>
+      {% endif %}{% endfor %}
+      <form method="post" action="{% url 'folder_close_file' %}">{% csrf_token %}<input type="hidden" name="all" value="1">
+        <button class="menu-item" type="submit" role="menuitem"><svg class="i i-sm"><use href="#i-x"/></svg><span>Close opened files</span><span class="count-pill">{{ wb_folder.files|length }}</span></button>
       </form>
       {% endif %}
       <div class="menu-sep"></div>
@@ -88,6 +99,6 @@ open switches, Esc / outside click closes). data-action items are handled in app
     </div>
   </details>
 
-  <span class="mb-title" title="{{ f.path|default:'' }}">{% if script.name %}{{ script.name }} — {% endif %}{% if f %}{{ f.name }}{% else %}No folder open{% endif %}</span>
+  <span class="mb-title" title="{{ f.path|default:'' }}">{% if script.name %}{{ script.name }} — {% endif %}{% if f %}{{ f.name }}{% if wb_folder.files %} + {{ wb_folder.files|length }} file{{ wb_folder.files|length|pluralize }}{% endif %}{% elif wb_folder.files %}{{ wb_folder.files|length }} open file{{ wb_folder.files|length|pluralize }}{% else %}No folder open{% endif %}</span>
 </header>
 {% endwith %}

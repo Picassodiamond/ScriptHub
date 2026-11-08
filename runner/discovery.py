@@ -250,7 +250,7 @@ class _Job:
                     self.problems.append(f"Not a script type with an interpreter: {root}")
                 continue
             if not root.is_dir():
-                self.problems.append(f"Folder not found: {root}")
+                self.problems.append(f"Not found: {root}")
                 continue
             too_deep: list[str] = []
             for dirpath, dirnames, filenames in os.walk(root, followlinks=False):

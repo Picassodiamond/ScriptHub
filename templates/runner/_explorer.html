@@ -1,12 +1,12 @@
-{# Side panel: the open folder (or single script) as a title, VS Code style, and its scripts grouped by category. Highlights the script of the current page. Opening and switching folders is in the File menu. #}
+{# Side panel: the open folder (and any opened script files) as a title, VS Code style, and its scripts grouped by category. Highlights the script of the current page. Opening and switching folders is in the File menu. #}
 <div class="side-head">
   {% with f=wb_folder.folder %}
   <div class="side-title-block" title="{{ f.path|default:'' }}">
-    <span class="side-title">{% if f %}{{ f.name }}{% else %}No folder open{% endif %}{% if f.favorite %} <svg class="i i-xs fav-mark" aria-label="favourite"><use href="#i-star"/></svg>{% endif %}</span>
+    <span class="side-title">{% if f %}{{ f.name }}{% if wb_folder.files %} + {{ wb_folder.files|length }}{% endif %}{% elif wb_folder.files %}Open files{% else %}No folder open{% endif %}{% if f.favorite %} <svg class="i i-xs fav-mark" aria-label="favourite"><use href="#i-star"/></svg>{% endif %}</span>
   </div>
   <div class="side-actions">
-    {% if editing_enabled and f and not f.is_file %}<a class="btn btn-ghost btn-icon btn-sm" href="{% url 'script_new' %}{% if script.id %}?from={{ script.id }}{% endif %}" data-new-script data-hotkey="g n" data-hint="New script" title="New script in this folder  (g n)" aria-label="New script"><svg class="i"><use href="#i-plus"/></svg></a>{% endif %}
-    {% if f %}<form method="post" action="{% url 'library_refresh' %}">{% csrf_token %}
+    {% if editing_enabled and f %}<a class="btn btn-ghost btn-icon btn-sm" href="{% url 'script_new' %}{% if script.id %}?from={{ script.id }}{% endif %}" data-new-script data-hotkey="g n" data-hint="New script" title="New script in this folder  (g n)" aria-label="New script"><svg class="i"><use href="#i-plus"/></svg></a>{% endif %}
+    {% if f or wb_folder.files %}<form method="post" action="{% url 'library_refresh' %}">{% csrf_token %}
       <button class="btn btn-ghost btn-icon btn-sm" type="submit" title="Rescan" aria-label="Rescan"><svg class="i"><use href="#i-refresh"/></svg></button>
     </form>{% endif %}
     <button type="button" class="btn btn-ghost btn-icon btn-sm" data-tree-collapse title="Collapse all" aria-label="Collapse all"><svg class="i"><use href="#i-collapse"/></svg></button>
@@ -39,7 +39,7 @@
     {% empty %}
     {% if wb_folder.folder and wb_scan.scanning %}<p class="tree-empty">Scanning the folder for scripts… progress is shown at the bottom.</p>
     {% elif wb_folder.folder %}<p class="tree-empty">No scripts in this folder. Files with an extension listed under Settings → Interpreters are shown.</p>
-    {% else %}<div class="tree-empty"><p>No folder open.</p><a class="btn btn-primary btn-sm" href="{% url 'folder' %}" data-open-folder><svg class="i"><use href="#i-folder"/></svg> Open folder…</a></div>{% endif %}
+    {% else %}<div class="tree-empty"><p>No folder open.</p><a class="btn btn-primary btn-sm" href="{% url 'folder' %}" data-open-folder><svg class="i"><use href="#i-folder"/></svg> Open folder…</a> <a class="btn btn-sm" href="{% url 'folder' %}" data-open-file><svg class="i"><use href="#i-file"/></svg> Open file…</a></div>{% endif %}
     {% endfor %}
     {% if wb_tree and wb_scan.scanning and wb_scan.first %}<p class="tree-empty">Still scanning; more scripts may appear.</p>{% endif %}
     <p class="tree-empty" id="tree-none" hidden>No match.</p>
