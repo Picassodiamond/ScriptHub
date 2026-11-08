@@ -1,4 +1,4 @@
-/* Script Runner 2 — workbench shell: flashes, confirms, theme, side panel,
+/* ScriptHub — workbench shell: flashes, confirms, theme, side panel,
    explorer tree, keyboard shortcuts (data-hotkey), command palette (Ctrl+K)
    and the shortcut sheet (?). Vanilla JS, no dependencies. */
 (function () {

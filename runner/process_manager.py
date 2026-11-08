@@ -373,7 +373,7 @@ class ExecutionManager:
             try:
                 cmd = executor.build_command(spec, cfg)
             except ExecutionError as exc:
-                self._write_stderr(run_id, f"[script-runner] {exc}\n")
+                self._write_stderr(run_id, f"[scripthub] {exc}\n")
                 self._finish(active, history.FAILED, None, str(exc))
                 return
             try:
@@ -385,7 +385,7 @@ class ExecutionManager:
                 )
             except OSError as exc:
                 msg = f"Could not start the process: {exc}"
-                self._write_stderr(run_id, f"[script-runner] {msg}\n")
+                self._write_stderr(run_id, f"[scripthub] {msg}\n")
                 self._finish(active, history.FAILED, None, msg)
                 return
             active.proc = proc
@@ -450,7 +450,7 @@ class ExecutionManager:
             else:
                 self._finish(active, history.FAILED, code, f"Exited with code {code}.")
         except Exception as exc:  # never leave a run stuck in 'running'
-            self._write_stderr(run_id, f"[script-runner] internal error: {exc!r}\n")
+            self._write_stderr(run_id, f"[scripthub] internal error: {exc!r}\n")
             self._finish(active, history.FAILED, None, f"Internal error: {exc!r}")
         finally:
             with self._lock:

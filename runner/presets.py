@@ -149,7 +149,7 @@ def _load(script, strict: bool = False):
 def _save(script, data) -> Path:
     """Write next to the script; fall back to runtime/ when the folder is read-only."""
     payload = {
-        "_comment": f"Saved parameters for {Path(script.path).name} (Script Runner). Passwords are never stored.",
+        "_comment": f"Saved parameters for {Path(script.path).name} (ScriptHub). Passwords are never stored.",
         "presets": data["presets"],
         "recent": data["recent"][:RECENT_MAX],
     }

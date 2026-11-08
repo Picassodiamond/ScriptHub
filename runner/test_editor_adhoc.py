@@ -343,7 +343,7 @@ class AdhocTests(WebCase):
 
     def test_page_offers_starter_code_languages_and_hosts(self):
         r = self.client.get("/adhoc/")
-        self.assertContains(r, "Hello from Script Runner")
+        self.assertContains(r, "Hello from ScriptHub")
         self.assertContains(r, "Python (.py)")
         self.assertContains(r, "This computer (local)")
         self.assertContains(r, 'data-lang="python"')
@@ -384,8 +384,8 @@ class AdhocTests(WebCase):
         self.assertContains(r, "print(&#x27;again&#x27;)")
         self.assertContains(r, ">x\ny</textarea>")
         self.assertContains(r, f'value="{self.tmp}"')
-        self.assertContains(self.client.get("/adhoc/?from=RUN-19990101-001"), "Hello from Script Runner")   # unknown id: starter
-        self.assertContains(self.client.get("/adhoc/?from=../../etc"), "Hello from Script Runner")
+        self.assertContains(self.client.get("/adhoc/?from=RUN-19990101-001"), "Hello from ScriptHub")   # unknown id: starter
+        self.assertContains(self.client.get("/adhoc/?from=../../etc"), "Hello from ScriptHub")
 
     def test_failure_and_stderr_are_reported(self):
         run_id = self.run_id_of(self.post(code="import sys\nprint('boom', file=sys.stderr)\nsys.exit(5)\n"))

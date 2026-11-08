@@ -1,4 +1,4 @@
-# Script Runner
+# ScriptHub
 
 A small, standalone app for **discovering, configuring, running and monitoring
 Python, Bash and batch scripts**, on this computer or on Linux servers over SSH.
@@ -48,7 +48,7 @@ MIT licensed — see [Licence and contributing](#licence-and-contributing).
 Requirements: **Python 3.10+** and **Django 5** (nothing else).
 
 ```bash
-cd ScriptRunner
+cd ScriptHub
 python -m venv .venv                      # optional but recommended
 .venv\Scripts\activate                    # Windows   (Linux/macOS: source .venv/bin/activate)
 pip install -r requirements.txt
@@ -57,7 +57,7 @@ pip install -r requirements.txt
 Then either:
 
 * **Desktop app** (recommended for one person on their own PC): double-click
-  `desktop.pyw`, or run `python manage.py desktop`. Script Runner opens in its own
+  `desktop.pyw`, or run `python manage.py desktop`. ScriptHub opens in its own
   window with a tray icon. See [Desktop app](#desktop-app).
 * **Web server**: `python manage.py runserver --noreload` and open <http://127.0.0.1:8000>.
 
@@ -92,7 +92,7 @@ python manage.py desktop --background   # tray only, no window
 * **Notifications** (Windows): when a run finishes or fails; click to open its console.
 * **Closing the window** with nothing running ends the app. With runs in progress it stays
   in the tray until they finish. **Quit** from the tray asks before stopping running scripts.
-* **Start with Windows** (tray menu) writes `Script Runner.cmd` into your Startup folder,
+* **Start with Windows** (tray menu) writes `ScriptHub.cmd` into your Startup folder,
   which starts the app in the tray at sign-in; untick it to remove the file.
 * **Native extras:** *Browse…* buttons (folder dialogs) next to directory fields in
   Settings, Configure and Ad-hoc, and *Show in folder* for scripts and run folders.
@@ -199,8 +199,10 @@ Environment variables for the web process:
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `SCRIPT_RUNNER_DEBUG` | `1` | Set `0` for production (hides error pages; static files then need a web server, see [Production deployment](#production-deployment)). |
-| `SCRIPT_RUNNER_ALLOWED_HOSTS` | *(localhost only)* | Comma-separated extra host names, e.g. `tools.example.com`. |
+| `SCRIPTHUB_DEBUG` | `1` | Set `0` for production (hides error pages; static files then need a web server, see [Production deployment](#production-deployment)). |
+| `SCRIPTHUB_ALLOWED_HOSTS` | *(localhost only)* | Comma-separated extra host names, e.g. `tools.example.com`. |
+
+The names used before the rename (`SCRIPT_RUNNER_DEBUG`, `SCRIPT_RUNNER_ALLOWED_HOSTS`) still work.
 
 ---
 
@@ -225,7 +227,7 @@ Rules that keep this safe:
 
 ## Writing scripts
 
-A script is an ordinary program. Script Runner starts it with **command-line
+A script is an ordinary program. ScriptHub starts it with **command-line
 arguments** built from the parameters, so any language that reads arguments works.
 
 ### Python and argparse
@@ -288,18 +290,18 @@ ping -n %~2 "%~1"
 exit /b %ERRORLEVEL%
 ```
 
-For batch files Script Runner **rejects** the characters `& | < > ^ % ! "` and a
+For batch files ScriptHub **rejects** the characters `& | < > ^ % ! "` and a
 backtick in any value, because `cmd.exe` would treat them as commands. Add a
 `pattern` to the parameter to be even stricter.
 
 ### Good behaviour for scripts
 
-* **Exit code 0 means success.** Any other code is shown as *Failed*. Script Runner
+* **Exit code 0 means success.** Any other code is shown as *Failed*. ScriptHub
   only reports success after the process has really exited with 0.
 * Print progress to **stdout**, problems to **stderr**; the console shows them in
   separate panes.
 * Flush output if you want to see it live (`print(..., flush=True)`). For Python,
-  Script Runner already sets `PYTHONUNBUFFERED=1`.
+  ScriptHub already sets `PYTHONUNBUFFERED=1`.
 * Scripts run **without a terminal and without stdin**; do not prompt for input.
 * For **SSH** runs the script is read by the remote interpreter from standard
   input, so it cannot use `__file__` or import neighbouring files, and stdin is
@@ -593,7 +595,7 @@ runtime/executions/RUN-20261107-001/
 
 ## Running on Linux servers over SSH
 
-Script Runner uses your system `ssh` and does **no SSH configuration of its own**.
+ScriptHub uses your system `ssh` and does **no SSH configuration of its own**.
 
 1. Make sure `ssh myserver` works from a terminal **without a password prompt**
    (key or agent). Host aliases come from `Host` entries in `~/.ssh/config`
@@ -689,7 +691,7 @@ Tips: keep one wheelhouse per Python version and platform; re-run step 2 wheneve
 
 ## Security
 
-Script Runner starts operating-system processes and has **no authentication**.
+ScriptHub starts operating-system processes and has **no authentication**.
 
 * It listens on **127.0.0.1** by default. To reach it from elsewhere use an SSH
   tunnel (`ssh -L 8000:localhost:8000 you@host`) or put your own authenticating
@@ -729,19 +731,19 @@ Important design constraint: execution state lives **inside one process**, so ru
 
 ### Linux (systemd + gunicorn)
 
-`pip install gunicorn`, then `/etc/systemd/system/script-runner.service`:
+`pip install gunicorn`, then `/etc/systemd/system/scripthub.service`:
 
 ```ini
 [Unit]
-Description=Script Runner
+Description=ScriptHub
 After=network.target
 
 [Service]
 User=scriptrunner
-WorkingDirectory=/opt/script-runner
-Environment=SCRIPT_RUNNER_DEBUG=0
-Environment=SCRIPT_RUNNER_ALLOWED_HOSTS=tools.example.com
-ExecStart=/opt/script-runner/.venv/bin/gunicorn script_runner_project.wsgi:application \
+WorkingDirectory=/opt/scripthub
+Environment=SCRIPTHUB_DEBUG=0
+Environment=SCRIPTHUB_ALLOWED_HOSTS=tools.example.com
+ExecStart=/opt/scripthub/.venv/bin/gunicorn scripthub_project.wsgi:application \
           --bind 127.0.0.1:8000 --workers 1 --threads 8 --timeout 120
 Restart=on-failure
 KillMode=control-group
@@ -751,11 +753,11 @@ TimeoutStopSec=30
 WantedBy=multi-user.target
 ```
 
-`systemctl enable --now script-runner`. With `SCRIPT_RUNNER_DEBUG=0` Django does
+`systemctl enable --now scripthub`. With `SCRIPTHUB_DEBUG=0` Django does
 not serve static files, so let nginx do it:
 
 ```nginx
-location /static/ { alias /opt/script-runner/static/; }
+location /static/ { alias /opt/scripthub/static/; }
 location /        { proxy_pass http://127.0.0.1:8000; proxy_set_header Host $host; }
 # add authentication here (auth_basic, SSO, VPN-only listener, ...)
 ```
@@ -764,10 +766,10 @@ location /        { proxy_pass http://127.0.0.1:8000; proxy_set_header Host $hos
 
 * Simplest: `python manage.py runserver 127.0.0.1:8000 --noreload --insecure`
   (the `--insecure` flag lets the built-in server deliver static files when
-  `SCRIPT_RUNNER_DEBUG=0`). Wrap it as a **service** with
+  `SCRIPTHUB_DEBUG=0`). Wrap it as a **service** with
   [NSSM](https://nssm.cc/) or a Task Scheduler task "at startup" with restart on failure.
 * Or use `pip install waitress` and
-  `waitress-serve --listen=127.0.0.1:8000 --threads=8 script_runner_project.wsgi:application`
+  `waitress-serve --listen=127.0.0.1:8000 --threads=8 scripthub_project.wsgi:application`
   with a web server for `/static/`.
 
 ### Keeping scripts alive
@@ -821,7 +823,7 @@ A separate Node script checks the syntax highlighter:
 ## Project layout
 
 ```
-ScriptRunner/
+ScriptHub/
 ├── manage.py
 ├── config.py                 filesystem-backed configuration
 ├── requirements.txt          Django only
@@ -861,8 +863,8 @@ there are no sessions, and the queue lives in memory.)
 | Console shows output only at the end | The script buffers output; flush it (`python -u`, `print(flush=True)`, `stdbuf`). |
 | Stuck at **Queued** | A concurrency limit is reached, or a non-concurrent script is already running; check **Executions**. |
 | **Interrupted** after a restart | The app stopped while the run was active (see [Limitations](#limitations-of-long-lived-subprocesses)). |
-| Pages have no styling in production | With `SCRIPT_RUNNER_DEBUG=0`, serve `/static/` from your web server or use `--insecure`. |
-| `DisallowedHost` error | Set `SCRIPT_RUNNER_ALLOWED_HOSTS` to the host name you browse to. |
+| Pages have no styling in production | With `SCRIPTHUB_DEBUG=0`, serve `/static/` from your web server or use `--insecure`. |
+| `DisallowedHost` error | Set `SCRIPTHUB_ALLOWED_HOSTS` to the host name you browse to. |
 
 ---
 

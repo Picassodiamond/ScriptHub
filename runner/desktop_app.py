@@ -1,4 +1,4 @@
-"""Script Runner as a desktop application, built only from what is already
+"""ScriptHub as a desktop application, built only from what is already
 installed: Python (standard library), Django and the system browser.
 
     pythonw desktop.pyw            (double-click; no console window)
@@ -39,7 +39,7 @@ STATE_FILE = RUNTIME / "desktop.json"
 PROFILE_DIR = RUNTIME / "desktop-profile"
 LOG_FILE = RUNTIME / "desktop.log"
 ICON_FILE = RUNTIME / "desktop.ico"
-STARTUP_NAME = "Script Runner.cmd"
+STARTUP_NAME = "ScriptHub.cmd"
 HEARTBEAT_TIMEOUT = 90       # seconds without a ping before the window counts as closed (minimised pages ping slowly)
 BYE_GRACE = 6                # seconds after a goodbye without a new ping (navigation pings again at once)
 FIRST_PING_GRACE = 45        # the window has this long to load before it counts as closed
@@ -102,7 +102,7 @@ def instance_url(state, path="/"):
 
 
 def instance_responds(state) -> bool:
-    """Is a Script Runner with this token listening there? (It answers the token URL with a redirect.)"""
+    """Is a ScriptHub with this token listening there? (It answers the token URL with a redirect.)"""
     import http.client
     try:
         conn = http.client.HTTPConnection("127.0.0.1", int(state["port"]), timeout=3)
@@ -166,9 +166,9 @@ class DesktopApp:
 
     # server
     def start_server(self):
-        os.environ["SCRIPT_RUNNER_DESKTOP_TOKEN"] = self.token
-        os.environ.setdefault("SCRIPT_RUNNER_DEBUG", "0")
-        os.environ.setdefault("DJANGO_SETTINGS_MODULE", "script_runner_project.settings")
+        os.environ["SCRIPTHUB_DESKTOP_TOKEN"] = self.token
+        os.environ.setdefault("SCRIPTHUB_DEBUG", "0")
+        os.environ.setdefault("DJANGO_SETTINGS_MODULE", "scripthub_project.settings")
         from django.contrib.staticfiles.handlers import StaticFilesHandler
         from django.core.servers.basehttp import ThreadedWSGIServer, WSGIRequestHandler
         from django.core.wsgi import get_wsgi_application
@@ -227,7 +227,7 @@ class DesktopApp:
         counts = manager.counts()
         active = counts["running"] + counts["queued"]
         if active and self.tray and not self.tray.confirm(
-                f"{active} execution(s) still running or queued.\n\nQuitting stops them. Quit Script Runner?"):
+                f"{active} execution(s) still running or queued.\n\nQuitting stops them. Quit ScriptHub?"):
             return
         self.quit()
 
@@ -251,8 +251,8 @@ class DesktopApp:
                 counts = manager.counts()
                 busy = counts["running"] + counts["queued"]
                 if self.tray:
-                    self.tray.set_tooltip(f"Script Runner — {counts['running']} running, {counts['queued']} queued"
-                                          if busy else "Script Runner — idle")
+                    self.tray.set_tooltip(f"ScriptHub — {counts['running']} running, {counts['queued']} queued"
+                                          if busy else "ScriptHub — idle")
                 runs = history.list_runs(limit=30)
                 for meta in finished_runs(active, runs):
                     self.notify_finished(meta)
@@ -262,7 +262,7 @@ class DesktopApp:
                 if not self.window_open():
                     if busy:
                         if not self.kept_alive_notice and self.tray:
-                            self.tray.notify("Script Runner is still running",
+                            self.tray.notify("ScriptHub is still running",
                                              f"{busy} execution(s) in progress. It stays in the tray until they finish.")
                             self.kept_alive_notice = True
                         continue
@@ -297,10 +297,10 @@ class DesktopApp:
         watcher.start()
         if os.name == "nt":
             from .desktop_tray import Tray
-            self.tray = Tray("Script Runner", ICON_FILE, self.on_open, self.on_quit, startup_enabled, set_startup)
+            self.tray = Tray("ScriptHub", ICON_FILE, self.on_open, self.on_quit, startup_enabled, set_startup)
             self.tray.run()                      # message loop until stop()
         else:
-            print(f"Script Runner is running at {self.url('/')}  (Ctrl+C to quit)")
+            print(f"ScriptHub is running at {self.url('/')}  (Ctrl+C to quit)")
             try:
                 while not self.stopping.wait(1.0):
                     pass

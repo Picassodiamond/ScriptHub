@@ -54,7 +54,7 @@ def _main():
     mon = getattr(sys, "monitoring", None)
     if mon is not None:
         tool = 3
-        mon.use_tool_id(tool, "script-runner")
+        mon.use_tool_id(tool, "scripthub")
         def on_line(c, line):
             if c.co_filename == fn:
                 buf.append(line)
@@ -292,7 +292,7 @@ def _main():
     mon = getattr(sys, "monitoring", None)
     if mon is not None:
         tool = 3
-        mon.use_tool_id(tool, "script-runner")
+        mon.use_tool_id(tool, "scripthub")
         def on_line(c, line):
             if c.co_filename != fn:
                 return mon.DISABLE

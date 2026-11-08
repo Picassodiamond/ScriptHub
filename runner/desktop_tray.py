@@ -131,7 +131,7 @@ class Tray:
         cls = WNDCLASSW()
         cls.lpfnWndProc = self._proc
         cls.hInstance = hinst
-        cls.lpszClassName = "ScriptRunnerTray"
+        cls.lpszClassName = "ScriptHubTray"
         user32.RegisterClassW(ctypes.byref(cls))
         self.hwnd = user32.CreateWindowExW(0, cls.lpszClassName, self.title, 0, 0, 0, 0, 0, None, None, hinst, None)
         if not self.icon_path.is_file():
@@ -166,7 +166,7 @@ class Tray:
         nid.dwInfoFlags = NIIF.get(level, 1)
         shell32.Shell_NotifyIconW(NIM_MODIFY, ctypes.byref(nid))
 
-    def confirm(self, text: str, title: str = "Script Runner") -> bool:
+    def confirm(self, text: str, title: str = "ScriptHub") -> bool:
         return user32.MessageBoxW(self.hwnd, text, title,
                                   MB_OKCANCEL | MB_ICONWARNING | MB_TOPMOST | MB_SETFOREGROUND) == IDOK
 
@@ -188,7 +188,7 @@ class Tray:
 
     def _menu(self):
         menu = user32.CreatePopupMenu()
-        user32.AppendMenuW(menu, MF_STRING, CMD_OPEN, "Open Script Runner")
+        user32.AppendMenuW(menu, MF_STRING, CMD_OPEN, "Open ScriptHub")
         user32.SetMenuDefaultItem(menu, CMD_OPEN, 0)
         if self.startup_get:
             user32.AppendMenuW(menu, MF_STRING | (MF_CHECKED if self.startup_get() else 0), CMD_STARTUP, "Start with Windows")

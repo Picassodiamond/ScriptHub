@@ -1,6 +1,6 @@
 # Security
 
-Script Runner runs scripts — and, if you allow it, code typed into the browser — with
+ScriptHub runs scripts — and, if you allow it, code typed into the browser — with
 the permissions of the account that runs it. Please read this before you deploy it.
 
 ## The model: one trusted person

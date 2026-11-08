@@ -5,7 +5,7 @@ __pycache__/
 venv/
 *.egg-info/
 
-# Script Runner runtime state (config, history, presets, secrets)
+# ScriptHub runtime state (config, history, presets, secrets)
 runtime/*
 !runtime/*/
 runtime/*/*

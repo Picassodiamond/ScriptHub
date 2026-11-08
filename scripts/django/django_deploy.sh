@@ -6,7 +6,7 @@
 #   -> manage.py check -> migrate -> collectstatic -> restart the service
 #
 # Stops at the first failing step, so a broken migration never reaches the
-# service restart. Run it through Script Runner over SSH, or directly.
+# service restart. Run it through ScriptHub over SSH, or directly.
 #
 # Usage: django_deploy.sh --project-dir DIR --venv DIR [--requirements FILE]
 #          [--wheelhouse DIR] [--git-pull] [--branch NAME] [--migrate]

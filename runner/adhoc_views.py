@@ -23,9 +23,9 @@ NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,80}$")
 FOLDER_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9 _.-]{0,60}$")
 
 TEMPLATES = {
-    ".py": 'import sys\n\nprint("Hello from Script Runner")\nprint("arguments:", sys.argv[1:])\n',
+    ".py": 'import sys\n\nprint("Hello from ScriptHub")\nprint("arguments:", sys.argv[1:])\n',
     ".sh": '#!/usr/bin/env bash\nset -euo pipefail\n\necho "Hello from $(hostname)"\necho "arguments: $*"\n',
-    ".bat": "@echo off\r\necho Hello from Script Runner\r\necho arguments: %*\r\n",
+    ".bat": "@echo off\r\necho Hello from ScriptHub\r\necho arguments: %*\r\n",
 }
 
 

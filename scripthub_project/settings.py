@@ -1,4 +1,4 @@
-"""Django settings for Script Runner.
+"""Django settings for ScriptHub.
 
 There is deliberately NO database, NO sessions and NO auth: this is a
 personal tool and all state lives in JSON files under ./runtime.
@@ -24,9 +24,14 @@ def _secret_key() -> str:
 
 
 SECRET_KEY = _secret_key()
-DEBUG = os.environ.get("SCRIPT_RUNNER_DEBUG", "1") == "1"
+def _env(name: str, default: str = "") -> str:
+    """SCRIPTHUB_<name>; the pre-rename SCRIPT_RUNNER_<name> is still accepted."""
+    return os.environ.get(f"SCRIPTHUB_{name}", os.environ.get(f"SCRIPT_RUNNER_{name}", default))
+
+
+DEBUG = _env("DEBUG", "1") == "1"
 ALLOWED_HOSTS = ["localhost", "127.0.0.1", "[::1]"] + [
-    h for h in os.environ.get("SCRIPT_RUNNER_ALLOWED_HOSTS", "").split(",") if h
+    h for h in _env("ALLOWED_HOSTS").split(",") if h
 ]
 
 INSTALLED_APPS = [
@@ -46,8 +51,8 @@ MIDDLEWARE = [
 # Flash messages live in a cookie (no session/database needed).
 MESSAGE_STORAGE = "django.contrib.messages.storage.cookie.CookieStorage"
 
-ROOT_URLCONF = "script_runner_project.urls"
-WSGI_APPLICATION = "script_runner_project.wsgi.application"
+ROOT_URLCONF = "scripthub_project.urls"
+WSGI_APPLICATION = "scripthub_project.wsgi.application"
 
 TEMPLATES = [
     {

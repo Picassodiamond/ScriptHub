@@ -7,7 +7,7 @@
 #                                                         --dest-dir DIR [--keep N]
 #
 # PostgreSQL: the password is read from the PGPASSWORD environment variable
-# (Script Runner passes it that way; it never appears on the command line).
+# (ScriptHub passes it that way; it never appears on the command line).
 set -euo pipefail
 
 TYPE="" DB="" DEST="" HOST="" PORT="" USER_NAME="" KEEP=7

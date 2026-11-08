@@ -1,7 +1,7 @@
 """Desktop mode: the Django side.
 
 The desktop launcher (runner/desktop_app.py) starts this app on 127.0.0.1 with a
-random port and sets SCRIPT_RUNNER_DESKTOP_TOKEN. Then:
+random port and sets SCRIPTHUB_DESKTOP_TOKEN. Then:
 
 * every request must carry the token (a cookie set from the launch URL), so
   other local users, other browser tabs and web pages cannot use the app;
@@ -23,7 +23,7 @@ from django.http import Http404, HttpResponseForbidden, HttpResponseRedirect, Js
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 
-ENV_TOKEN = "SCRIPT_RUNNER_DESKTOP_TOKEN"
+ENV_TOKEN = "SCRIPTHUB_DESKTOP_TOKEN"
 COOKIE = "sr_desktop"
 _dialog_lock = threading.Lock()
 # Window presence, read by the launcher: the page pings while its window is open
@@ -60,7 +60,7 @@ class DesktopTokenMiddleware:
             resp.set_cookie(COOKIE, secret, httponly=True, samesite="Strict")
             return resp
         return HttpResponseForbidden(
-            "Script Runner is running in desktop mode. Open it from its window or tray icon.",
+            "ScriptHub is running in desktop mode. Open it from its window or tray icon.",
             content_type="text/plain")
 
 
