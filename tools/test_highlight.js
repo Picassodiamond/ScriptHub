@@ -4,8 +4,8 @@ eval(fs.readFileSync('static/js/highlight.js', 'utf8'));
 const h = window.highlight;
 let fail = 0;
 function check(name, ok) { if (!ok) fail++; console.log((ok ? 'ok   ' : 'FAIL ') + name); }
-const files = { python: 'scripts/system/directory_backup.py', bash: 'scripts/deployment/health_check.sh', batch: 'scripts/system/ping_host.bat', json: 'scripts/system/directory_backup.py' };
-// JSON sample: the metadata block at the top of directory_backup.py, without its "# " prefixes.
+const files = { python: 'sample_scripts/basics/parameter_tour.py', bash: 'sample_scripts/system/disk_usage.sh', batch: 'sample_scripts/system/list_directory.bat', json: 'sample_scripts/basics/parameter_tour.py' };
+// JSON sample: the metadata block at the top of parameter_tour.py, without its "# " prefixes.
 function metadataJson(src) {
   const lines = src.split('\n'), s = lines.findIndex(l => /--- scripthub ---/.test(l)), e = lines.findIndex(l => /--- end scripthub ---/.test(l));
   return lines.slice(s + 1, e).map(l => l.replace(/^# ?/, '')).join('\n');

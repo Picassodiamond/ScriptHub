@@ -118,6 +118,12 @@ class SequenceCase(SimpleTestCase):
     def lines(self):
         return self.out.read_text().splitlines() if self.out.exists() else []
 
+    def wait_for(self, line, timeout=20):
+        end = time.monotonic() + timeout
+        while line not in self.lines() and time.monotonic() < end:
+            time.sleep(0.05)
+        self.assertIn(line, self.lines())
+
 
 # ------------------------------------------------------------------ storage ---
 class StorageTests(SequenceCase):
@@ -305,6 +311,68 @@ class RunnerTests(SequenceCase):
         self.assertEqual(self.statuses(run), {"s1": history.CANCELLED, "s2": sequence_runner.SKIPPED})
         self.assertFalse(sequencer.cancel(rid))
 
+    def start(self, slug):
+        data = sequences.load(slug)
+        items, errors = sequence_runner.prepare(data)
+        self.assertEqual(errors, [])
+        return sequencer.start(data, items)
+
+    def test_pause_lets_running_steps_finish_and_holds_back_the_next_ones(self):
+        slug = self.sequence((self.first, self.values(tag="a", sleep="1")), (self.second, self.values(tag="b")),
+                             links=[("s1", "s2", "success")])
+        rid = self.start(slug)
+        self.wait_for("start a 0")
+        self.assertTrue(sequencer.pause(rid))
+        view = sequence_runner.live_view(sequence_runner.read_run(rid))
+        self.assertEqual((view["paused"], view["status_label"], view["active"]), (True, "Paused", True))
+        self.wait_for("end a")
+        time.sleep(1.5)                                           # s1 is done: s2 would have started by now
+        self.assertNotIn("start b 0", self.lines())
+        self.assertTrue(sequencer.is_active(rid))
+        self.assertEqual(self.statuses(sequence_runner.read_run(rid))["s2"], sequence_runner.PENDING)
+        self.assertTrue(sequencer.resume(rid))
+        self.assertTrue(sequencer.wait_idle(30))
+        run = sequence_runner.read_run(rid)
+        self.assertEqual((run["status"], run["paused"]), (history.SUCCESS, False))
+        self.assertEqual(self.lines(), ["start a 0", "end a", "start b 0", "end b"])
+        self.assertFalse(sequencer.pause(rid))                    # finished: nothing to pause
+        self.assertFalse(sequencer.resume(rid))
+
+    def test_stop_while_paused_skips_the_waiting_steps(self):
+        slug = self.sequence((self.first, self.values(tag="a")), (self.second, self.values(tag="b")),
+                             links=[("s1", "s2", "always")])
+        rid = self.start(slug)
+        self.assertTrue(sequencer.pause(rid))
+        self.wait_for("end a")
+        self.assertTrue(sequencer.cancel(rid))
+        self.assertTrue(sequencer.wait_idle(30))
+        run = sequence_runner.read_run(rid)
+        self.assertEqual(run["status"], history.CANCELLED)
+        self.assertEqual(self.statuses(run)["s2"], sequence_runner.SKIPPED)
+        self.assertNotIn("start b 0", self.lines())
+
+    def test_hold_pauses_the_run_before_that_step(self):
+        slug = self.sequence((self.first, self.values(tag="a", sleep="1")), (self.second, self.values(tag="b")),
+                             (self.third, self.values(tag="c")), links=[("s1", "s2", "success"), ("s2", "s3", "success")])
+        rid = self.start(slug)
+        self.wait_for("start a 0")
+        self.assertTrue(sequencer.hold(rid, "s3"))
+        self.assertTrue(sequencer.hold(rid, "s2"))
+        self.assertTrue(sequencer.hold(rid, "s2", on=False))      # taken back
+        self.assertFalse(sequencer.hold(rid, "s1"))               # already running
+        self.assertFalse(sequencer.hold(rid, "nope"))
+        self.wait_for("end b")
+        time.sleep(1.2)
+        view = sequence_runner.live_view(sequence_runner.read_run(rid))
+        self.assertTrue(view["paused"])
+        s3 = view["steps"][2]
+        self.assertEqual((s3["status"], s3["status_label"]), (sequence_runner.PENDING, "Paused here"))
+        self.assertNotIn("start c 0", self.lines())
+        self.assertTrue(sequencer.resume(rid))                    # the held step starts now
+        self.assertTrue(sequencer.wait_idle(30))
+        self.assertEqual(self.lines()[-2:], ["start c 0", "end c"])
+        self.assertEqual(sequence_runner.read_run(rid)["status"], history.SUCCESS)
+
     def test_every_step_is_checked_before_anything_runs(self):
         slug = self.sequence((self.first, self.values(out="")), (self.second, self.values()))
         data = sequences.load(slug)
@@ -485,6 +553,72 @@ class WebTests(SequenceCase):
         self.assertEqual(r.status_code, 302)
         self.assertTrue(sequencer.wait_idle(60))
         self.assertEqual(self.lines(), ["start from-preset 0", "end from-preset"])
+
+    def test_play_pause_resume_from_the_diagram(self):
+        slug = self.sequence((self.first, self.values(tag="a", sleep="1")), (self.second, self.values(tag="b")),
+                             links=[("s1", "s2", "success")], name="Diagram")
+        page = self.client.get(f"/sequences/{slug}/")
+        self.assertContains(page, 'id="seq-play"')
+        self.assertContains(page, 'data-active-run=""')
+        self.assertNotContains(page, "seq-run-btn")                  # the only Run control is on the diagram
+        js = {"HTTP_ACCEPT": "application/json"}
+        r = self.client.post(f"/sequences/{slug}/start/", {"submit_token": uuid.uuid4().hex}, **js)
+        d = r.json()
+        rid = d["run"]
+        self.assertEqual((d["status_url"], d["page_url"]), (f"/sequence-runs/{rid}/status/", f"/sequence-runs/{rid}/"))
+        self.assertTrue(d["token"])
+        self.assertContains(self.client.get(f"/sequences/{slug}/"), f'data-active-run="{rid}"')   # back after a reload
+        self.wait_for("start a 0")
+        self.assertEqual(self.client.post(f"/sequence-runs/{rid}/pause/", **js).json(), {"ok": True})
+        status = self.client.get(f"/sequence-runs/{rid}/status/").json()
+        self.assertEqual((status["active"], status["paused"], status["status_label"]), (True, True, "Paused"))
+        run_page = self.client.get(f"/sequence-runs/{rid}/")
+        self.assertContains(run_page, 'id="seq-resume"')
+        self.wait_for("end a")
+        r = self.client.post(f"/sequence-runs/{rid}/resume/")              # the run page's form
+        self.assertEqual(r["Location"], f"/sequence-runs/{rid}/")
+        self.assertTrue(sequencer.wait_idle(30))
+        self.assertEqual(self.lines(), ["start a 0", "end a", "start b 0", "end b"])
+        r = self.client.post(f"/sequence-runs/{rid}/pause/", **js)
+        self.assertEqual((r.status_code, r.json()["ok"]), (409, False))
+        self.assertEqual(self.client.get(f"/sequence-runs/{rid}/pause/").status_code, 405)
+
+    def test_box_play_runs_one_step_and_box_pause_holds_a_step(self):
+        slug = self.sequence((self.first, self.values(tag="a", sleep="1")), (self.second, self.values(tag="b")),
+                             links=[("s1", "s2", "success")], name="Boxes")
+        js = {"HTTP_ACCEPT": "application/json"}
+        self.assertContains(self.client.get(f"/sequences/{slug}/"), "data-hold-url=")
+        d = self.client.post(f"/sequences/{slug}/start/", {"submit_token": uuid.uuid4().hex, "only": "s2"}, **js).json()
+        self.assertTrue(sequencer.wait_idle(30))
+        run = sequence_runner.read_run(d["run"])
+        self.assertEqual(([s["id"] for s in run["steps"]], run["links"], run["status"]), (["s2"], [], history.SUCCESS))
+        self.assertEqual(self.lines(), ["start b 0", "end b"])
+        r = self.client.post(f"/sequences/{slug}/start/", {"submit_token": uuid.uuid4().hex, "only": "s9"}, **js)
+        self.assertEqual(r.status_code, 400)
+
+        rid = self.client.post(f"/sequences/{slug}/start/", {"submit_token": uuid.uuid4().hex}, **js).json()["run"]
+        self.wait_for("start a 0")
+        self.assertEqual(self.client.post(f"/sequence-runs/{rid}/hold/", {"step": "s2"}, **js).json(), {"ok": True})
+        steps = self.client.get(f"/sequence-runs/{rid}/status/").json()["graph"]["steps"]
+        self.assertEqual([s["hold"] for s in steps], [False, True])
+        self.assertEqual(self.client.post(f"/sequence-runs/{rid}/hold/", {"step": "s1"}, **js).status_code, 409)
+        self.wait_for("end a")
+        end = time.monotonic() + 10
+        while not self.client.get(f"/sequence-runs/{rid}/status/").json()["paused"] and time.monotonic() < end:
+            time.sleep(0.1)
+        status = self.client.get(f"/sequence-runs/{rid}/status/").json()
+        self.assertEqual((status["paused"], status["graph"]["steps"][1]["status_label"]), (True, "Paused here"))
+        self.client.post(f"/sequence-runs/{rid}/resume/", **js)
+        self.assertTrue(sequencer.wait_idle(30))
+        self.assertEqual(self.lines()[-2:], ["start b 0", "end b"])
+
+    def test_play_reports_problems_as_json(self):
+        slug = self.sequence((self.first, self.values(out="")), name="Broken json")
+        r = self.client.post(f"/sequences/{slug}/start/", {"submit_token": uuid.uuid4().hex},
+                             HTTP_ACCEPT="application/json")
+        self.assertEqual(r.status_code, 400)
+        self.assertTrue(r.json()["errors"][0].startswith("Step 1 (First): Out:"))
+        self.assertEqual(sequence_runner.list_runs(), [])
 
     def test_problems_are_shown_and_nothing_starts(self):
         slug = self.sequence((self.first, self.values(out="")), name="Broken")

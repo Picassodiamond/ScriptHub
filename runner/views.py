@@ -1,10 +1,11 @@
 """HTTP views. Business logic lives in the service modules."""
 from django.contrib import messages
 from django.shortcuts import redirect, render
+from django.urls import reverse
 from django.views.decorators.http import require_POST
 
 import config
-from . import discovery, history, ssh_hosts
+from . import discovery, history, project_files, runtime_data, ssh_hosts
 from .validators import ValidationError, validate_config
 
 
@@ -39,6 +40,8 @@ def dashboard(request):
         "frequent": frequent,
         "quick": runnable[:6],
         "has_runs": bool(runs),
+        "samples_dir": str(config.BASE_DIR / "sample_scripts"),
+        "sample_projects": project_files.sample_projects(),
     })
 
 
@@ -137,9 +140,23 @@ def _render_settings(request, form=None, errors=None, status=200):
             "form": form if form is not None else _settings_form(cfg),
             "errors": errors or [],
             "ssh_hosts": ssh_hosts.list_hosts(),
+            "data_rows": [dict(r, size=runtime_data.human(r["bytes"])) for r in runtime_data.overview()],
+            "data_location": runtime_data.location(),
         },
         status=status,
     )
+
+
+@require_POST
+def settings_data_clear(request):
+    """Clear one kind of stored data (``kind``), or all of them (``kind=all``)."""
+    kind = request.POST.get("kind", "")
+    for key in (runtime_data.KEYS if kind == "all" else [kind]):
+        try:
+            messages.success(request, runtime_data.clear(key))
+        except ValueError as exc:
+            messages.error(request, str(exc))
+    return redirect(reverse("settings") + "#data")
 
 
 def settings_view(request):

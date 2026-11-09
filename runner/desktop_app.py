@@ -33,8 +33,10 @@ import urllib.request
 import webbrowser
 from pathlib import Path
 
+import config
+
 BASE_DIR = Path(__file__).resolve().parent.parent
-RUNTIME = BASE_DIR / "runtime"
+RUNTIME = config.RUNTIME_DIR
 STATE_FILE = RUNTIME / "desktop.json"
 PROFILE_DIR = RUNTIME / "desktop-profile"
 LOG_FILE = RUNTIME / "desktop.log"

@@ -7,11 +7,20 @@
 {# The sequence as a diagram (static/js/sequence.js): scripts dragged in from the explorer, arrows between them. Right: the sequence, or the clicked step's settings (an embedded sequence_step page). #}
 <div class="seq-editor" id="seq-editor" data-slug="{{ seq.slug }}" data-graph-url="{% url 'sequence_graph' seq.slug %}"
      data-step-url="{% url 'sequence_step' seq.slug 'XID' %}" data-max="{{ max_steps }}"
-     data-ws="{% firstof wb_folder.folder.path 'files' %}">
+     data-ws="{% firstof wb_folder.folder.path 'files' %}"
+     data-run-url="{% url 'sequence_run' 'XRID' %}" data-status-url="{% url 'sequence_run_status' 'XRID' %}"
+     data-pause-url="{% url 'sequence_run_pause' 'XRID' %}" data-resume-url="{% url 'sequence_run_resume' 'XRID' %}"
+     data-hold-url="{% url 'sequence_run_hold' 'XRID' %}"
+     data-stop-url="{% url 'sequence_run_stop' 'XRID' %}" data-console-url="{% url 'execution_console' 'XID' %}?embed=1"
+     data-interval="{{ polling_interval }}" data-active-run="{{ active_run.run|default:'' }}">
   <section class="panel seq-board">
     {# the centre tab bar, as on script pages: open scripts and sequences (static/js/sequence.js draws it) #}
     <div class="doc-bar seq-tabs" role="tablist" id="seq-tabs"></div>
     <div class="seq-toolbar">
+      <button type="button" class="btn btn-primary btn-sm seq-play" id="seq-play" data-seq="play" data-hotkey="Ctrl+Enter" data-hint="Run sequence"
+              title="Run the sequence  (Ctrl+Enter)"{% if not graph.steps %} disabled{% endif %}><svg class="i"><use href="#i-play"/></svg><span>Run</span></button>
+      <button type="button" class="btn btn-sm btn-danger" id="seq-stop" data-seq="stop" title="Stop: the running steps are stopped, the rest are skipped" hidden><svg class="i"><use href="#i-stop"/></svg><span>Stop</span></button>
+      <a class="seq-live" id="seq-live" hidden title="Open this run's page"><span class="st" id="seq-live-status"></span><span class="small muted" id="seq-live-text"></span></a>
       <span class="small muted seq-hint">Drag scripts here from the left · drag the dot under a step onto another step to connect them · click an arrow's label to change when it applies · double-click a step to open its script</span>
       <span class="spacer"></span>
       <button type="button" class="btn btn-ghost btn-sm" data-seq="tidy" title="Lay the steps out in rows, following the arrows">Tidy up</button>
@@ -28,9 +37,6 @@
         <input type="hidden" name="submit_token" value="{{ token }}">
         <div class="panel-head"><h2 class="seq-title" title="{{ seq.name }}"><svg class="i faint"><use href="#i-sequence"/></svg> {{ seq.name }}</h2></div>
         <div class="panel-body" id="seq-passwords" hidden></div>
-        <div class="panel-foot">
-          <button class="btn btn-primary play" type="submit" id="seq-run-btn" data-once data-hotkey="Ctrl+Enter" data-hint="Run sequence"{% if not graph.steps %} disabled{% endif %}><svg class="i"><use href="#i-play"/></svg> Run sequence <kbd>Ctrl</kbd><kbd>↵</kbd></button>
-        </div>
         <div class="panel-body small muted" id="seq-summary"></div>
       </form>
 
@@ -46,6 +52,7 @@
       <div class="panel-head">
         <h2 id="seq-step-title">Step</h2>
         <span class="spacer"></span>
+        <button type="button" class="btn btn-ghost btn-sm" data-seq="view" id="seq-step-view" hidden></button>
         <button type="button" class="btn btn-ghost btn-icon btn-sm" data-seq="close" title="Back to the sequence  (Esc)" aria-label="Close step"><svg class="i"><use href="#i-x"/></svg></button>
       </div>
       <iframe id="seq-step-frame" title="Step settings"></iframe>

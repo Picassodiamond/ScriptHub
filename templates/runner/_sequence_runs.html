@@ -6,7 +6,7 @@
     <tr>
       <td class="mono small"><a href="{% url 'sequence_run' r.id %}">{{ r.id }}</a></td>
       {% if show_name %}<td class="strong">{{ r.name }}</td>{% endif %}
-      <td><span class="st st-{{ r.status }}">{{ r.status_label }}</span></td>
+      <td><span class="st st-{% if r.paused %}paused{% else %}{{ r.status }}{% endif %}">{{ r.status_label }}</span></td>
       <td class="num mono small">{{ r.done }}/{{ r.steps|length }}</td>
       <td class="small muted mono nowrap hide-sm">{{ r.started_display }}</td>
       <td class="num mono small">{{ r.duration }}</td>

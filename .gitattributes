@@ -2,3 +2,8 @@
 *.sh  text eol=lf
 *.bat text eol=crlf
 *.cmd text eol=crlf
+# Sample scripts are checked out byte for byte as in the sample projects (runner/test_sample_scripts.py)
+sample_scripts/** text eol=lf
+sample_scripts/**/*.bat text eol=crlf
+sample_scripts/**/*.cmd text eol=crlf
+*.scripthub binary

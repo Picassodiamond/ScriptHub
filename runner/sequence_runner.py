@@ -190,6 +190,15 @@ def live_view(data: dict) -> dict:
     data["steps"] = steps
     data["status_label"] = STEP_LABELS.get(data.get("status"), data.get("status"))
     data["active"] = data.get("status") in history.ACTIVE_STATUSES
+    data["paused"] = bool(data["active"] and data.get("paused"))
+    if data["paused"]:
+        data["status_label"] = "Paused"
+    holds = set(data.get("holds") or []) if data["active"] else set()
+    for s in steps:
+        s["hold"] = s.get("id") in holds
+        s["held"] = bool(data["paused"] and s.get("id") == data.get("held_at"))
+        if s["held"]:
+            s["status_label"] = "Paused here"
     data["done"] = sum(1 for s in steps if s["status"] in history.FINAL_STATUSES + (SKIPPED,))
     data["started_display"] = (data.get("started_at") or "").replace("T", " ")[:16]
     started = history.parse_iso(data.get("started_at"))
@@ -304,6 +313,9 @@ def decide(step: dict, links_in: list, statuses: dict):
 class _State:
     def __init__(self):
         self.cancel = threading.Event()
+        self.pause = threading.Event()   # set: no new step starts (running ones finish)
+        self.wake = threading.Event()    # resume / stop while the loop waits
+        self.holds = set()               # step ids: pause the run before starting them (box ⏸)
         self.current = set()         # run ids of the steps queued or running now
         self.thread = None
 
@@ -367,10 +379,48 @@ class SequenceRunner:
             if state is None:
                 return False
             state.cancel.set()
+            state.wake.set()
             current = list(state.current)
         for run_id in current:
             manager.cancel(run_id)
         return True
+
+    def pause(self, rid: str) -> bool:
+        """Pause between steps: the steps running now finish, no new step starts until resume()."""
+        with self._lock:
+            state = self._runs.get(rid)
+            if state is None or state.cancel.is_set():
+                return False
+            state.pause.set()
+            _update_run(rid, paused=True)
+            return True
+
+    def resume(self, rid: str) -> bool:
+        with self._lock:
+            state = self._runs.get(rid)
+            if state is None or state.cancel.is_set():
+                return False
+            state.pause.clear()
+            _update_run(rid, paused=False, held_at=None)
+            state.wake.set()
+            return True
+
+    def hold(self, rid: str, step_id: str, on: bool = True) -> bool:
+        """Pause the run before a step that has not started yet (or no longer)."""
+        with self._lock:
+            state = self._runs.get(rid)
+            data = read_run(rid) if state is not None and not state.cancel.is_set() else None
+            step = next((s for s in (data or {}).get("steps", []) if s.get("id") == step_id), None)
+            if step is None or step.get("status") != PENDING:
+                return False
+            (state.holds.add if on else state.holds.discard)(step_id)
+            _update_run(rid, holds=sorted(state.holds))
+            return True
+
+    def is_paused(self, rid: str) -> bool:
+        with self._lock:
+            state = self._runs.get(rid)
+            return bool(state and state.pause.is_set())
 
     def is_active(self, rid: str) -> bool:
         with self._lock:
@@ -402,8 +452,14 @@ class SequenceRunner:
                     _update_run(rid, steps={index[sid]: {"status": SKIPPED}})
                     changed = True
                     continue
-                if what != "run":
+                if what != "run" or state.pause.is_set():
                     continue
+                with self._lock:
+                    if sid in state.holds:           # ⏸ on this box: pause here, Resume starts it
+                        state.holds.discard(sid)
+                        state.pause.set()
+                        _update_run(rid, paused=True, held_at=sid, holds=sorted(state.holds))
+                        continue
                 with self._lock:
                     if state.cancel.is_set():
                         return
@@ -432,6 +488,11 @@ class SequenceRunner:
                 if not state.cancel.is_set():
                     self._submit_ready(rid, name, state, items, index, statuses, links_in, running, initiator)
                 if not running:
+                    if (state.pause.is_set() and not state.cancel.is_set()
+                            and any(v == PENDING for v in statuses.values())):
+                        state.wake.wait(0.5)       # paused with nothing running: wait for resume / stop
+                        state.wake.clear()
+                        continue
                     break
                 for run_id in manager.wait_any(list(running), timeout=1.0):
                     sid = running.pop(run_id)
@@ -471,7 +532,8 @@ class SequenceRunner:
             error = f"{len(failed)} of {len(data['steps'])} steps did not succeed." + note
         else:
             status, error = history.SUCCESS, None
-        _update_run(rid, steps=skipped, status=status, error=error, finished_at=history.now_iso())
+        _update_run(rid, steps=skipped, status=status, error=error, finished_at=history.now_iso(), paused=False,
+                    held_at=None, holds=[])
         with self._lock:
             self._runs.pop(rid, None)
 

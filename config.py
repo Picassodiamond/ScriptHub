@@ -1,6 +1,11 @@
 """Filesystem-backed application configuration (runtime/config.json).
 
 No Django imports here so it can be reused by non-web code.
+
+Where the state lives (RUNTIME_DIR, called "runtime/" throughout the code and docs):
+``SCRIPTHUB_HOME`` when set; else a ``runtime`` folder next to the code when one exists
+(portable mode, and installs from before 2.0 keep their data); else the user's data folder:
+%LOCALAPPDATA%\\ScriptHub, ~/Library/Application Support/ScriptHub or ~/.local/share/scripthub.
 """
 import copy
 import logging
@@ -13,7 +18,28 @@ from runner.fsutil import atomic_write_json, read_json
 from runner.validators import validate_config
 
 BASE_DIR = Path(__file__).resolve().parent
-RUNTIME_DIR = BASE_DIR / "runtime"
+PORTABLE_DIR = BASE_DIR / "runtime"
+
+
+def runtime_location(environ=None, platform=None, portable=PORTABLE_DIR) -> tuple:
+    """(folder, how): how = "env" | "portable" | "user"."""
+    environ = os.environ if environ is None else environ
+    platform = platform or sys.platform
+    home = (environ.get("SCRIPTHUB_HOME") or "").strip()
+    if home:
+        return Path(home).expanduser().resolve(), "env"
+    if Path(portable).is_dir():
+        return Path(portable), "portable"
+    if platform == "win32":
+        base = environ.get("LOCALAPPDATA") or str(Path.home() / "AppData" / "Local")
+        return Path(base) / "ScriptHub", "user"
+    if platform == "darwin":
+        return Path.home() / "Library" / "Application Support" / "ScriptHub", "user"
+    base = environ.get("XDG_DATA_HOME") or str(Path.home() / ".local" / "share")
+    return Path(base) / "scripthub", "user"
+
+
+RUNTIME_DIR, RUNTIME_MODE = runtime_location()
 CONFIG_FILE = RUNTIME_DIR / "config.json"
 EXECUTIONS_DIR = RUNTIME_DIR / "executions"
 PRESETS_DIR = RUNTIME_DIR / "presets"

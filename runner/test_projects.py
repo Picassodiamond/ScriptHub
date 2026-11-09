@@ -1,4 +1,4 @@
-"""Project files (.shp): save a folder with its sequences and presets, open it elsewhere, and refuse unsafe files.
+"""Project files (.scripthub): save a folder with its sequences and presets, open it elsewhere, and refuse unsafe files.
 
 python manage.py test runner.test_projects
 """
@@ -74,7 +74,7 @@ class ProjectCase(SimpleTestCase):
         included, _left = project_files.folder_files(self.src)
         chosen = files if files is not None else [f[0] for f in included]
         fh, report = project_files.build(self.src, "Ops project", chosen, slugs)
-        out = self.tmp / "ops.shp"
+        out = self.tmp / "ops.scripthub"
         out.write_bytes(fh.read())
         fh.close()
         return out, report
@@ -94,9 +94,9 @@ class SaveAndOpenTests(ProjectCase):
 
     def test_round_trip_to_a_new_folder(self):
         slug = self.make_sequence()
-        shp, report = self.save([slug])
+        pfile, report = self.save([slug])
         self.assertEqual((report["files"], report["scripts"], report["sequences"], report["presets"]), (5, 2, 1, 1))
-        with zipfile.ZipFile(shp) as z:
+        with zipfile.ZipFile(pfile) as z:
             names = set(z.namelist())
             manifest = json.loads(z.read("manifest.json"))
             seq_text = z.read(f"sequences/{slug}.yaml").decode()
@@ -109,11 +109,11 @@ class SaveAndOpenTests(ProjectCase):
         sequences.delete(slug)
         shutil.rmtree(config.PRESETS_DIR)
         old_beta_id = self.script("beta.sh").id
-        preview = project_files.inspect(shp)
+        preview = project_files.inspect(pfile)
         self.assertEqual((preview["scripts"], preview["files"], preview["presets"]), (2, 5, 1))
         self.assertEqual(preview["sequences"], [{"name": "Release", "as": "Release", "steps": 2}])
         dest = self.tmp / "elsewhere" / "Ops"
-        result = project_files.install(shp, str(dest))
+        result = project_files.install(pfile, str(dest))
         self.assertEqual((result["files"], len(result["sequences"]), result["presets"]), (5, 1, 1))
         self.assertEqual((dest / "data" / "hosts.csv").read_bytes(), b"name,ip\nweb,10.0.0.1\n")
         self.assertFalse((dest / ".env").exists())
@@ -132,8 +132,8 @@ class SaveAndOpenTests(ProjectCase):
 
         # opened twice: the name is taken, the destination must be new or empty
         with self.assertRaises(ProjectError):
-            project_files.install(shp, str(dest))
-        again = project_files.install(shp, str(self.tmp / "second"))
+            project_files.install(pfile, str(dest))
+        again = project_files.install(pfile, str(self.tmp / "second"))
         self.assertEqual(sequences.load(again["sequences"][0])["name"], "Release (2)")
         self.assertIn("exists already", " ".join(again["kept"]))             # the preset there is kept
 
@@ -144,8 +144,8 @@ class SaveAndOpenTests(ProjectCase):
         (outside / "gamma.py").write_bytes(TOOL)
         gamma = discovery.load_file(str(outside / "gamma.py"))
         sequences.add_step(slug, sequences.new_step(gamma, {}))
-        shp, report = self.save([slug], files=["README.md"])                  # scripts not ticked
-        with zipfile.ZipFile(shp) as z:
+        pfile, report = self.save([slug], files=["README.md"])                  # scripts not ticked
+        with zipfile.ZipFile(pfile) as z:
             names = set(z.namelist())
         self.assertTrue({"files/alpha.py", "files/deploy/beta.sh", "files/_outside/gamma.py"} <= names)
         self.assertEqual(report["outside"], [str((outside / "gamma.py").resolve())])
@@ -156,8 +156,8 @@ class SaveAndOpenTests(ProjectCase):
         data = sequences.load(slug)
         data["steps"][1]["host"] = "web-9"
         sequences._write(slug, data)
-        shp, _report = self.save([slug])
-        warnings = " | ".join(project_files.inspect(shp)["warnings"])
+        pfile, _report = self.save([slug])
+        warnings = " | ".join(project_files.inspect(pfile)["warnings"])
         self.assertIn("host 'web-9' is not in this ScriptHub's settings", warnings)
         self.assertIn("tag = C:\\nowhere\\at\\all does not exist on this computer", warnings)
 
@@ -175,7 +175,7 @@ class UnsafeFileTests(ProjectCase):
             if manifest is not False:
                 z.writestr("manifest.json", json.dumps(manifest or {
                     "format": "scripthub-project", "version": 1, "files": [], "sequences": [], "presets": []}))
-        path = self.tmp / "bad.shp"
+        path = self.tmp / "bad.scripthub"
         path.write_bytes(buf.getvalue())
         return path
 
@@ -201,9 +201,9 @@ class UnsafeFileTests(ProjectCase):
             with self.subTest(label):
                 with self.assertRaises(ProjectError):
                     project_files.inspect(path)
-        (self.tmp / "notzip.shp").write_bytes(b"hello")
+        (self.tmp / "notzip.scripthub").write_bytes(b"hello")
         with self.assertRaises(ProjectError):
-            project_files.inspect(self.tmp / "notzip.shp")
+            project_files.inspect(self.tmp / "notzip.scripthub")
 
     def test_destination_must_be_new_or_empty_and_outside_runtime(self):
         (self.tmp / "full").mkdir()
@@ -223,9 +223,9 @@ class WebTests(ProjectCase):
 
     def test_save_open_and_install_through_the_pages(self):
         slug = self.make_sequence()
-        r = self.client.get("/project/save/?name=Ops project.shp")      # what the Save As dialog fetches
+        r = self.client.get("/project/save/?name=Ops project.scripthub")      # what the Save As dialog fetches
         self.assertEqual(r.status_code, 200)
-        self.assertIn('filename="Ops project.shp"', r["Content-Disposition"])
+        self.assertIn('filename="Ops project.scripthub"', r["Content-Disposition"])
         self.assertEqual(r["X-ScriptHub-Report"], "5 files (2 scripts), 1 sequences, 1 presets")
         body = b"".join(r.streaming_content)
         with zipfile.ZipFile(io.BytesIO(body)) as z:
@@ -233,9 +233,9 @@ class WebTests(ProjectCase):
             self.assertEqual(json.loads(z.read("manifest.json"))["name"], "Ops project")
         self.assertIn(f"sequences/{slug}.yaml", names)                   # sequences using the folder
         self.assertFalse(any(".env" in n or ".pem" in n for n in names))
-        self.assertIn('filename="ops.shp"', self.client.get("/project/save/")["Content-Disposition"])   # folder name
+        self.assertIn('filename="ops.scripthub"', self.client.get("/project/save/")["Content-Disposition"])   # folder name
         upload = io.BytesIO(body)
-        upload.name = "Ops project.shp"
+        upload.name = "Ops project.scripthub"
         preview = self.client.post("/project/open/", {"project": upload})
         self.assertContains(preview, "Ops project")
         self.assertContains(preview, "added as “Release (2)”")
@@ -246,22 +246,22 @@ class WebTests(ProjectCase):
         self.assertTrue(r["Location"].startswith("/sequences/"))
         self.assertTrue((dest / "alpha.py").is_file())
         self.assertEqual(workspace.load()["folder"], str(dest))               # the project folder is open
-        self.assertFalse(project_files.imports_dir().joinpath(f"{token}.shp").exists())
+        self.assertFalse(project_files.imports_dir().joinpath(f"{token}.scripthub").exists())
 
         bad = io.BytesIO(b"not a zip")
-        bad.name = "x.shp"
+        bad.name = "x.scripthub"
         self.assertContains(self.client.post("/project/open/", {"project": bad}, follow=True), "Not a ScriptHub project file")
         r = self.client.post("/project/open/install/", {"token": "0" * 24, "destination": str(self.tmp / "z")}, follow=True)
         self.assertContains(r, "no longer available")
 
     def test_cancel_forgets_the_upload(self):
         self.make_sequence()
-        shp, _report = self.save([])
-        upload = io.BytesIO(shp.read_bytes())
-        upload.name = "ops.shp"
+        pfile, _report = self.save([])
+        upload = io.BytesIO(pfile.read_bytes())
+        upload.name = "ops.scripthub"
         token = self.client.post("/project/open/", {"project": upload}).context["token"]
         self.client.post("/project/open/install/", {"token": token, "cancel": "1"})
-        self.assertFalse(project_files.imports_dir().joinpath(f"{token}.shp").exists())
+        self.assertFalse(project_files.imports_dir().joinpath(f"{token}.scripthub").exists())
 
     def test_save_needs_an_open_folder(self):
         workspace.close_folder()

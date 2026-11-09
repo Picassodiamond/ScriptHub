@@ -1,15 +1,17 @@
 """Django settings for ScriptHub.
 
 There is deliberately NO database, NO sessions and NO auth: this is a
-personal tool and all state lives in JSON files under ./runtime.
+personal tool and all state lives in JSON files under config.RUNTIME_DIR.
 """
 import os
 import secrets
 from pathlib import Path
 
+import config
+
 BASE_DIR = Path(__file__).resolve().parent.parent
-RUNTIME_DIR = BASE_DIR / "runtime"
-RUNTIME_DIR.mkdir(exist_ok=True)
+RUNTIME_DIR = config.RUNTIME_DIR
+RUNTIME_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def _secret_key() -> str:

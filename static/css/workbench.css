@@ -317,6 +317,7 @@ a.st:hover { text-decoration: none; filter: brightness(1.15); }
 .st-queued { background: var(--queue-soft); color: var(--queue); }
 .st-cancelled, .st-interrupted { background: var(--warn-soft); color: var(--warn); }
 .st-paused { background: var(--warn-soft); color: var(--warn); }
+.st-paused { background: var(--warn-soft); color: var(--warn); }
 .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; background: transparent; }
 .dot.st-success { background: var(--ok); }
 .dot.st-failed, .dot.st-timed_out { background: var(--bad); }
@@ -955,6 +956,8 @@ button.doc-tab.is-active { background: var(--code-bg); color: var(--text); box-s
 .inline-form.grow, .preset-box form.grow { flex: 1; min-width: 0; }
 .btn-del:hover { color: var(--bad); background: var(--bad-soft); }
 .quick .btn-icon { flex: none; }
+.quick .q-btn { background: none; border: 0; padding: 0; font: inherit; color: inherit; cursor: pointer; text-align: left; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.quick .q-btn:hover { text-decoration: underline; }
 /* parameter definitions: one compact clickable row each */
 .split-side .pe-table .pe-row { cursor: pointer; }
 .split-side .pe-table .pe-row.is-open > td { background: var(--hover); }
@@ -1080,6 +1083,12 @@ button.doc-tab.is-active { background: var(--code-bg); color: var(--text); box-s
 .seq-board { display: flex; flex-direction: column; min-height: 0; min-width: 0; margin: 0; overflow: hidden; }
 .seq-toolbar { display: flex; align-items: center; gap: 6px; min-height: 40px; padding: 4px 8px 4px 12px; border-bottom: 1px solid var(--line); }
 .seq-toolbar .seq-hint { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.seq-toolbar .seq-play { min-width: 84px; justify-content: center; }
+.seq-live { display: inline-flex; align-items: center; gap: 6px; margin-left: 4px; color: inherit; text-decoration: none; white-space: nowrap; }
+.seq-live[hidden] { display: none; }
+.seq-live:hover .small { text-decoration: underline; }
+.seq-canvas.is-locked .seq-x, .seq-canvas.is-locked .seq-port, .seq-canvas.is-locked .seq-unlink { display: none; }
+.seq-canvas.is-locked .seq-when { pointer-events: none; }
 .seq-canvas {
   position: relative; flex: 1; min-height: 320px; overflow: hidden; outline: none; cursor: grab; touch-action: none; user-select: none;
   background-color: var(--bg-2); background-image: radial-gradient(var(--line-2) 1px, transparent 1.2px); background-size: 20px 20px;
@@ -1118,6 +1127,11 @@ button.doc-tab.is-active { background: var(--code-bg); color: var(--text); box-s
 .seq-open .i { width: 14px; height: 14px; }
 .seq-node:hover .seq-open, .seq-node.is-selected .seq-open { visibility: visible; }
 .seq-open:hover { color: var(--accent); background: var(--hover); }
+.seq-boxbtn { display: inline-flex; border: 0; background: none; color: var(--faint); cursor: pointer; padding: 1px; border-radius: 4px; visibility: hidden; }
+.seq-boxbtn .i { width: 14px; height: 14px; }
+.seq-node:hover .seq-boxbtn, .seq-node.is-selected .seq-boxbtn, .seq-boxbtn.is-on, .seq-canvas.is-locked .seq-boxbtn { visibility: visible; }
+.seq-boxbtn:hover { color: var(--accent); background: var(--hover); }
+.seq-boxbtn.is-on { color: var(--warn); background: var(--warn-soft); }
 /* centre tab bar on the sequence page: open scripts and sequences, as on script pages */
 .seq-board > .seq-tabs { border-radius: var(--r-lg) var(--r-lg) 0 0; }
 a.doc-tab.is-active { color: var(--text); background: var(--code-bg); box-shadow: inset 0 2px 0 var(--accent); }
@@ -1155,6 +1169,7 @@ a.doc-tab.is-active { color: var(--text); background: var(--code-bg); box-shadow
 .seq-node[data-status="failed"], .seq-node[data-status="timed_out"], .seq-node[data-status="interrupted"] { border-color: var(--bad); }
 .seq-node[data-status="cancelled"] { border-color: var(--warn); }
 .seq-node[data-status="skipped"] { opacity: .5; border-style: dashed; }
+.seq-node.is-held { border-color: var(--warn); box-shadow: 0 0 0 3px var(--warn-soft); }
 .seq-node[data-status].is-selected { outline: 2px solid var(--accent); outline-offset: 2px; }
 .seq-link.is-dead, .seq-label.is-dead { opacity: .3; }
 .seq-link.is-taken { stroke-width: 2.6; }
@@ -1242,7 +1257,7 @@ a.doc-tab:hover { color: var(--text); text-decoration: none; background: var(--h
 .panel-head .fav-mark { color: var(--warn); fill: currentColor; }
 .seq-side .table th:last-child, .seq-side .table td:last-child { display: none; }   /* duration: on the run page */
 
-/* Project files (.shp): save and open */
+/* Project files (.scripthub): save and open */
 .proj-seqs, .proj-files ul { margin: 6px 0 0; padding-left: 18px; }
 .proj-files > summary { cursor: pointer; }
 .proj-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-bottom: 12px; }

@@ -334,16 +334,16 @@ class BatchExecutionTests(EngineCase):
                 self.assertIn("not allowed for batch files", m["error"])
         self.assertFalse(marker.exists())
 
-    def test_bundled_example_batch_scripts(self):
-        base = config.BASE_DIR / "scripts" / "system"
-        m = self.finished(self.mgr.submit(self.spec(base / "ping_host.bat", ["127.0.0.1", "1"],
+    def test_sample_batch_scripts(self):
+        base = config.BASE_DIR / "sample_scripts" / "system"
+        m = self.finished(self.mgr.submit(self.spec(base.parent / "network" / "ping_host.bat", ["127.0.0.1", "1"],
                                                     interpreter="cmd", extension=".bat")))
         self.assertEqual(m["status"], "success", self.read_log(m["id"], "stderr"))
         m = self.finished(self.mgr.submit(self.spec(base / "list_directory.bat", [str(base)],
                                                     interpreter="cmd", extension=".bat",
                                                     env={"LIST_MODE": "brief"})))
         self.assertEqual(m["status"], "success")
-        self.assertIn("ping_host.bat", self.read_log(m["id"], "stdout"))
+        self.assertIn("list_directory.bat", self.read_log(m["id"], "stdout"))
         m = self.finished(self.mgr.submit(self.spec(base / "list_directory.bat", [str(base / "nope")],
                                                     interpreter="cmd", extension=".bat")))
         self.assertEqual(m["status"], "failed")

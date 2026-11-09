@@ -23,8 +23,9 @@ node tools/test_highlight.js     # syntax highlighter (only if you touched stati
 ```
 
 * Add tests with every change; they run on Windows and Linux in CI.
-* The suite must leave `runtime/executions/` and `runtime/presets/` empty (only
-  `.gitkeep`) and create no `*.params.json` under `scripts/`.
+* The suite must leave ScriptHub's data folder (`runtime/executions/`, `runtime/presets/`,
+  `runtime/sequences/`) untouched and change nothing under `sample_scripts/` or `sample_projects/`.
+* After changing a sample script, run `python tools/build_sample_projects.py`.
 * Write script fixtures with `write_bytes`, not `write_text` (avoids CRLF on Windows),
   and give every started run its own submit token.
 * SSH is tested against a fake `ssh` (see `FakeSshRemoteTests`), never a real host.

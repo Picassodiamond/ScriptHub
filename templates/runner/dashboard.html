@@ -14,9 +14,6 @@
     {% for x in wb_folder.recent|slice:":5" %}{% if x.exists %}
     <form method="post" action="{% url 'folder_open' %}" style="display:inline">{% csrf_token %}<input type="hidden" name="path" value="{{ x.path }}"><button class="btn btn-ghost" type="submit" title="{{ x.path }}"><svg class="i"><use href="#i-clock"/></svg> {{ x.name }}</button></form>
     {% endif %}{% endfor %}
-    {% if not wb_folder.favorites and not wb_folder.recent %}
-    <form method="post" action="{% url 'folder_open' %}" style="display:inline">{% csrf_token %}<input type="hidden" name="path" value="./scripts"><button class="btn btn-ghost" type="submit" title="The example scripts that come with ScriptHub">Open the bundled examples</button></form>
-    {% endif %}
   </div>
 </section>
 {% endif %}
@@ -57,6 +54,20 @@
   </section>
 
   <div class="stack">
+    <section class="panel" id="samples">
+      <div class="panel-head"><h2>Samples</h2></div>
+      <ul class="quick">
+        <li><svg class="i faint"><use href="#i-folder-open"/></svg>
+          <form method="post" action="{% url 'folder_open' %}" class="q-name">{% csrf_token %}<input type="hidden" name="path" value="{{ samples_dir }}">
+            <button class="plain q-btn" type="submit" title="{{ samples_dir }}">Sample scripts</button></form></li>
+        {% for p in sample_projects %}
+        <li><svg class="i faint"><use href="#i-sequence"/></svg>
+          <form method="post" action="{% url 'project_sample' %}" class="q-name">{% csrf_token %}<input type="hidden" name="name" value="{{ p.name }}">
+            <button class="plain q-btn" type="submit" title="Project with a sequence and presets: see what it adds, then open it">{{ p.name }}</button></form></li>
+        {% endfor %}
+      </ul>
+    </section>
+
     <section class="panel">
       <div class="panel-head"><h2><svg class="i"><use href="#i-zap"/></svg> Quick run</h2></div>
       {% if quick %}

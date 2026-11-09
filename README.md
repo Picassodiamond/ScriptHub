@@ -22,26 +22,26 @@ MIT licensed — see [Licence and contributing](#licence-and-contributing).
 1. [Quick start](#quick-start)
 2. [A tour of the pages](#a-tour-of-the-pages)
 3. [Configuration](#configuration)
+   - [Where ScriptHub keeps its data](#where-scripthub-keeps-its-data)
 4. [Script folder](#script-folder)
 5. [Writing scripts](#writing-scripts)
 6. [Metadata reference](#metadata-reference)
 7. [Defining parameters](#defining-parameters)
 8. [Running a script, hosts and presets](#running-a-script-hosts-and-presets)
    - [Sequences: scripts connected by arrows](#sequences-scripts-connected-by-arrows)
-   - [Project files (.shp): take a folder and its sequences anywhere](#project-files-shp-take-a-folder-and-its-sequences-anywhere)
+   - [Project files (.scripthub): take a folder and its sequences anywhere](#project-files-scripthub-take-a-folder-and-its-sequences-anywhere)
 9. [Creating and editing scripts](#creating-and-editing-scripts)
 10. [Execution lifecycle](#execution-lifecycle)
 11. [Logging, history and retention](#logging-history-and-retention)
 12. [Running on Linux servers over SSH](#running-on-linux-servers-over-ssh)
-13. [Bundled scripts](#bundled-scripts)
-14. [Offline installation of pip packages (walkthrough)](#offline-installation-of-pip-packages-walkthrough)
-15. [Security](#security)
-16. [Production deployment](#production-deployment)
-17. [Limitations of long-lived subprocesses](#limitations-of-long-lived-subprocesses)
-18. [Testing](#testing)
-19. [Project layout](#project-layout)
-20. [Troubleshooting](#troubleshooting)
-21. [Licence and contributing](#licence-and-contributing)
+13. [Sample scripts and projects](#sample-scripts-and-projects)
+14. [Security](#security)
+15. [Production deployment](#production-deployment)
+16. [Limitations of long-lived subprocesses](#limitations-of-long-lived-subprocesses)
+17. [Testing](#testing)
+18. [Project layout](#project-layout)
+19. [Troubleshooting](#troubleshooting)
+20. [Licence and contributing](#licence-and-contributing)
 
 ---
 
@@ -68,8 +68,10 @@ Then either:
   changes, and a restart stops any script that is running.
 * To use another port: `python manage.py runserver 8080 --noreload`.
 
-Try it: open **Script Library**, press **Run** on *System Information*, then
-**Run**. The run opens as a tab next to the script.
+Try it: on **Home**, under *Samples*, click **Sample scripts**, open *Hello (Python)* and press **Run**.
+The run opens as a tab next to the script. Or click one of the sample projects below it: you see what it
+adds, click **Open**, and it comes with a sequence and presets
+(see [Sample scripts and projects](#sample-scripts-and-projects)).
 
 ### Desktop app
 
@@ -173,7 +175,8 @@ Ctrl+Enter runs it), type `run ` to list run actions only, paste a run id such a
 
 ## Configuration
 
-All settings live in `runtime/config.json` (created on first save). Edit them in
+All settings live in `config.json` in ScriptHub's data folder (created on first save; in this README the data
+folder is written `runtime/`, see below). Edit them in
 **Settings** or by hand; they are validated before being saved, the previous file
 is kept as `config.json.bak`, and changes apply to the next execution without a
 restart.
@@ -219,6 +222,28 @@ Environment variables for the web process:
 
 The names used before the rename (`SCRIPT_RUNNER_DEBUG`, `SCRIPT_RUNNER_ALLOWED_HOSTS`) still work.
 
+
+### Where ScriptHub keeps its data
+
+Settings, run history and logs, presets, sequences and script backups are kept **outside the code
+folder**, so the code can be updated or replaced without touching them. The first that applies:
+
+1. `SCRIPTHUB_HOME`, when this environment variable is set;
+2. a `runtime` folder next to the code, when one exists (**portable mode**: create it to keep everything
+   together, e.g. on a USB stick; installs from before 2.0 keep using theirs);
+3. your user data folder: `%LOCALAPPDATA%\ScriptHub` (Windows), `~/Library/Application Support/ScriptHub`
+   (macOS), `~/.local/share/scripthub` (Linux, or `$XDG_DATA_HOME/scripthub`).
+
+This README writes that folder as `runtime/`. **Settings → Data** shows where it is and how much each kind
+of data takes, and clears one kind or all of it (queued and running runs are kept; your scripts are never
+touched). The same from a terminal:
+
+```bash
+python manage.py clear_runtime                    # show what is stored where
+python manage.py clear_runtime history presets    # history, presets, sequences, backups, metadata,
+python manage.py clear_runtime all                #   workspace, imports, desktop, settings, or all
+```
+
 ---
 
 ## Script folder
@@ -227,8 +252,8 @@ ScriptHub works on **one folder at a time**, like an editor's *Open Folder*, plu
 number of **script files** opened on their own (*File → Open file…*, several at once;
 with no folder open the explorer shows just those files; New script needs a folder).
 Each opened file can be closed again (*File → Close <file>* / *Close opened files*).
-It is not a setting: on first start the Overview asks you to open one (or the bundled
-`./scripts` examples), and the folder you open is reopened on the next start.
+It is not a setting: on first start the Overview asks you to open one (or the
+`sample_scripts` folder), and the folder you open is reopened on the next start.
 
 * **Open folder…** / **Open file…** (File menu, Ctrl+K) show the system dialog
   (folders, or files filtered to the script types) and open what you pick. The dialog appears on the machine
@@ -319,7 +344,7 @@ done
 du -sk -- "$path"/* | sort -rn | head -n "$top"
 ```
 
-See `scripts/system/disk_usage.sh`.
+See `sample_scripts/system/disk_usage.sh`.
 
 ### Batch (`.bat`, Windows)
 
@@ -574,13 +599,23 @@ How a sequence runs:
   from it; a failure that has such an arrow counts as handled. Otherwise it is *Success*
   (*Cancelled* when stopped; like runs, not resumed after a restart: *Interrupted*).
 
-**Run sequence** (Ctrl+Enter) first checks every step (script found, values valid, host
-allowed) and starts nothing if one is wrong. Password parameters are asked for in the
-right-hand column each time and never saved. The run page shows the same diagram with
-each step's live status (arrows that applied stand out, the others fade) next to the
-console of the running step; click a box to see its console. **Stop** stops the running
-steps and skips the rest. Every step is a normal run in **Runs**, and its console links
-back to the sequence run.
+**▶ Run** in the diagram's toolbar (Ctrl+Enter) first checks every step (script found, values valid, host
+allowed) and starts nothing if one is wrong. Password parameters are asked for in the right-hand column each
+time and never saved. The sequence then runs **on the diagram itself**: each box shows its live status, the
+arrows that applied stand out and the others fade, and the right-hand column follows the console of the
+running step (click a box to see another one). The diagram cannot be changed while the run is going; the
+statuses stay after it until your next change or run.
+
+* **⏸ Pause** (same button, Ctrl+Enter): the steps running now finish, no new step starts. The run shows
+  *Paused*; **▶ Resume** carries on where it stopped.
+* **■ Stop**: the running steps are stopped and the rest are skipped (also while paused).
+* **On a box**: ▶ runs **only that step** (with its values; a run of its own, shown on the diagram). During a
+  run, ⏸ on a step that has not started yet **pauses the run before it**, like a breakpoint: the box turns
+  amber with *Paused here* and **▶ Resume** starts it. Click ⏸ again to take it back.
+* The status chip next to the buttons (*Running 2/4 · 12s*) opens the run's own page, which has the same
+  Pause / Resume / Stop buttons and is where History links to.
+
+Every step is a normal run in **Runs**, and its console links back to the sequence run.
 
 Sequences are kept in `runtime/sequences/`, one YAML file each, and their runs in
 `runtime/sequence_runs/SEQ-YYYYMMDD-NNN/metadata.json` (with the diagram as it was):
@@ -620,9 +655,9 @@ the first version of sequences (a plain list of steps with `on_failure: stop|con
 open as a top-to-bottom chain (`continue` = an *always* arrow) and are written in the new
 form on the next change.
 
-### Project files (.shp): take a folder and its sequences anywhere
+### Project files (.scripthub): take a folder and its sequences anywhere
 
-**File → Save project as…** opens the system Save As dialog and writes one `.shp` file (a zip) there: the
+**File → Save project as…** opens the system Save As dialog and writes one `.scripthub` file (a zip) there: the
 open folder's scripts and other files (helpers, data, documents), the sequences that use its scripts (with any
 script they need from elsewhere, under `_outside/`) and the scripts' presets. It never holds passwords, run
 history, Settings, files that look like secrets (`.env`, keys, keystores) or tool folders (`.git`, `.venv`,
@@ -636,12 +671,15 @@ unpacked script, and the folder opens. Opening runs nothing; the file is checked
 folder, no links, size limits, every file against the SHA-256 in its manifest).
 
 ```
-Ops.shp
+Ops.scripthub
 ├─ manifest.json            format, version, name, date; every file with size and SHA-256
 ├─ files/…                  the folder's files
 ├─ sequences/<slug>.yaml    step paths point inside the project (files/…)
 └─ presets/<n>/<slug>.yaml  presets, with the script each belongs to in the manifest
 ```
+
+**File → Close project** closes the open folder and every opened file in one go. Nothing is deleted: the
+sequences and presets stay, and the folder is in *Open recent*.
 
 ---
 
@@ -807,72 +845,32 @@ How a remote run works:
 
 ---
 
-## Bundled scripts
+## Sample scripts and projects
 
-Examples you can run, copy and adapt (all editable on their **Overview**):
+`sample_scripts/` is a folder to open (**File → Open folder…**) and try things out. Every script is standard
+library Python, Bash or batch, has its metadata block at the top, and is safe to run: nothing is deleted
+unless you tick it, and nothing needs a server.
 
-| Script | Language | What it does |
+| Folder | Scripts | Shows |
 |---|---|---|
-| **System Information** | Python | Hostname, OS, Python version, time. |
-| **Directory Backup** | Python | ZIP a folder, optionally compressed. |
-| **Directory Cleanup** | Python | Delete files older than N days. **Dry run** until you type `DELETE`. Refuses roots and home folders. |
-| **Disk Usage** | Bash | Largest entries in a folder plus free space. |
-| **HTTP Health Check** | Bash | Check a URL (positional argument + environment variable). Fails if unreachable. |
-| **Ping Host** | Batch | Ping with positional arguments (Windows). |
-| **List Directory** | Batch | Positional argument + environment variable (Windows). |
-| **Django: Deploy** | Bash | `git pull` → install requirements (online **or offline**) → `check` → `migrate` → `collectstatic` → restart a systemd service. Stops at the first failing step. |
-| **Django: Health Check** | Bash | `check --deploy`, pending-migration check, service status, optional URL probe, pass/fail summary. |
-| **Django: Run Management Command** | Bash | One of a fixed list (`check`, `showmigrations`, `migrate`, `collectstatic`, `createcachetable`, `clearsessions`); extra arguments restricted to simple tokens. |
-| **Service: Status / Restart** | Bash | `systemctl` status/start/stop/restart/reload, or recent journal log. |
-| **Database Backup** | Bash | SQLite (`.backup`) or PostgreSQL (`pg_dump`) to a timestamped file, keeping the newest N. The password travels as `PGPASSWORD`. |
-| **Pip: Download Wheelhouse** | Python | Download requirements + dependencies for **offline** installation, optionally for another OS/Python, with a checksum manifest and optional ZIP. |
-| **Pip: Offline Install** | Python | Install from a wheelhouse with no network: verifies checksums, creates the virtualenv, runs `pip check`. |
-| **Pip: Freeze Requirements** | Python | Write the exact versions of an environment to a requirements file. |
+| `basics/` | **Hello** in Python, Bash and batch · **Parameter tour** · **Succeed, fail or take a while** | flags, positional and environment arguments; every parameter type, passwords, a locked value; the live console, Stop, Trace and Debug |
+| `files/` | **Find large files** · **Clean up old files** (dry run by default) · **Back up a folder** (.zip / .tar.gz, keeps the newest N) · **File checksum** | directory and file parameters, exit codes |
+| `system/` | **System information** · **Disk space check** (fails above a limit) · **Largest folders** (Bash, for SSH hosts) · **List a folder** (batch) · **Log a message** | scripts for every platform; a step to end a sequence with |
+| `network/` | **Check a TCP port** · **Check a web page** · **Ping a host** (batch) | pass/fail checks for sequences |
+| `data/` | **Summarise a CSV file** · **Search a log file**, with `sales.csv` and `app.log` next to them | relative paths start in the script's folder |
 
-The Django and database scripts are Bash for Linux servers; run them on a host
-over SSH (or locally under WSL / Git Bash).
+`sample_projects/` holds three project files built from those scripts. Open one from **Home → Samples**
+(no file to choose) or with **File → Open project…**: it unpacks into a new folder of your choice and adds a
+sequence and some presets. **Home → Samples → Sample scripts** opens `sample_scripts/` itself.
 
----
-
-## Offline installation of pip packages (walkthrough)
-
-Goal: install a Django app's packages on a server **that has no internet**, while
-you prepare them from a computer that does (for example this Windows machine).
-
-**1. Pin the versions** (on a working environment):
-*Pip: Freeze Requirements* → set the interpreter and *Save to file*, producing
-`requirements.lock.txt`.
-
-**2. Download a wheelhouse** (on the connected computer):
-*Pip: Download Wheelhouse*
-
-| Field | Example |
+| Project | Sequence |
 |---|---|
-| Requirements file | `C:\work\myapp\requirements.lock.txt` |
-| Wheelhouse folder | `C:\work\wheelhouse` |
-| Target platform | **Linux x86-64** (the server's OS) |
-| Target Python version | `3.11` (the server's Python) |
-| Also create a .zip | ✔ |
+| **Getting started** | *Try a sequence*: Hello → *Succeed, fail…* → one Hello after the success arrow, another after the failure arrow. Change the middle step to *failure* and run it again. |
+| **Health check** | *Daily health check*: system information, then disk, port and web checks side by side; *Log a message* when all pass (join *all*) or when any fails (join *any*). |
+| **Files and data** | *Log and sales report*: a CSV summary next to a log search that fails when it finds errors, with a message after each outcome. |
 
-Because the target differs from this machine, only **binary wheels** can be
-fetched; if a package ships only source code the download fails and says so. A
-`wheelhouse-manifest.txt` with SHA-256 checksums is written.
-
-**3. Transfer** `wheelhouse.zip` (USB, `scp`, shared drive) and unzip it on the
-server, e.g. to `/srv/wheelhouse`.
-
-**4. Install on the server** (choose the server as *Run on*):
-*Pip: Offline Install* with the wheelhouse folder, the requirements file and a
-virtualenv path such as `/srv/myapp/venv`. Tick **Dry run** first to confirm
-everything is available. The script verifies the checksums, creates the
-virtualenv if needed, installs with `--no-index` (it cannot reach the network),
-and runs `pip check`.
-
-**5. Deploy** with *Django: Deploy*, filling in **Offline wheelhouse**
-(`/srv/wheelhouse`) so even updates never touch the internet.
-
-Tips: keep one wheelhouse per Python version and platform; re-run step 2 whenever
-`requirements` change.
+After changing a sample script, rebuild the projects with `python tools/build_sample_projects.py`; the test
+suite fails while a project holds an outdated copy.
 
 ---
 
@@ -998,8 +996,7 @@ python manage.py test runner
 The suite starts **real processes**: success and failure, live output, timeouts,
 cancel (including child processes), the queue and every concurrency limit, restart
 recovery, SSH execution against a fake `ssh`, batch-injection guards, presets,
-history and retention, and the bundled scripts (including an actual offline pip
-install into a fresh virtualenv). Tests that need Bash or Windows skip
+history and retention, and the sample scripts and projects. Tests that need Bash or Windows skip
 themselves where unavailable. No test needs internet.
 
 A separate Node script checks the syntax highlighter:
@@ -1029,15 +1026,14 @@ ScriptHub/
 │   ├── sequences.py, sequence_runner.py   sequences: storage (steps + arrows), running them
 │   ├── presets.py (saved parameters), ssh_hosts.py, security.py, validators.py, fsutil.py
 │   └── test*.py
-├── scripts/                  bundled examples (system, django, python_packages, …)
-├── runtime/                  config.json, executions/, presets/, sequences/, sequence_runs/, metadata_overrides/
+├── sample_scripts/           example scripts to open as a folder (basics, files, system, network, data)
+├── sample_projects/          example project files (.scripthub), built by tools/build_sample_projects.py
 ├── templates/, static/       Django templates, custom CSS, vanilla JavaScript
 └── tools/test_highlight.js
 ```
 
-`runtime/` is created and managed by the app and is ignored by git. (`runtime/locks/`
-and `runtime/sessions/` are reserved folders that the current design does not use:
-there are no sessions, and the queue lives in memory.)
+ScriptHub's own data (settings, history, presets, sequences) is not in the code folder: see
+[Where ScriptHub keeps its data](#where-scripthub-keeps-its-data).
 
 ---
 

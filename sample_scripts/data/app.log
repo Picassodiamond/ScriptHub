@@ -1,0 +1,16 @@
+2026-11-02 08:00:00 INFO     service started, version 2.4.1
+2026-11-02 08:07:13 INFO     connected to database db01
+2026-11-02 08:14:26 DEBUG    cache warmed: 1840 entries
+2026-11-02 08:21:39 INFO     GET /api/orders 200 34ms
+2026-11-02 08:28:52 WARN     slow query: 1250ms SELECT * FROM orders WHERE ...
+2026-11-02 08:36:05 INFO     GET /api/customers 200 21ms
+2026-11-02 08:43:18 ERROR    payment gateway timeout after 30s (order 10442)
+2026-11-02 08:50:31 INFO     retrying order 10442
+2026-11-02 08:57:44 INFO     order 10442 paid
+2026-11-02 09:04:57 WARN     disk /var/lib 86% used
+2026-11-02 09:12:10 INFO     nightly report generated
+2026-11-02 09:19:23 ERROR    could not send mail: connection refused (smtp01:25)
+2026-11-02 09:26:36 INFO     GET /api/orders 200 29ms
+2026-11-02 09:33:49 CRITICAL database connection lost
+2026-11-02 09:41:02 INFO     reconnected to database db01
+2026-11-02 09:48:15 INFO     shutting down

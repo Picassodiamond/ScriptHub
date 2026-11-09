@@ -5,6 +5,7 @@
    arrow's label cycles its condition (succeeded / failed / always). Every change is one
    POST to the graph endpoint, which answers with the stored graph (the server decides).
    A click on a box shows its settings (embedded step page) in the right-hand column.
+   Play / Pause / Stop in the toolbar run the sequence in place (the boxes show live status).
 
    Sequence run page (#seq-run): the same diagram, read-only, with each step's live status;
    a click on a box shows that step's console.
@@ -129,6 +130,12 @@
     this.render();
   };
 
+  /* While a run is going the diagram is not editable (the run uses the sequence as it was at Play). */
+  Diagram.prototype.lock = function (on) {
+    this.locked = !!on;
+    this.canvas.classList.toggle('is-locked', this.locked);
+  };
+
   Diagram.prototype.statusOf = function () {
     var out = {};
     this.data.steps.forEach(function (s) { out[s.id] = s.status; });
@@ -147,11 +154,20 @@
       if (s.problem) n.classList.add('has-problem');
       if (s.status) n.setAttribute('data-status', s.status);
       if (s.run_id) n.classList.add('has-run');
+      if (s.held) n.classList.add('is-held');
       if (s.id === self.selected) n.classList.add('is-selected');
       var top = el('div', 'seq-node-top');
       top.appendChild(el('span', 'seq-n', String(s.n)));
       if (s.ext) top.appendChild(el('span', 'lang lang-' + s.ext, s.ext));
       top.appendChild(el('span', 'seq-node-name', s.name));
+      var act = o.boxAction && o.boxAction(s);
+      if (act) {
+        var ab = el('button', 'seq-boxbtn' + (act.on ? ' is-on' : ''));
+        ab.type = 'button'; ab.title = act.title; ab.setAttribute('aria-label', act.title + ' (step ' + s.n + ')');
+        if (act.on) ab.setAttribute('aria-pressed', 'true');
+        ab.innerHTML = '<svg class="i"><use href="#i-' + act.icon + '"/></svg>';
+        top.appendChild(ab);
+      }
       if (o.onOpen) {
         var op = el('button', 'seq-open');
         op.type = 'button'; op.title = 'Open the script (double-click the step)'; op.setAttribute('aria-label', 'Open the script of step ' + s.n);
@@ -166,7 +182,7 @@
       n.appendChild(top);
       var sub = el('div', 'seq-node-sub');
       if (s.status) {
-        sub.appendChild(el('span', 'st st-sm st-' + s.status, s.status_label || s.status));
+        sub.appendChild(el('span', 'st st-sm st-' + (s.held ? 'paused' : s.status), s.status_label || s.status));
         sub.appendChild(el('span', '', s.host || ''));
       } else {
         var bits = s.problem ? [s.problem] : [s.source, s.host];
@@ -283,9 +299,9 @@
     canvas.addEventListener('pointerdown', function (e) {
       if (e.button !== 0 || drag) return;
       var t = e.target;
-      if (t.closest('.seq-x, .seq-open, .seq-label')) return;    // their own click handlers
+      if (t.closest('.seq-x, .seq-open, .seq-boxbtn, .seq-label')) return;    // their own click handlers
       var node = t.closest('.seq-node');
-      if (o.editable && t.closest('.seq-port') && node) {
+      if (o.editable && !self.locked && t.closest('.seq-port') && node) {
         drag = { type: 'link', from: node.getAttribute('data-id') };
         canvas.classList.add('is-linking');
       } else if (node) {
@@ -307,7 +323,7 @@
         if (Math.abs(dx) + Math.abs(dy) > 3) drag.moved = true;
         self.view.x = drag.vx + dx; self.view.y = drag.vy + dy; self.apply();
       } else if (drag.type === 'node') {
-        if (!o.editable) return;
+        if (!o.editable || self.locked) return;
         if (!drag.moved && Math.abs(dx) + Math.abs(dy) < 5) return;
         drag.moved = true;
         drag.node.classList.add('is-dragging');
@@ -348,6 +364,14 @@
     canvas.addEventListener('pointerup', function (e) { end(e, false); });
     canvas.addEventListener('pointercancel', function (e) { end(e, true); });
 
+    /* the box's own ▶ / ⏸ (works while the diagram is locked) */
+    if (o.onBoxAction) {
+      canvas.addEventListener('click', function (e) {
+        var b = e.target.closest('.seq-boxbtn');
+        if (b) o.onBoxAction(b.closest('.seq-node').getAttribute('data-id'));
+      });
+    }
+
     /* open a step's script: its button, or a double-click on the box */
     if (o.onOpen) {
       canvas.addEventListener('click', function (e) {
@@ -358,12 +382,13 @@
         /* the canvas holds the pointer while a box is pressed (dragging), so the event's target is
            the canvas: find the box under the pointer instead */
         var hit = document.elementFromPoint(e.clientX, e.clientY), n = self.nodeAt(e.clientX, e.clientY);
-        if (n && !(hit && hit.closest('.seq-x, .seq-port, .seq-open'))) o.onOpen(n.getAttribute('data-id'));
+        if (n && !(hit && hit.closest('.seq-x, .seq-port, .seq-open, .seq-boxbtn'))) o.onOpen(n.getAttribute('data-id'));
       });
     }
 
     if (!o.editable) return;
     canvas.addEventListener('click', function (e) {
+      if (self.locked) return;
       var x = e.target.closest('.seq-x');
       if (x) { o.onRemove(x.closest('.seq-node').getAttribute('data-id')); return; }
       var label = e.target.closest('.seq-label');
@@ -377,13 +402,13 @@
     });
     canvas.addEventListener('keydown', function (e) {
       if (e.target !== canvas) return;
-      if ((e.key === 'Delete' || e.key === 'Backspace') && self.selected) { e.preventDefault(); o.onRemove(self.selected); }
+      if ((e.key === 'Delete' || e.key === 'Backspace') && self.selected && !self.locked) { e.preventDefault(); o.onRemove(self.selected); }
     });
 
     /* scripts dragged in from the explorer */
     function ours(e) { return e.dataTransfer && [].indexOf.call(e.dataTransfer.types || [], MIME) >= 0; }
     canvas.addEventListener('dragover', function (e) {
-      if (!ours(e)) return;
+      if (!ours(e) || self.locked) return;
       e.preventDefault();
       e.dataTransfer.dropEffect = 'copy';
       canvas.classList.add('is-drop');
@@ -393,7 +418,7 @@
     });
     canvas.addEventListener('drop', function (e) {
       canvas.classList.remove('is-drop');
-      if (!ours(e)) return;
+      if (!ours(e) || self.locked) return;
       e.preventDefault();
       var p = self.toWorld(e.clientX, e.clientY);
       o.onAdd(e.dataTransfer.getData(MIME), snap(p.x - W / 2), snap(p.y - H / 2));
@@ -515,21 +540,61 @@
   }
 
   /* ------------------------------------------------------------ sequence page --- */
+  /* Editing, and running in place: Play (toolbar) starts the sequence and the boxes show each step's live
+     status; Pause = no new step starts (the running ones finish), Resume, Stop. While a run is going the
+     diagram is locked and a click on a box shows that step's console. After the run the statuses stay
+     until the next change or run. */
   function editor(root) {
     var slug = root.getAttribute('data-slug'), graphUrl = root.getAttribute('data-graph-url');
     var stepUrl = root.getAttribute('data-step-url'), max = parseInt(root.getAttribute('data-max'), 10) || 50;
     var sideMain = document.getElementById('seq-side-main'), sideStep = document.getElementById('seq-side-step');
     var frame = document.getElementById('seq-step-frame'), title = document.getElementById('seq-step-title');
-    var pwBox = document.getElementById('seq-passwords'), runBtn = document.getElementById('seq-run-btn');
-    var summary = document.getElementById('seq-summary'), busy = 0, current = null;
+    var viewBtn = document.getElementById('seq-step-view');
+    var form = document.getElementById('seq-run-form'), pwBox = document.getElementById('seq-passwords');
+    var playBtn = document.getElementById('seq-play'), stopBtn = document.getElementById('seq-stop');
+    var live = document.getElementById('seq-live'), liveStatus = document.getElementById('seq-live-status');
+    var liveText = document.getElementById('seq-live-text');
+    var summary = document.getElementById('seq-summary'), busy = 0, current = null, mode = null;
     var ws = root.getAttribute('data-ws') || '', SEL_KEY = 'sr.seqSel.' + slug;
+    var interval = Math.max(500, parseInt(root.getAttribute('data-interval'), 10) || 2000);
+    var base = { steps: [], links: [] };          // the sequence as stored
+    var overlay = null;                          // step id -> live status of the shown run
+    var run = { id: null, active: false, paused: false, pinned: false, timer: null };
+
+    function runUrl(attr) { return root.getAttribute(attr).replace('XRID', encodeURIComponent(run.id)); }
 
     var diagram = new Diagram(document.getElementById('seq-canvas'), {
       editable: true,
       viewKey: 'sr.seqView.' + slug,
-      onSelect: open,
+      onSelect: function (id) {
+        if (run.active) run.pinned = true;          // the user picked a box: stop following the running step
+        open(id);
+      },
       onOpen: function (id) {
         openScript(diagram, ws, id, function () { try { sessionStorage.setItem(SEL_KEY, id); } catch (e) { /* storage unavailable */ } });
+      },
+      /* ▶ on a box: run this step alone; during a run, ⏸ on a step that has not started: pause before it */
+      boxAction: function (s) {
+        if (!run.active) return { icon: 'play', title: 'Run this step only' };
+        if (s.status !== 'pending') return null;
+        return s.hold ? { icon: 'pause', title: 'The run pauses before this step: click to take that back', on: true }
+                      : { icon: 'pause', title: 'Pause the run before this step' };
+      },
+      onBoxAction: function (id) {
+        if (!run.active) { play(id); return; }
+        var o = overlay && overlay[id];
+        if (!o || o.status !== 'pending') return;
+        var body = new FormData();
+        body.append('step', id);
+        body.append('on', o.hold ? '0' : '1');
+        o.hold = !o.hold;                                  // at once; the next poll confirms
+        show();
+        fetch(runUrl('data-hold-url'), { method: 'POST', credentials: 'same-origin', body: body,
+                                         headers: { 'Accept': 'application/json', 'X-CSRFToken': csrf() } })
+          .then(function (r) { return r.json().catch(function () { return {}; }); })
+          .then(function (d) { if (d.error) flash(d.error, 'error'); })
+          .catch(function () { flash('Could not reach ScriptHub.', 'error'); })
+          .then(poll);
       },
       onMove: function (id, x, y) { var p = {}; p[id] = [x, y]; send({ op: 'move', positions: p }); },
       onLink: function (from, to, when) { send({ op: 'link', from: from, to: to, when: when }); },
@@ -546,18 +611,38 @@
       }
     });
 
+    /* the stored graph with the shown run's statuses on its boxes */
+    function show() {
+      var g = base;
+      if (overlay) {
+        g = { steps: base.steps.map(function (s) {
+          var o = overlay[s.id];
+          return o ? Object.assign({}, s, o) : s;
+        }), links: base.links };
+      }
+      var sel = diagram.selected;
+      diagram.set(g);
+      if (sel && diagram.byId[sel]) diagram.select(sel);
+    }
+
     function update(graph) {
-      diagram.set(graph);
+      base = graph;
+      show();
       if (current && !diagram.byId[current]) close();
       else if (current) stepTitle();
       passwords(graph.passwords || []);
       var n = graph.steps.length, starts = graph.steps.filter(function (s) { return !graph.links.some(function (k) { return k.to === s.id; }); }).length;
-      runBtn.disabled = !n;
+      buttons();
       summary.textContent = !n ? 'No steps yet: drag scripts onto the page.'
         : n + ' step' + (n === 1 ? '' : 's') + ', ' + starts + ' starting at once (no arrow into them). Every step is checked before anything starts.';
     }
 
     function send(body) {
+      if (run.active) { flash('The sequence is running: stop it or wait before changing it.', 'error'); return Promise.resolve(null); }
+      if (overlay) {                       // a change: the last run's statuses no longer describe the diagram
+        overlay = null;
+        if (mode === 'console') close();
+      }
       busy++;
       return fetch(graphUrl, {
         method: 'POST', credentials: 'same-origin', body: JSON.stringify(body),
@@ -582,22 +667,37 @@
         .catch(function () { /* next change retries */ });
     }
 
+    /* ---- right-hand column: the sequence, or a step's settings or console ---- */
     function stepTitle() {
       var s = diagram.byId[current];
-      if (s) title.textContent = 'Step ' + s.n + ' · ' + s.name;
+      if (s) title.textContent = 'Step ' + s.n + ' · ' + s.name + (mode === 'console' ? ' · console' : '');
     }
-    function open(id) {
+    function open(id, want) {
       if (!id) { close(); return; }
+      var o = overlay && overlay[id], hasRun = !!(o && o.run_id);
+      var m = want || (hasRun ? 'console' : 'settings');
+      if (m === 'console' && !hasRun) m = 'settings';
+      if (m === 'settings' && run.active) {         // settings are locked during a run
+        diagram.select(id);
+        if (!hasRun) return;
+        m = 'console';
+      }
       current = id;
+      mode = m;
       diagram.select(id);
       stepTitle();
-      var src = stepUrl.replace('XID', encodeURIComponent(id)) + '?embed=1';
+      var src = m === 'console'
+        ? root.getAttribute('data-console-url').replace('XID', encodeURIComponent(o.run_id))
+        : stepUrl.replace('XID', encodeURIComponent(id)) + '?embed=1';
       if (frame.getAttribute('src') !== src) frame.setAttribute('src', src);
+      viewBtn.hidden = !(hasRun && !run.active);
+      viewBtn.textContent = m === 'console' ? 'Settings' : 'Console';
       sideMain.hidden = true;
       sideStep.hidden = false;
     }
     function close() {
       current = null;
+      mode = null;
       diagram.select(null);
       sideStep.hidden = true;
       sideMain.hidden = false;
@@ -617,24 +717,149 @@
         if (p.required) { var req = el('span', 'req', '*'); req.title = 'Required'; lab.appendChild(req); }
         var input = el('input', 'input');
         input.type = 'password'; input.name = p.input; input.id = p.input; input.autocomplete = 'new-password';
+        if (p.required) input.setAttribute('data-required', '1');
         if (keep[p.input]) input.value = keep[p.input];
         f.appendChild(lab); f.appendChild(input);
         pwBox.appendChild(f);
       });
     }
 
+    /* ---- running ---- */
+    function buttons() {
+      var icon = playBtn.querySelector('use'), label = playBtn.querySelector('span'), what, tip;
+      if (!run.active) { what = 'Run'; tip = 'Run the sequence  (Ctrl+Enter)'; icon.setAttribute('href', '#i-play'); }
+      else if (run.paused) { what = 'Resume'; tip = 'Resume: the next steps start  (Ctrl+Enter)'; icon.setAttribute('href', '#i-play'); }
+      else { what = 'Pause'; tip = 'Pause: the running steps finish, the next ones wait  (Ctrl+Enter)'; icon.setAttribute('href', '#i-pause'); }
+      label.textContent = what;
+      playBtn.title = tip;
+      playBtn.setAttribute('data-hint', what === 'Run' ? 'Run sequence' : what + ' sequence');
+      playBtn.classList.toggle('btn-primary', what !== 'Pause');
+      playBtn.disabled = !run.active && !base.steps.length;
+      stopBtn.hidden = !run.active;
+      diagram.lock(run.active);
+    }
+
+    function play(only) {
+      if (run.active) { if (!only) control(run.paused ? 'data-resume-url' : 'data-pause-url'); return; }
+      if (!base.steps.length || playBtn.disabled) return;
+      var missing = [].filter.call(pwBox.querySelectorAll('input[data-required]'), function (i) {
+        return !i.value && (!only || i.name.indexOf('pw_' + only + '_') === 0);
+      });
+      if (missing.length) {
+        close();
+        missing[0].focus();
+        flash('Enter the passwords in the right-hand column first (they are never saved).', 'error');
+        return;
+      }
+      playBtn.disabled = true;
+      var body = new FormData(form);
+      if (only) body.append('only', only);
+      fetch(form.action, {
+        method: 'POST', credentials: 'same-origin', body: body,
+        headers: { 'Accept': 'application/json', 'X-CSRFToken': csrf() }
+      }).then(function (r) {
+        return r.json().catch(function () { return { errors: ['The server answered ' + r.status + '.'] }; });
+      }).then(function (d) {
+        playBtn.disabled = false;
+        if (d.errors) {
+          flash(d.errors.slice(0, 3).join(' · ') + (d.errors.length > 3 ? ' · … and ' + (d.errors.length - 3) + ' more' : ''), 'error');
+          return;
+        }
+        form.elements.submit_token.value = d.token;              // the next Play is a new run
+        [].forEach.call(pwBox.querySelectorAll('input'), function (i) { i.value = ''; });
+        watch(d.run);
+      }).catch(function () {
+        playBtn.disabled = false;
+        flash('Could not reach ScriptHub; the sequence was not started.', 'error');
+      });
+    }
+
+    function control(attr) {
+      if (!run.id) return;
+      if (attr === 'data-stop-url' && !window.confirm('Stop this sequence? The running steps are stopped and the remaining steps are skipped.')) return;
+      playBtn.disabled = true;
+      fetch(runUrl(attr), { method: 'POST', credentials: 'same-origin', headers: { 'Accept': 'application/json', 'X-CSRFToken': csrf() } })
+        .then(function (r) { return r.json().catch(function () { return {}; }); })
+        .then(function (d) { if (d.error) flash(d.error, 'error'); })
+        .catch(function () { flash('Could not reach ScriptHub.', 'error'); })
+        .then(function () { playBtn.disabled = false; poll(); });
+    }
+
+    function watch(id) {
+      run = { id: id, active: true, paused: false, pinned: false, timer: null };
+      overlay = {};
+      live.href = runUrl('data-run-url');
+      buttons();
+      poll();
+    }
+
+    function poll() {
+      clearTimeout(run.timer);
+      var id = run.id;
+      fetch(runUrl('data-status-url'), { credentials: 'same-origin', headers: { 'Accept': 'application/json' }, cache: 'no-store' })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (d) {
+          if (id !== run.id) return;
+          if (d) apply(d);
+          if (!d || d.active) run.timer = setTimeout(poll, interval);
+        })
+        .catch(function () { if (id === run.id) run.timer = setTimeout(poll, interval * 2); });
+    }
+
+    function apply(d) {
+      var was = run.active;
+      overlay = {};
+      d.graph.steps.forEach(function (s) {
+        overlay[s.id] = { status: s.status, status_label: s.status_label, run_id: s.run_id, error: s.error, hold: !!s.hold, held: !!s.held };
+      });
+      run.active = d.active;
+      run.paused = !!d.paused;
+      liveStatus.className = 'st st-' + (run.paused ? 'paused' : d.status);
+      liveStatus.textContent = d.status_label;
+      liveText.textContent = d.done + '/' + d.total + ' · ' + d.duration;
+      live.title = (d.error ? d.error + '  ·  ' : '') + "Open this run's page";
+      live.hidden = false;
+      buttons();
+      show();
+      if (current && mode === 'console') stepTitle();
+      if (!run.pinned && (run.active || was)) follow();
+      if (was && !run.active) {
+        if (d.status !== 'success') flash(d.status_label + (d.error ? ': ' + d.error : '.'), 'error');   // success: the chip says it
+        if (mode === 'console' && current) open(current, 'console');   // offers Settings again
+        refresh();
+      }
+    }
+
+    function follow() {                 /* the console of a running step, else of the last one that started */
+      var pick = null;
+      diagram.data.steps.forEach(function (s) {
+        if (!s.run_id) return;
+        var running = s.status === 'running' || s.status === 'queued';
+        if (!pick || !pick.running || running) pick = { s: s, running: running };
+      });
+      if (pick && !(current === pick.s.id && mode === 'console')) open(pick.s.id, 'console');
+    }
+
     toolbar(root, diagram, function (what) {
-      if (what === 'close') close();
+      if (what === 'close') { if (run.active) run.pinned = true; close(); }
+      else if (what === 'play') play(null);
+      else if (what === 'stop') control('data-stop-url');
+      else if (what === 'view' && current) open(current, mode === 'console' ? 'settings' : 'console');
       else if (what === 'tidy' && diagram.data.steps.length) {
+        if (run.active) { flash('The sequence is running: stop it or wait before changing it.', 'error'); return; }
         var pos = diagram.tidyPositions();
-        diagram.data.steps.forEach(function (s) { if (pos[s.id]) { s.x = pos[s.id][0]; s.y = pos[s.id][1]; } });
-        diagram.render();
+        base.steps.forEach(function (s) { if (pos[s.id]) { s.x = pos[s.id][0]; s.y = pos[s.id][1]; } });
+        show();
         diagram.fit();
         send({ op: 'move', positions: pos });
       }
     });
+    form.addEventListener('submit', function (e) { e.preventDefault(); play(); });   // Enter in a password field
     document.addEventListener('keydown', function (e) {
-      if (e.key === 'Escape' && current && !e.defaultPrevented && !document.querySelector('.palette:not([hidden]), dialog[open]')) close();
+      if (e.key === 'Escape' && current && !e.defaultPrevented && !document.querySelector('.palette:not([hidden]), dialog[open]')) {
+        if (run.active) run.pinned = true;
+        close();
+      }
     });
     window.addEventListener('message', function (e) {
       if (e.origin === window.location.origin && e.data && e.data.sr === 'seq-step-saved') refresh();
@@ -655,6 +880,8 @@
     var back = null;
     try { back = sessionStorage.getItem(SEL_KEY); sessionStorage.removeItem(SEL_KEY); } catch (e) { /* storage unavailable */ }
     if (back && diagram.byId[back]) diagram.select(back);
+    /* a run of this sequence that is still going (started here before a reload, or elsewhere) */
+    if (root.getAttribute('data-active-run')) watch(root.getAttribute('data-active-run'));
   }
 
   /* -------------------------------------------------------- sequence run page --- */
@@ -693,15 +920,18 @@
       diagram.set(d.graph);
       if (shown) diagram.data.steps.forEach(function (s) { if (s.run_id === shown) diagram.select(s.id); });
       var top = document.getElementById('seq-status');
-      top.className = 'st st-' + d.status; top.textContent = d.status_label;
+      top.className = 'st st-' + (d.paused ? 'paused' : d.status); top.textContent = d.status_label;
+      var pause = document.getElementById('seq-pause'), resume = document.getElementById('seq-resume');
+      if (pause) pause.hidden = !!d.paused;
+      if (resume) resume.hidden = !d.paused;
       document.getElementById('seq-progress').firstChild.textContent = d.done + '/' + d.total + ' steps · ';
       document.getElementById('seq-duration').textContent = d.duration;
       var err = document.getElementById('seq-error');
       err.textContent = d.error || ''; err.hidden = !d.error;
       if (!pinned) follow();
       if (!d.active) {
-        var stop = document.getElementById('seq-stop'), again = document.getElementById('seq-again');
-        if (stop) stop.remove();
+        var again = document.getElementById('seq-again');
+        ['seq-stop', 'seq-pause', 'seq-resume'].forEach(function (id) { var f = document.getElementById(id); if (f) f.remove(); });
         if (again) again.hidden = false;
       }
       return d.active;

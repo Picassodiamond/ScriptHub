@@ -169,26 +169,16 @@ def meta_of(script_path):
     return data
 
 
-class BundledExamplesTests(SimpleTestCase):
-    def test_all_bundled_metadata_is_valid_and_inside_the_scripts(self):
-        base = config.BASE_DIR / "scripts"
-        files = sorted(p for p in base.rglob("*") if p.suffix in (".py", ".sh", ".bat") and "__pycache__" not in p.parts
-                       and p.parent != base)                         # the examples are in sub-folders
-        self.assertGreaterEqual(len(files), 15)
-        for f in files:
-            with self.subTest(file=f.name):
-                data, _err = metadata.parse_block(f.read_text(encoding="utf-8"))
-                self.assertIsNotNone(data, "no metadata block")
-                ps.validate_metadata(data)  # raises on problems
-                self.assertFalse(f.with_suffix(".json").exists())  # no sidecar any more
+class SampleArgumentTests(SimpleTestCase):
+    """Argument styles of the sample scripts (the scripts themselves: runner/test_sample_scripts.py)."""
 
     def test_example_argument_styles(self):
-        base = config.BASE_DIR / "scripts"
-        health = ps.validate_metadata(meta_of(base / "deployment/health_check.sh"))["parameters"]
-        argv, env = ps.build_arguments(health, {"url": "https://x.test/h", "timeout_secs": 7})
-        self.assertEqual(argv, ["https://x.test/h"])        # positional
-        self.assertEqual(env, {"TIMEOUT_SECS": "7"})        # environment
-        ping = ps.validate_metadata(meta_of(base / "system/ping_host.bat"))["parameters"]
+        base = config.BASE_DIR / "sample_scripts"
+        hello = ps.validate_metadata(meta_of(base / "basics/hello.sh"))["parameters"]
+        argv, env = ps.build_arguments(hello, {"name": "Ada", "greeting": "Hi"})
+        self.assertEqual(argv, ["Ada"])                     # positional
+        self.assertEqual(env, {"GREETING": "Hi"})           # environment
+        ping = ps.validate_metadata(meta_of(base / "network/ping_host.bat"))["parameters"]
         argv, _ = ps.build_arguments(ping, {"host": "10.0.0.1", "count": 3})
         self.assertEqual(argv, ["10.0.0.1", "3"])           # ordered positionals
         _, errs = ps.clean_values(ping, {"host": "a;b", "count": "3"})

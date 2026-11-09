@@ -1,4 +1,4 @@
-"""ScriptHub project files (.shp): a folder's scripts and files, its sequences and presets in one zip.
+"""ScriptHub project files (.scripthub): a folder's scripts and files, its sequences and presets in one zip.
 
 A project file is a zip archive with its own extension::
 
@@ -24,6 +24,7 @@ import json
 import os
 import re
 import secrets
+import shutil
 import stat
 import tempfile
 import time
@@ -33,7 +34,8 @@ from pathlib import Path, PurePosixPath
 import config
 from . import discovery, presets, sequences, ssh_hosts, yamlish
 
-EXT = ".shp"
+EXT = ".scripthub"
+SAMPLES_DIR = config.BASE_DIR / "sample_projects"
 FORMAT = "scripthub-project"
 VERSION = 1
 MAX_FILES = 5000
@@ -464,8 +466,8 @@ def install(path: Path, destination: str) -> dict:
 
 
 # ----------------------------------------------------------------- uploads ---
-def save_upload(fileobj) -> str:
-    """Keep an uploaded project file for its preview and install; returns a token."""
+def _imports() -> Path:
+    """The uploads folder, without uploads older than UPLOAD_TTL."""
     folder = imports_dir()
     folder.mkdir(parents=True, exist_ok=True)
     now = time.time()
@@ -475,6 +477,12 @@ def save_upload(fileobj) -> str:
                 old.unlink()
         except OSError:
             pass
+    return folder
+
+
+def save_upload(fileobj) -> str:
+    """Keep an uploaded project file for its preview and install; returns a token."""
+    folder = _imports()
     token = secrets.token_hex(12)
     size = 0
     with open(folder / f"{token}{EXT}", "wb") as out:
@@ -485,6 +493,22 @@ def save_upload(fileobj) -> str:
                 (folder / f"{token}{EXT}").unlink(missing_ok=True)
                 raise ProjectError("The project file is too large.")
             out.write(chunk)
+    return token
+
+
+def sample_projects() -> list:
+    """The project files that come with ScriptHub (sample_projects/): [{"name"}]."""
+    return [{"name": p.stem} for p in sorted(SAMPLES_DIR.glob(f"*{EXT}")) if p.is_file()]
+
+
+def import_sample(name: str) -> str:
+    """Treat a sample project like an upload (preview, then install); returns a token. Only names of
+    files in sample_projects/ are accepted, never a path."""
+    match = next((p for p in SAMPLES_DIR.glob(f"*{EXT}") if p.is_file() and p.stem == name), None)
+    if match is None:
+        raise ProjectError("That sample project does not exist.")
+    token = secrets.token_hex(12)
+    shutil.copyfile(match, _imports() / f"{token}{EXT}")
     return token
 
 
@@ -505,10 +529,13 @@ def forget_upload(token: str) -> None:
 
 
 def default_destination(name: str) -> str:
-    """A new folder named after the project, next to the open folder (else in the user's home)."""
+    """A new folder named after the project, next to the open folder; in ~/ScriptHub projects when nothing is
+    open or the open folder is part of ScriptHub's own code (e.g. sample_scripts)."""
     from . import workspace
     base = workspace.current()
-    parent = base.parent if base else Path.home()
+    parent = base.parent if base else None
+    if parent is None or _inside(parent, config.BASE_DIR):
+        parent = Path.home() / "ScriptHub projects"
     candidate = parent / slug_name(name)
     n = 2
     while candidate.exists():

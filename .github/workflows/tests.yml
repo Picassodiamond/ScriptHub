@@ -15,6 +15,8 @@ jobs:
         os: [ubuntu-latest, windows-latest]
         python: ["3.10", "3.12"]
     runs-on: ${{ matrix.os }}
+    env:
+      SCRIPTHUB_HOME: ${{ github.workspace }}/../scripthub-home
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -29,5 +31,7 @@ jobs:
       - name: Tests left no state behind
         shell: bash
         run: |
-          left=$(find runtime/executions runtime/presets -mindepth 1 ! -name .gitkeep; find scripts -name '*.params.json')
+          left=$(find "$SCRIPTHUB_HOME/executions" "$SCRIPTHUB_HOME/presets" "$SCRIPTHUB_HOME/sequences" -mindepth 1 2>/dev/null; git status --porcelain)
           if [ -n "$left" ]; then echo "Left behind by the tests:"; echo "$left"; exit 1; fi
+      - name: Sample project builder works
+        run: python tools/build_sample_projects.py && python manage.py test runner.test_sample_scripts.SampleProjectTests

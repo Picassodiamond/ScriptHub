@@ -32,6 +32,15 @@ def _detail_url(slug):
     return reverse("sequence_detail", args=[slug])
 
 
+def _wants_json(request) -> bool:
+    return "application/json" in request.headers.get("Accept", "")
+
+
+def _run_urls(rid) -> dict:
+    return {"run": rid, "page_url": reverse("sequence_run", args=[rid]),
+            "status_url": reverse("sequence_run_status", args=[rid])}
+
+
 def _next(request, fallback):
     """The page to go back to (a local path only), else ``fallback``."""
     nxt = request.POST.get("next", "")
@@ -108,10 +117,13 @@ def sequence_detail(request, slug):
     data = _load_or_404(slug)
     scripts = [sequences.resolve(s) for s in data["steps"]]
     sequences.refresh(slug, data, scripts)
+    runs = [live_view(r) for r in list_sequence_runs(slug, limit=10)]
+    active = next((r for r in runs if r["active"]), None)
     return render(request, "runner/sequence.html", {
         "seq": data,
         "graph": graph_payload(data, scripts),
-        "runs": [live_view(r) for r in list_sequence_runs(slug, limit=10)],
+        "runs": runs,
+        "active_run": _run_urls(active["id"]) if active else None,
         "token": uuid.uuid4().hex,
         "max_steps": sequences.STEPS_MAX,
     })
@@ -307,6 +319,14 @@ def sequence_step(request, slug, step_id):
 @require_POST
 def sequence_start(request, slug):
     data = _load_or_404(slug)
+    only = request.POST.get("only", "")
+    if only:                                    # ▶ on a box: this step alone
+        step = next((st for st in data["steps"] if st["id"] == only), None)
+        if step is None:
+            if _wants_json(request):
+                return JsonResponse({"errors": ["That step is no longer in the sequence."]}, status=400)
+            raise Http404("Unknown step")
+        data = {**data, "steps": [step], "links": []}
     passwords = {}
     for key, value in request.POST.items():
         if key.startswith("pw_"):
@@ -314,6 +334,8 @@ def sequence_start(request, slug):
             if step_id and name:
                 passwords[(step_id, name)] = value
     items, errors = prepare(data, passwords)
+    if errors and _wants_json(request):
+        return JsonResponse({"errors": errors}, status=400)
     if errors:
         for e in errors[:8]:
             messages.error(request, e)
@@ -322,6 +344,8 @@ def sequence_start(request, slug):
         return redirect("sequence_detail", slug=slug)
     rid = sequencer.start(data, items, initiator=client_address(request),
                           token=request.POST.get("submit_token") or None)
+    if _wants_json(request):          # Play on the diagram: the page stays and shows the run
+        return JsonResponse({**_run_urls(rid), "token": uuid.uuid4().hex})
     return redirect("sequence_run", run_id=rid)
 
 
@@ -341,7 +365,9 @@ def run_graph(data) -> dict:
                    "name": s.get("script_name") or "", "ext": s.get("ext") or "",
                    "path": s.get("script_path") or "", "host": s.get("host") or "", "x": s["x"], "y": s["y"],
                    "join": s.get("join", "all"), "status": s["status"], "status_label": s["status_label"],
-                   "run_id": s.get("run_id"), "error": s.get("error")} for s in data["steps"]],
+                   "run_id": s.get("run_id"), "error": s.get("error"), "hold": s.get("hold", False),
+                   "held": s.get("held", False)}
+                  for s in data["steps"]],
         "links": data.get("links", []),
     }
 
@@ -359,19 +385,49 @@ def sequence_run_status(request, run_id):
     data = _run_or_404(run_id)
     return JsonResponse({
         "id": data["id"], "status": data["status"], "status_label": data["status_label"],
-        "active": data["active"], "error": data.get("error"), "duration": data["duration"],
+        "active": data["active"], "paused": data["paused"], "error": data.get("error"), "duration": data["duration"],
         "done": data["done"], "total": len(data["steps"]),
         "graph": run_graph(data),
     })
 
 
-@require_POST
-def sequence_run_stop(request, run_id):
+def _control(request, run_id, action, done_text):
+    """Stop / pause / resume a running sequence; JSON for the diagram's buttons, else back to the page."""
     _run_or_404(run_id)
-    if sequencer.cancel(run_id):
-        messages.success(request, "Stopping the sequence: the running steps are stopped, the rest are skipped.")
+    ok = action(run_id)
+    if _wants_json(request):
+        return JsonResponse({"ok": ok, **({} if ok else {"error": "This sequence is not running."})},
+                            status=200 if ok else 409)
+    if ok:
+        messages.success(request, done_text)
     else:
         messages.error(request, "This sequence is not running.")
     if request.POST.get("from") == "history":
         return redirect("history")
     return redirect("sequence_run", run_id=run_id)
+
+
+@require_POST
+def sequence_run_stop(request, run_id):
+    return _control(request, run_id, sequencer.cancel,
+                    "Stopping the sequence: the running steps are stopped, the rest are skipped.")
+
+
+@require_POST
+def sequence_run_pause(request, run_id):
+    return _control(request, run_id, sequencer.pause,
+                    "Paused: the running steps finish, the next ones wait until you resume.")
+
+
+@require_POST
+def sequence_run_resume(request, run_id):
+    return _control(request, run_id, sequencer.resume, "Resumed.")
+
+
+@require_POST
+def sequence_run_hold(request, run_id):
+    """⏸ on a box: pause the run before that step (``on=0`` takes it back). JSON only."""
+    _run_or_404(run_id)
+    ok = sequencer.hold(run_id, request.POST.get("step", ""), request.POST.get("on", "1") == "1")
+    return JsonResponse({"ok": ok, **({} if ok else {"error": "That step has already started, or the run is over."})},
+                        status=200 if ok else 409)

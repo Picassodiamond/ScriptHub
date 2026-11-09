@@ -5,11 +5,8 @@ __pycache__/
 venv/
 *.egg-info/
 
-# ScriptHub runtime state (config, history, presets, secrets)
-runtime/*
-!runtime/*/
-runtime/*/*
-!runtime/*/.gitkeep
+# ScriptHub's data folder in portable mode (config, history, presets, secret key; see README)
+runtime/
 
 # Metadata backups and temp files
 *.json.bak
@@ -23,12 +20,9 @@ Thumbs.db
 
 # Personal notes and downloads (never published)
 IdeasForFuture.tx
-scripts/python_packages/wheelhouse/
-scripts/python_packages/*.zip
 
-# Saved parameters of the bundled example scripts (your own values; see SECURITY.md)
-scripts/**/*.params.json
-scripts/**/*.params.json.bak
+# Saved parameters in the old place next to a script (your own values; see SECURITY.md)
+sample_scripts/**/*.params.json
 
 # Release builds
 dist/

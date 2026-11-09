@@ -10,8 +10,9 @@
     <a href="#interpreters"><svg class="i"><use href="#i-code"/></svg> Interpreters</a>
     <a href="#ssh"><svg class="i"><use href="#i-terminal"/></svg> SSH &amp; environment</a>
     <a href="#hosts"><svg class="i"><use href="#i-server"/></svg> SSH hosts</a>
+    <a href="#data"><svg class="i"><use href="#i-files"/></svg> Data</a>
   </nav>
-  <div class="side-section"><p class="help">Stored in <code>runtime/config.json</code>. Changes apply to the next execution; no restart needed.</p></div>
+  <div class="side-section"><p class="help">Changes apply to the next execution; no restart needed.</p></div>
 </div>
 {% endblock %}
 {% block content %}
@@ -127,6 +128,33 @@
   {% else %}
   <div class="panel-body muted" style="padding-top:0">No hosts found. Add a <span class="mono">Host</span> entry to <span class="mono">~/.ssh/config</span> and reload this page.</div>
   {% endif %}
+</section>
+
+<section class="panel" id="data" style="margin-top:16px">
+  <div class="panel-head"><h2>Data</h2><span class="spacer"></span>
+    <form method="post" action="{% url 'settings_data_clear' %}" data-confirm="Clear all of ScriptHub's data: run history, saved values, sequences, backups, recent folders and settings? Your script files are not touched.">{% csrf_token %}
+      <input type="hidden" name="kind" value="all"><button class="btn btn-sm btn-danger" type="submit">Clear all</button>
+    </form>
+  </div>
+  <div class="panel-body"><p class="muted small">In <span class="mono" title="{{ data_location.how }}">{{ data_location.path }}</span> ({{ data_location.how }}). Your script files are never touched.</p></div>
+  <div class="table-wrap">
+  <table class="table">
+    <tbody>
+    {% for r in data_rows %}
+    <tr>
+      <td><strong>{{ r.label }}</strong><div class="muted small">{{ r.help }}</div></td>
+      <td class="num muted">{% if r.files %}{{ r.size }}{% else %}empty{% endif %}</td>
+      <td class="actions">
+        <form method="post" action="{% url 'settings_data_clear' %}" data-confirm="Clear {{ r.label|lower }}? This cannot be undone.">{% csrf_token %}
+          <input type="hidden" name="kind" value="{{ r.key }}">
+          <button class="btn btn-sm" type="submit"{% if not r.files %} disabled{% endif %}>Clear</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
 </section>
 </div>
 {% endblock %}

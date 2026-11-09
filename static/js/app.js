@@ -752,8 +752,8 @@
     [].forEach.call(document.querySelectorAll('details[data-menu][open]'), function (d) { d.open = false; });
     var base = (a.getAttribute('data-save-project') || 'project').replace(/[^A-Za-z0-9._ -]+/g, '').trim() || 'project';
     window.showSaveFilePicker({
-      suggestedName: base + '.shp',
-      types: [{ description: 'ScriptHub project', accept: { 'application/zip': ['.shp'] } }]
+      suggestedName: base + '.scripthub',
+      types: [{ description: 'ScriptHub project', accept: { 'application/zip': ['.scripthub'] } }]
     }).then(function (handle) {
       sr.flash('Saving ' + handle.name + '…', 'info');
       var url = a.getAttribute('href') + '?name=' + encodeURIComponent(handle.name);

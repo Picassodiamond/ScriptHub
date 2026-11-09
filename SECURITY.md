@@ -33,7 +33,8 @@ Never expose it to an untrusted network without authentication in front of it.
 
 * **Creating and editing scripts in the browser is arbitrary code execution** by design.
   Switch it off in *Settings → Features* if other people can open the app.
-* Saved parameters are kept in `runtime/presets/` (never next to your scripts) and may
+* Saved parameters are kept in ScriptHub's data folder, `runtime/presets/` (never next to your scripts;
+  where the data folder is and how to clear it: README, *Where ScriptHub keeps its data*), and may
   contain host names, paths or other values you consider internal. A script's metadata
   block (its parameter definitions and defaults) is part of the script file: review it
   before you commit or share a script folder.

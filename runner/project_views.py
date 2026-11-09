@@ -1,4 +1,4 @@
-"""Project files (.shp): save the open folder with its sequences and presets as one file, and open such a
+"""Project files (.scripthub): save the open folder with its sequences and presets as one file, and open such a
 file on another computer (preview first, then unpack into a new folder). Logic in runner/project_files.py."""
 from django.contrib import messages
 from django.http import FileResponse
@@ -44,15 +44,37 @@ def project_open(request):
             return redirect("project_open")
         try:
             token = project_files.save_upload(upload)
-            preview = project_files.inspect(project_files.upload_path(token))
         except ProjectError as exc:
             messages.error(request, str(exc))
             return redirect("project_open")
-        return render(request, "runner/project_open.html", {
-            "token": token, "preview": preview, "file_name": upload.name, "ext": EXT,
-            "destination": project_files.default_destination(preview["name"]),
-        })
+        return _preview(request, token, upload.name)
     return render(request, "runner/project_open.html", {"ext": EXT})
+
+
+def _preview(request, token, file_name):
+    """What opening the kept file does, with a new folder to unpack into."""
+    try:
+        preview = project_files.inspect(project_files.upload_path(token))
+    except ProjectError as exc:
+        project_files.forget_upload(token)
+        messages.error(request, str(exc))
+        return redirect("project_open")
+    return render(request, "runner/project_open.html", {
+        "token": token, "preview": preview, "file_name": file_name, "ext": EXT,
+        "destination": project_files.default_destination(preview["name"]),
+    })
+
+
+@require_POST
+def project_sample(request):
+    """Open a sample project (Home): straight to its preview, no file to choose."""
+    name = request.POST.get("name", "")
+    try:
+        token = project_files.import_sample(name)
+    except (ProjectError, OSError) as exc:
+        messages.error(request, str(exc))
+        return redirect("dashboard")
+    return _preview(request, token, name + EXT)
 
 
 @require_POST
@@ -95,6 +117,16 @@ def project_install(request):
     if result["sequences"]:
         return redirect("sequence_detail", slug=result["sequences"][0])
     return redirect("library")
+
+
+@require_POST
+def project_close(request):
+    """Close everything that is open: the folder and the opened files (stored data is kept)."""
+    workspace.close_folder()
+    workspace.close_all_files()
+    discovery.rescan()
+    messages.success(request, "Project closed.")
+    return redirect("folder")
 
 
 

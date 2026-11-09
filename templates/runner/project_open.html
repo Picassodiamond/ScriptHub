@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Open project{% endblock %}
 {% block content %}
-{# Open a project file (.shp): choose the file, see what is in it and what opening it does, choose a new folder, unpack. #}
+{# Open a project file (.scripthub): choose the file, see what is in it and what opening it does, choose a new folder, unpack. #}
 <div class="page page-narrow">
 {% if not preview %}
 <form method="post" enctype="multipart/form-data" class="panel">{% csrf_token %}

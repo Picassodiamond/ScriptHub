@@ -9,10 +9,16 @@
     <svg class="i faint"><use href="#i-sequence"/></svg>
     {% if seq_exists %}<a class="strong" href="{% url 'sequence_detail' run.sequence %}">{{ run.name }}</a>{% else %}<span class="strong">{{ run.name }}</span>{% endif %}
     <span class="mono small faint">{{ run.id }}</span>
-    <span class="st st-{{ run.status }}" id="seq-status">{{ run.status_label }}</span>
+    <span class="st st-{% if run.paused %}paused{% else %}{{ run.status }}{% endif %}" id="seq-status">{{ run.status_label }}</span>
     <span class="small muted" id="seq-progress">{{ run.done }}/{{ run.steps|length }} steps · <span id="seq-duration">{{ run.duration }}</span></span>
     <span class="spacer"></span>
     {% if run.active %}
+    <form method="post" action="{% url 'sequence_run_pause' run.id %}" id="seq-pause"{% if run.paused %} hidden{% endif %}>{% csrf_token %}
+      <button class="btn btn-sm" type="submit" title="The running steps finish, the next ones wait"><svg class="i"><use href="#i-pause"/></svg> Pause</button>
+    </form>
+    <form method="post" action="{% url 'sequence_run_resume' run.id %}" id="seq-resume"{% if not run.paused %} hidden{% endif %}>{% csrf_token %}
+      <button class="btn btn-sm btn-primary" type="submit"><svg class="i"><use href="#i-play"/></svg> Resume</button>
+    </form>
     <form method="post" action="{% url 'sequence_run_stop' run.id %}" id="seq-stop" data-confirm="Stop this sequence? The running steps are stopped and the remaining steps are skipped.">{% csrf_token %}
       <button class="btn btn-sm btn-danger" type="submit"><svg class="i"><use href="#i-stop"/></svg> Stop</button>
     </form>
