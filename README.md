@@ -27,7 +27,7 @@ MIT licensed — see [Licence and contributing](#licence-and-contributing).
 6. [Metadata reference](#metadata-reference)
 7. [Defining parameters](#defining-parameters)
 8. [Running a script, hosts and presets](#running-a-script-hosts-and-presets)
-   - [Sequences: scripts one after another](#sequences-scripts-one-after-another)
+   - [Sequences: scripts connected by arrows](#sequences-scripts-connected-by-arrows)
 9. [Creating and editing scripts](#creating-and-editing-scripts)
 10. [Execution lifecycle](#execution-lifecycle)
 11. [Logging, history and retention](#logging-history-and-retention)
@@ -526,53 +526,88 @@ a small YAML subset (written by ScriptHub, fine to edit by hand).
   `runtime/presets/<script id>/<name>.json`.
 * A file that cannot be read is skipped and never overwritten.
 
-### Sequences: scripts one after another
+### Sequences: scripts connected by arrows
 
-A **sequence** runs existing scripts in order: each step starts when the one before it
-has finished. Open **Sequences** in the activity bar (or **g q**), create one, then
-**Add step** for each script (from the open folder). For every step choose:
+A **sequence** runs existing scripts in the order you draw. Open **Sequences** in the
+activity bar (or **g q**) and create one; its page is a diagram:
 
-* **Values**: *saved with this step* (edited with the script's own form; a new step starts
-  with the values of the script's last run) or **a preset** of the script, which stays
-  up to date when the preset changes;
-* **Host**: the script's default, `local` or an SSH host;
-* **If it fails**: *stop the sequence* (default) or *continue with the next step*.
+* **Add a step**: drag a script from the explorer on the left and drop it anywhere on the
+  page. A script can be used more than once.
+* **Move** a box by dragging it (it snaps to the grid); **pan** by dragging the background
+  or with the mouse wheel, **zoom** with Ctrl+wheel or **−** / **+**; **Fit** shows all
+  steps; **Tidy up** lays the boxes out in rows that follow the arrows.
+* **Connect** two steps: drag the dot under a box onto the step that comes next.
+  The arrow's label says when it applies; click it to change:
+  * **✓ succeeded** (default): the step before succeeded;
+  * **✗ failed**: the step before did not succeed (failed, timed out, was stopped);
+  * **↷ always**: the step before finished, either way.
 
-Steps can be reordered and removed. **Run sequence** (Ctrl+Enter) first checks every step
-(script found, values valid, host allowed) and starts nothing if one is wrong. Password
-parameters are asked for on the sequence page each time and never saved.
+  Hover a label for its **×** to remove the arrow. Arrows that would make a loop are refused.
+* **Remove** a step with the **×** on its box, or select it and press **Delete**
+  (its arrows go with it).
+* **Click a box** to set the step in the right-hand column: **Values** (*saved with this
+  step*, edited with the script's own form, starting from the script's last run, or **a
+  preset** of the script, which stays up to date), **Host** (the script's default, `local`
+  or an SSH host) and, when several arrows lead into it, whether it **waits for all**
+  of them (default) or **starts after the first**.
 
-The run page lists the steps with their live status next to the console of the running
-step (click a step to see its console). **Stop** stops the running step and skips the
-rest. Every step is a normal run in **Runs**, and its console links back to the sequence
-run. A sequence finishes as *Success* when every step succeeded, otherwise *Failed*
-(or *Cancelled*); like runs, sequences are not resumed after a restart (*Interrupted*).
+How a sequence runs:
+
+* Steps with no arrow into them start first. A step starts when the arrows into it allow
+  it: with *wait for all*, when every arrow applies (if one never will, the step is
+  **skipped**); with *start after the first*, as soon as one applies. An arrow from a
+  skipped step never applies, so skipping spreads down the arrows.
+* Steps that are ready at the same time run **side by side**; the Settings limits on
+  concurrent runs and runs per host still apply (and a script runs once at a time).
+* The sequence is *Failed* when a step did not succeed and **no ✗ failed arrow** leads on
+  from it; a failure that has such an arrow counts as handled. Otherwise it is *Success*
+  (*Cancelled* when stopped; like runs, not resumed after a restart: *Interrupted*).
+
+**Run sequence** (Ctrl+Enter) first checks every step (script found, values valid, host
+allowed) and starts nothing if one is wrong. Password parameters are asked for in the
+right-hand column each time and never saved. The run page shows the same diagram with
+each step's live status (arrows that applied stand out, the others fade) next to the
+console of the running step; click a box to see its console. **Stop** stops the running
+steps and skips the rest. Every step is a normal run in **Runs**, and its console links
+back to the sequence run.
 
 Sequences are kept in `runtime/sequences/`, one YAML file each, and their runs in
-`runtime/sequence_runs/SEQ-YYYYMMDD-NNN/metadata.json`:
+`runtime/sequence_runs/SEQ-YYYYMMDD-NNN/metadata.json` (with the diagram as it was):
 
 ```yaml
 # Sequence for ScriptHub. Passwords are never stored.
 name: Nightly maintenance
-saved_at: 2026-11-08T21:10:00
+saved_at: 2026-11-09T21:10:00
 steps:
-  - script: 3f9a1c0b7d22          # the script id (stable id from its metadata block)
+  - id: s1                        # step id: the arrows refer to it
+    script: 3f9a1c0b7d22          # the script id (stable id from its metadata block)
     path: C:\scripts\db\backup.py # last known path: shown, and used when its folder is not open
     name: Database backup
     preset: production            # values from this preset ...
-    on_failure: stop
-  - script: 81be44f0a913
+    x: 240                        # place on the page
+    y: 40
+  - id: s2
+    script: 81be44f0a913
     path: C:\scripts\cleanup.sh
     name: Cleanup
     host: web-1                   # empty or missing = the script's default host
     values:                       # ... or values stored with the step
       days: 30
-    on_failure: continue
+    join: any                     # several arrows in: all (default) or any (the first)
+    x: 240
+    y: 160
+links:
+  - from: s1
+    to: s2
+    when: success                 # success | failure | always
 ```
 
 A step finds its script by id in the open folder, else at its last known path (when that
 file still has the same id), so a sequence keeps working when another folder is open.
-A file that cannot be read is listed with the reason and never overwritten.
+A file that cannot be read is listed with the reason and never overwritten. Files from
+the first version of sequences (a plain list of steps with `on_failure: stop|continue`)
+open as a top-to-bottom chain (`continue` = an *always* arrow) and are written in the new
+form on the next change.
 
 ---
 
@@ -954,7 +989,7 @@ ScriptHub/
 │   ├── executor.py           builds and supervises one process (local / SSH)
 │   ├── process_manager.py    queue, limits, threads, cancel, recovery
 │   ├── history.py, history_ops.py   run records, search, retention
-│   ├── sequences.py, sequence_runner.py   sequences: storage, running steps in order
+│   ├── sequences.py, sequence_runner.py   sequences: storage (steps + arrows), running them
 │   ├── presets.py (saved parameters), ssh_hosts.py, security.py, validators.py, fsutil.py
 │   └── test*.py
 ├── scripts/                  bundled examples (system, django, python_packages, …)

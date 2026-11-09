@@ -1,8 +1,9 @@
-{% extends "base.html" %}
+{% extends base %}
+{# A step's settings: as a page, or embedded (embed=1) in the right-hand column of the sequence page. #}
 {% block title %}Step {{ n }} · {{ seq.name }}{% endblock %}
 {% block content %}
-<div class="page page-narrow">
-<p class="small"><a href="{% url 'sequence_detail' seq.slug %}"><svg class="i i-sm"><use href="#i-back"/></svg> {{ seq.name }}</a></p>
+<div class="{% if embed %}seq-embed{% else %}page page-narrow{% endif %}">
+{% if not embed %}<p class="small"><a href="{% url 'sequence_detail' seq.slug %}"><svg class="i i-sm"><use href="#i-back"/></svg> {{ seq.name }}</a></p>{% endif %}
 
 {% if not script %}
 <div class="flash flash-error"><span>The script of step {{ n }} was not found ({{ step.path|default:step.script }}). Open its folder, or remove the step.</span></div>
@@ -12,14 +13,19 @@
 {% if has_errors %}<div class="flash flash-error notes"><span>Please correct the highlighted fields.</span></div>{% endif %}
 {% for w in warnings %}<div class="flash flash-warning notes"><span>{{ w }}</span></div>{% endfor %}
 
-<form method="post" class="panel" id="step-form" novalidate>{% csrf_token %}
+<form method="post" class="{% if embed %}seq-embed-form{% else %}panel{% endif %}" id="step-form" target="_self" novalidate>{% csrf_token %}
+  {% if embed %}<input type="hidden" name="embed" value="1">{% endif %}
+  {% if not embed %}
   <div class="panel-head">
     <h2>Step {{ n }}</h2>
     <a class="strong" href="{% url 'script_run' script.id %}">{{ script.name }}</a>
     <span class="spacer"></span>
     <span class="mono small faint clamp-1" title="{{ script.path }}">{{ script.relative }}</span>
   </div>
-  <div class="panel-body">
+  {% else %}
+  <p class="small"><a href="{% url 'script_run' script.id %}" class="strong">{{ script.name }}</a> <span class="mono faint">{{ script.relative }}</span></p>
+  {% endif %}
+  <div class="{% if not embed %}panel-body{% endif %}">
     <div class="field">
       <label class="field-label" for="id_source">Values</label>
       <select class="input" name="source" id="id_source">
@@ -37,20 +43,25 @@
         {% for h in hosts %}<option value="{{ h }}" {% if h == host %}selected{% endif %}>{% if h == 'local' %}local{% else %}{{ h }} (ssh){% endif %}</option>{% endfor %}
       </select>
     </div>
+    {% if incoming > 1 %}
     <div class="field">
-      <span class="field-label">If this step fails</span>
-      <div class="seg run-modes" role="radiogroup" aria-label="If this step fails">
-        <label class="seg-btn"><input type="radio" name="on_failure" value="stop" {% if on_failure != 'continue' %}checked{% endif %}>Stop the sequence</label>
-        <label class="seg-btn"><input type="radio" name="on_failure" value="continue" {% if on_failure == 'continue' %}checked{% endif %}>Continue with the next step</label>
+      <span class="field-label">{{ incoming }} arrows lead here</span>
+      <div class="seg run-modes" role="radiogroup" aria-label="When several arrows lead here">
+        <label class="seg-btn"><input type="radio" name="join" value="all" {% if join != 'any' %}checked{% endif %}>Wait for all</label>
+        <label class="seg-btn"><input type="radio" name="join" value="any" {% if join == 'any' %}checked{% endif %}>Start after the first</label>
       </div>
+      <div class="help">Wait for all: the step runs when every arrow applies, otherwise it is skipped. Start after the first: it runs as soon as one arrow applies.</div>
     </div>
+    {% else %}
+    <input type="hidden" name="join" value="{{ join }}">
+    {% endif %}
     <div id="step-values"{% if source != 'values' %} hidden{% endif %}>
       {% for f in fields %}{% include "runner/_field.html" %}{% empty %}<p class="muted small">This script has no parameters to set.</p>{% endfor %}
     </div>
   </div>
-  <div class="panel-foot">
+  <div class="{% if embed %}form-actions{% else %}panel-foot{% endif %}">
     <button class="btn btn-primary" type="submit" data-once><svg class="i"><use href="#i-save"/></svg> Save step</button>
-    <a class="btn btn-ghost" href="{% url 'sequence_detail' seq.slug %}">Cancel</a>
+    {% if not embed %}<a class="btn btn-ghost" href="{% url 'sequence_detail' seq.slug %}">Cancel</a>{% endif %}
   </div>
 </form>
 {% endif %}
@@ -58,11 +69,11 @@
 {% endblock %}
 {% block scripts %}
 <script>
-/* The parameter fields apply only to "Saved with this step". */
+/* The parameter fields apply only to "Saved with this step". Embedded: tell the sequence page a save happened. */
 (function () {
   var sel = document.getElementById('id_source'), box = document.getElementById('step-values');
-  if (!sel || !box) return;
-  sel.addEventListener('change', function () { box.hidden = sel.value !== 'values'; });
+  if (sel && box) sel.addEventListener('change', function () { box.hidden = sel.value !== 'values'; });
+  {% if saved %}try { window.parent.postMessage({sr: 'seq-step-saved'}, window.location.origin); } catch (e) { /* not embedded */ }{% endif %}
 })();
 </script>
 {% endblock %}

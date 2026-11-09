@@ -1,4 +1,4 @@
-"""Sequences: existing scripts run one after another.
+"""Sequences: existing scripts connected by arrows, run in the order the arrows give.
 
 One YAML file per sequence, under runtime/ (like saved values, not in the script folder):
 
@@ -6,26 +6,40 @@ One YAML file per sequence, under runtime/ (like saved values, not in the script
 
     # Sequence for ScriptHub. Passwords are never stored.
     name: Nightly maintenance
-    saved_at: 2026-11-08T21:10:00
+    saved_at: 2026-11-09T21:10:00
     steps:
-      - script: 3f9a1c0b7d22        # script id (stable id from the metadata block)
+      - id: s1                      # step id, unique in the sequence (arrows refer to it)
+        script: 3f9a1c0b7d22        # script id (stable id from the metadata block)
         path: C:\\scripts\\backup.py  # last known path: shown, and used when the id is not in the open folder
         name: Backup                # last known script name (shown when the script is missing)
         host: local                 # empty = the script's own default host
         preset: production          # values from this preset of the script ...
-        on_failure: stop            # stop | continue
-      - script: 81be44f0a913
+        x: 240                      # position on the page (top left of the box)
+        y: 40
+      - id: s2
+        script: 81be44f0a913
         path: C:\\scripts\\cleanup.sh
         name: Cleanup
         values:                     # ... or values stored with the step (raw form values)
           days: 30
-        on_failure: continue
+        join: any                   # several arrows in: all (default) = wait for all, any = the first
+        x: 240
+        y: 160
+    links:
+      - from: s1
+        to: s2
+        when: success               # success | failure | always
+
+A step runs when the arrows leading into it allow it (see sequence_runner); steps with
+no arrow into them start first. Arrows never form a loop.
 
 The slug is fixed when the sequence is created (URLs and sequence runs refer to it);
 renaming changes only ``name``. Values are re-validated against the script's current
 metadata when the sequence starts; password parameters are never written (they are
 asked for when the sequence starts). A file that cannot be read is listed as broken
-and never overwritten.
+and never overwritten. A file of the first version (a list of steps with ``on_failure:
+stop|continue`` and no ``links``) is read as a top-to-bottom chain and written in this
+form on the next change.
 """
 import re
 import threading
@@ -39,7 +53,12 @@ EXT = ".yaml"
 NAME_MAX = 60
 STEPS_MAX = 50
 SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,63}$")
-ON_FAILURE = ("stop", "continue")
+STEP_ID_RE = re.compile(r"^[a-z][a-z0-9]{0,15}$")
+WHEN = ("success", "failure", "always")
+JOIN = ("all", "any")
+POS_MAX = 20000
+GRID = 20
+NODE_W, NODE_H, LAYER_GAP, COL_GAP = 200, 60, 60, 40     # used for the layout of migrated files
 _lock = threading.RLock()
 
 
@@ -78,6 +97,16 @@ def _file(slug: str) -> Path:
     return folder() / f"{slug}{EXT}"
 
 
+def _pos(value, default=0) -> int:
+    """A coordinate: an int on the grid, within 0..POS_MAX."""
+    try:
+        v = int(float(value))
+    except (TypeError, ValueError):
+        v = default
+    v = max(0, min(POS_MAX, v))
+    return int(round(v / GRID) * GRID)
+
+
 def _clean_step(raw) -> dict:
     """A step as stored, with every key present; raises SequenceError."""
     if not isinstance(raw, dict):
@@ -85,27 +114,66 @@ def _clean_step(raw) -> dict:
     sid = raw.get("script")
     if not isinstance(sid, str) or not re.match(r"^[0-9a-f]{6,64}$", sid):
         raise SequenceError("a step has no valid 'script' id")
+    step_id = raw.get("id")
+    if not isinstance(step_id, str) or not STEP_ID_RE.match(step_id):
+        raise SequenceError(f"step of '{sid}': invalid or missing 'id'")
     preset = raw.get("preset") or ""
     if preset and not (isinstance(preset, str) and SLUG_RE.match(preset)):
-        raise SequenceError(f"step '{sid}': invalid preset")
+        raise SequenceError(f"step '{step_id}': invalid preset")
     values = raw.get("values")
     if values is None:
         values = {}
     if not isinstance(values, dict):
-        raise SequenceError(f"step '{sid}': 'values' must be a mapping")
-    on_failure = raw.get("on_failure") or "stop"
-    if on_failure not in ON_FAILURE:
-        raise SequenceError(f"step '{sid}': on_failure must be stop or continue")
-    host = raw.get("host") or ""
+        raise SequenceError(f"step '{step_id}': 'values' must be a mapping")
+    join = raw.get("join") or "all"
+    if join not in JOIN:
+        raise SequenceError(f"step '{step_id}': join must be all or any")
     return {
+        "id": step_id,
         "script": sid,
         "path": str(raw.get("path") or ""),
         "name": str(raw.get("name") or ""),
-        "host": str(host),
+        "host": str(raw.get("host") or ""),
         "preset": preset,
         "values": values,
-        "on_failure": on_failure,
+        "join": join,
+        "x": _pos(raw.get("x")),
+        "y": _pos(raw.get("y")),
     }
+
+
+def _clean_link(raw, step_ids) -> dict:
+    if not isinstance(raw, dict):
+        raise SequenceError("an arrow is not a mapping")
+    a, b, when = raw.get("from"), raw.get("to"), raw.get("when") or "success"
+    if a not in step_ids or b not in step_ids:
+        raise SequenceError(f"the arrow {a} -> {b} refers to a step that does not exist")
+    if a == b:
+        raise SequenceError(f"the arrow {a} -> {b} leads to itself")
+    if when not in WHEN:
+        raise SequenceError(f"the arrow {a} -> {b}: when must be success, failure or always")
+    return {"from": a, "to": b, "when": when}
+
+
+def _legacy(steps: list) -> tuple:
+    """A first-version file: steps in a list, ``on_failure`` on each. Becomes a chain from
+    top to bottom; ``continue`` becomes an ``always`` arrow to the next step."""
+    out, links, prev_continue = [], [], False
+    for i, raw in enumerate(steps):
+        if not isinstance(raw, dict):
+            raise SequenceError("a step is not a mapping")
+        step = dict(raw)
+        on_failure = step.pop("on_failure", None) or "stop"
+        if on_failure not in ("stop", "continue"):
+            raise SequenceError(f"step {i + 1}: on_failure must be stop or continue")
+        step.setdefault("id", f"s{i + 1}")
+        step.setdefault("x", 2 * GRID)
+        step.setdefault("y", 2 * GRID + i * (NODE_H + LAYER_GAP))
+        if out:
+            links.append({"from": out[-1]["id"], "to": step["id"], "when": "always" if prev_continue else "success"})
+        out.append(step)
+        prev_continue = on_failure == "continue"
+    return out, links
 
 
 def _clean(data) -> dict:
@@ -117,23 +185,47 @@ def _clean(data) -> dict:
     steps = data.get("steps") or []
     if not isinstance(steps, list):
         raise SequenceError("'steps' must be a list")
-    return {
+    links = data.get("links")
+    if links is None:
+        steps, links = _legacy(steps)
+    if not isinstance(links, list):
+        raise SequenceError("'links' must be a list")
+    steps = [_clean_step(s) for s in steps]
+    step_ids = [s["id"] for s in steps]
+    if len(set(step_ids)) != len(step_ids):
+        raise SequenceError("two steps have the same id")
+    out_links, seen = [], set()
+    for raw in links:
+        link = _clean_link(raw, step_ids)
+        key = (link["from"], link["to"])
+        if key in seen:
+            raise SequenceError(f"the arrow {key[0]} -> {key[1]} is there twice")
+        seen.add(key)
+        out_links.append(link)
+    data = {
         "name": name.strip(),
         "description": str(data.get("description") or ""),
         "saved_at": str(data.get("saved_at") or ""),
-        "steps": [_clean_step(s) for s in steps],
+        "steps": steps,
+        "links": out_links,
     }
+    if topo_order(data) is None:
+        raise SequenceError("the arrows form a loop")
+    return data
 
 
 def _dump_step(step: dict) -> dict:
     """The stored form: empty keys are left out, and ``values`` only without a preset."""
-    out = {"script": step["script"]}
+    out = {"id": step["id"], "script": step["script"]}
     for key in ("path", "name", "host", "preset"):
         if step.get(key):
             out[key] = step[key]
     if not step.get("preset"):
         out["values"] = dict(step.get("values") or {})
-    out["on_failure"] = step.get("on_failure") or "stop"
+    if step.get("join", "all") != "all":
+        out["join"] = step["join"]
+    out["x"] = step["x"]
+    out["y"] = step["y"]
     return out
 
 
@@ -160,9 +252,70 @@ def _write(slug: str, data: dict) -> None:
         out["description"] = data["description"]
     out["saved_at"] = history.now_iso()
     out["steps"] = [_dump_step(s) for s in data["steps"]]
+    out["links"] = [dict(link) for link in data.get("links", [])]
     path = _file(slug)
     path.parent.mkdir(parents=True, exist_ok=True)
     atomic_write_text(path, yamlish.dump(out, header="Sequence for ScriptHub. Passwords are never stored."))
+
+
+# ------------------------------------------------------------------ graph ---
+def topo_order(data: dict):
+    """Step ids so that every arrow points forward (steps keep their list order where
+    the arrows allow it); None when the arrows form a loop."""
+    ids_ = [s["id"] for s in data["steps"]]
+    indeg = {i: 0 for i in ids_}
+    out = {i: [] for i in ids_}
+    for link in data.get("links", []):
+        out[link["from"]].append(link["to"])
+        indeg[link["to"]] += 1
+    order, ready = [], [i for i in ids_ if indeg[i] == 0]
+    rank = {i: n for n, i in enumerate(ids_)}
+    while ready:
+        ready.sort(key=rank.get)
+        cur = ready.pop(0)
+        order.append(cur)
+        for nxt in out[cur]:
+            indeg[nxt] -= 1
+            if indeg[nxt] == 0:
+                ready.append(nxt)
+    return order if len(order) == len(ids_) else None
+
+
+def incoming(data: dict, step_id: str) -> list:
+    return [link for link in data.get("links", []) if link["to"] == step_id]
+
+
+def outgoing(data: dict, step_id: str) -> list:
+    return [link for link in data.get("links", []) if link["from"] == step_id]
+
+
+def _reaches(data: dict, start: str, goal: str) -> bool:
+    todo, seen = [start], set()
+    while todo:
+        cur = todo.pop()
+        if cur == goal:
+            return True
+        if cur in seen:
+            continue
+        seen.add(cur)
+        todo.extend(link["to"] for link in outgoing(data, cur))
+    return False
+
+
+def find(data: dict, step_id) -> int:
+    for i, s in enumerate(data["steps"]):
+        if s["id"] == step_id:
+            return i
+    raise SequenceError("That step does not exist.")
+
+
+def _new_id(data: dict) -> str:
+    """One more than the highest ``s<n>`` (a removed step's id is not given to the next one)."""
+    taken = {s["id"] for s in data["steps"]}
+    n = 1 + max([int(t[1:]) for t in taken if re.match(r"^s\d{1,6}$", t)] or [0])
+    while f"s{n}" in taken:
+        n += 1
+    return f"s{n}"
 
 
 # ---------------------------------------------------------------- public ---
@@ -211,7 +364,7 @@ def create(name: str) -> str:
         while _file(slug).exists():
             slug = f"{base[:60]}-{n}"
             n += 1
-        _write(slug, {"name": name, "steps": []})
+        _write(slug, {"name": name, "steps": [], "links": []})
         return slug
 
 
@@ -234,53 +387,80 @@ def delete(slug: str) -> bool:
             return False
 
 
-def _step_index(data, index) -> int:
-    if not isinstance(index, int) or not 0 <= index < len(data["steps"]):
-        raise SequenceError("That step does not exist.")
-    return index
+def new_step(script, values: dict, preset: str = "", x=0, y=0) -> dict:
+    """A step for ``script`` (its id is given by add_step)."""
+    return {"id": "s0", "script": script.id, "path": str(script.path), "name": script.name,
+            "preset": preset, "values": values, "x": x, "y": y}
 
 
-def new_step(script, values: dict, preset: str = "") -> dict:
-    return _clean_step({"script": script.id, "path": str(script.path), "name": script.name,
-                        "preset": preset, "values": values})
-
-
-def add_step(slug: str, step: dict) -> int:
-    """Append a step; returns its index."""
+def add_step(slug: str, step: dict) -> str:
+    """Add a step (anywhere on the page); returns its id."""
     with _lock:
         data = load(slug)
         if len(data["steps"]) >= STEPS_MAX:
             raise SequenceError(f"A sequence has at most {STEPS_MAX} steps.")
-        data["steps"].append(_clean_step(step))
+        step = _clean_step({**step, "id": _new_id(data)})
+        data["steps"].append(step)
         _write(slug, data)
-        return len(data["steps"]) - 1
+        return step["id"]
 
 
-def update_step(slug: str, index: int, **fields) -> None:
+def update_step(slug: str, step_id: str, **fields) -> None:
+    fields.pop("id", None)
     with _lock:
         data = load(slug)
-        i = _step_index(data, index)
+        i = find(data, step_id)
         data["steps"][i] = _clean_step({**data["steps"][i], **fields})
         _write(slug, data)
 
 
-def move_step(slug: str, index: int, delta: int) -> int:
-    """Move a step up (-1) or down (+1); returns its new index."""
+def remove_step(slug: str, step_id: str) -> None:
+    """Remove a step and the arrows to and from it."""
     with _lock:
         data = load(slug)
-        i = _step_index(data, index)
-        j = max(0, min(len(data["steps"]) - 1, i + delta))
-        if i != j:
-            steps = data["steps"]
-            steps.insert(j, steps.pop(i))
-            _write(slug, data)
-        return j
+        data["steps"].pop(find(data, step_id))
+        data["links"] = [k for k in data["links"] if step_id not in (k["from"], k["to"])]
+        _write(slug, data)
 
 
-def remove_step(slug: str, index: int) -> None:
+def move_steps(slug: str, positions: dict) -> None:
+    """Place steps: {step id: (x, y)}; unknown ids raise SequenceError."""
     with _lock:
         data = load(slug)
-        data["steps"].pop(_step_index(data, index))
+        for step_id, (x, y) in positions.items():
+            step = data["steps"][find(data, step_id)]
+            step["x"], step["y"] = _pos(x), _pos(y)
+        _write(slug, data)
+
+
+def link(slug: str, a: str, b: str, when: str = "success") -> None:
+    """Add an arrow a -> b, or change its condition when it is there already."""
+    if when not in WHEN:
+        raise SequenceError("Unknown condition.")
+    with _lock:
+        data = load(slug)
+        find(data, a)
+        find(data, b)
+        if a == b:
+            raise SequenceError("A step cannot lead to itself.")
+        for k in data["links"]:
+            if k["from"] == a and k["to"] == b:
+                k["when"] = when
+                break
+        else:
+            if _reaches(data, b, a):
+                raise SequenceError("That arrow would make a loop: the steps would never finish.")
+            data["links"].append({"from": a, "to": b, "when": when})
+        _write(slug, data)
+
+
+def unlink(slug: str, a: str, b: str) -> None:
+    with _lock:
+        data = load(slug)
+        before = len(data["links"])
+        data["links"] = [k for k in data["links"] if not (k["from"] == a and k["to"] == b)]
+        if len(data["links"]) == before:
+            raise SequenceError("That arrow does not exist.")
         _write(slug, data)
 
 
@@ -304,13 +484,13 @@ def resolve(step: dict):
 def refresh(slug: str, data: dict, scripts: list) -> None:
     """Remember where each step's script is now (path and name), so a step still finds
     a moved script when its folder is not open. ``scripts`` lines up with the steps."""
-    updates = []                                     # (index, id it had, new fields)
-    for i, (step, script) in enumerate(zip(data["steps"], scripts)):
+    updates = []                                     # (step id, script id it had, new fields)
+    for step, script in zip(data["steps"], scripts):
         if script is None:
             continue
         new = {"path": str(script.path), "name": script.name, "script": script.id}
         if any(step[k] != v for k, v in new.items()):
-            updates.append((i, step["script"], new))
+            updates.append((step["id"], step["script"], new))
             step.update(new)
     if not updates:
         return
@@ -319,9 +499,10 @@ def refresh(slug: str, data: dict, scripts: list) -> None:
             current = load(slug)
         except SequenceError:
             return
-        for i, old_id, new in updates:               # only steps that were not changed meanwhile
-            if i < len(current["steps"]) and current["steps"][i]["script"] == old_id:
-                current["steps"][i].update(new)
+        for step_id, old_id, new in updates:          # only steps that were not changed meanwhile
+            for step in current["steps"]:
+                if step["id"] == step_id and step["script"] == old_id:
+                    step.update(new)
         try:
             _write(slug, current)
         except OSError:

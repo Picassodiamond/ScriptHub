@@ -303,6 +303,20 @@ class ExecutionManager:
                 self._changed.wait(wait)
         return True
 
+    def wait_any(self, run_ids, timeout: float | None = None) -> list:
+        """Block until at least one of ``run_ids`` has finished (or ``timeout`` passed);
+        returns those that are neither queued nor running."""
+        end = None if timeout is None else time.monotonic() + timeout
+        with self._lock:
+            while True:
+                done = [r for r in run_ids if r not in self._active and r not in self._specs]
+                if done or not run_ids:
+                    return done
+                wait = 1.0 if end is None else min(1.0, end - time.monotonic())
+                if wait <= 0:
+                    return []
+                self._changed.wait(wait)
+
     def counts(self) -> dict:
         with self._lock:
             return {"running": len(self._active), "queued": len(self._queue)}

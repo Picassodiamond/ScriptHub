@@ -1,20 +1,29 @@
-"""Running a sequence: its steps one after another, each as a normal run.
+"""Running a sequence: steps connected by arrows, each step a normal run.
 
 Every step is submitted to the execution manager like a run started from the Run form
-(it appears in History with ``"sequence": {"run": "SEQ-…", "step": n}``); the next step
-starts when it has finished. A failed step stops the sequence unless the step says
-``on_failure: continue``. A sequence run is recorded in
+(it appears in History with ``"sequence": {"run": "SEQ-…", "step": n}``). Steps with no
+arrow into them start first; a step starts when the arrows leading into it allow it:
+
+  * an arrow ``success`` applies when its step succeeded, ``failure`` when it did not,
+    ``always`` when it finished either way; an arrow from a skipped step never applies;
+  * ``join: all`` (default): the step waits for all its arrows and runs when every one
+    applies, else it is skipped; ``join: any``: it runs as soon as one applies.
+
+Steps that are ready at the same time run side by side (the Settings limits apply). The
+sequence fails when a step did not succeed and no ``failure`` arrow leads on from it.
+A sequence run is recorded in
 
     runtime/sequence_runs/SEQ-YYYYMMDD-NNN/metadata.json
 
-with the overall status and each step's status and run id. Like runs, sequence runs
-are not resumed after a restart: they are marked Interrupted on startup.
+with the overall status, the arrows, and each step's position, status and run id. Like
+runs, sequence runs are not resumed after a restart: they are marked Interrupted on startup.
 """
 import datetime
 import os
 import re
 import threading
 import time
+from pathlib import Path
 
 import config
 from . import history, presets, sequences, ssh_hosts
@@ -110,12 +119,30 @@ def list_runs(slug: str | None = None, limit: int | None = None) -> list:
     return out
 
 
+def _as_graph(data: dict) -> None:
+    """A run record of the first version (a list of steps with on_failure) as a chain."""
+    if "links" in data:
+        return
+    steps, links = data.get("steps", []), []
+    for i, s in enumerate(steps):
+        s.setdefault("id", f"s{i + 1}")
+        s.setdefault("x", 2 * sequences.GRID)
+        s.setdefault("y", 2 * sequences.GRID + i * (sequences.NODE_H + sequences.LAYER_GAP))
+        if i:
+            prev = steps[i - 1]
+            links.append({"from": prev["id"], "to": s["id"],
+                          "when": "always" if prev.get("on_failure") == "continue" else "success"})
+    data["links"] = links
+
+
 def live_view(data: dict) -> dict:
     """A sequence run for display: steps that are queued/running show their run's live status."""
     data = dict(data)
+    data["steps"] = [dict(s) for s in data.get("steps", [])]
+    _as_graph(data)
     steps = []
-    for s in data.get("steps", []):
-        s = dict(s)
+    for s in data["steps"]:
+        s.setdefault("ext", Path(s.get("script_path") or "").suffix.lstrip(".").lower())
         if s.get("run_id") and s.get("status") not in history.FINAL_STATUSES + (SKIPPED,):
             meta = history.read_meta(s["run_id"]) if history.valid_run_id(s["run_id"]) else None
             if meta:
@@ -166,7 +193,7 @@ def step_raw(step, script):
 def prepare(data: dict, passwords: dict | None = None):
     """Resolve and validate every step before anything runs.
 
-    ``passwords``: {(step index, parameter name): value}. Returns (items, errors);
+    ``passwords``: {(step id, parameter name): value}. Returns (items, errors);
     items = [(step, script, spec)] when there are no errors."""
     from .execution_views import _check_host, build_spec       # avoid an import cycle
     passwords = passwords or {}
@@ -188,7 +215,7 @@ def prepare(data: dict, passwords: dict | None = None):
             errors.append(f"{label}: {err}.")
             continue
         for p in password_params(script):
-            raw[p["name"]] = passwords.get((i, p["name"]), "")
+            raw[p["name"]] = passwords.get((step["id"], p["name"]), "")
         values, field_errors = ps.clean_values(params, raw)
         if field_errors:
             labels = {p["name"]: p["label"] for p in params}
@@ -209,10 +236,37 @@ def prepare(data: dict, passwords: dict | None = None):
 
 
 # ---------------------------------------------------------------- runner ---
+def link_state(link: dict, statuses: dict):
+    """True when the arrow lets its step run, False when it never will, None while
+    the step it starts from has not finished."""
+    s = statuses.get(link["from"])
+    if s == SKIPPED:
+        return False
+    if s == history.SUCCESS:
+        return link["when"] in ("success", "always")
+    if s in history.FINAL_STATUSES:
+        return link["when"] in ("failure", "always")
+    return None
+
+
+def decide(step: dict, links_in: list, statuses: dict):
+    """'run', 'skip' or None (wait) for a pending step, from the arrows leading into it."""
+    if not links_in:
+        return "run"
+    states = [link_state(k, statuses) for k in links_in]
+    if step.get("join") == "any":
+        if any(s is True for s in states):
+            return "run"
+        return "skip" if all(s is False for s in states) else None
+    if any(s is False for s in states):
+        return "skip"
+    return "run" if all(s is True for s in states) else None
+
+
 class _State:
     def __init__(self):
         self.cancel = threading.Event()
-        self.current = None          # run id of the step running now
+        self.current = set()         # run ids of the steps queued or running now
         self.thread = None
 
 
@@ -230,6 +284,7 @@ class SequenceRunner:
             if token and token in self._tokens:
                 return self._tokens[token][0]      # a double submit
             rid = _allocate()
+            links = [dict(k) for k in data.get("links", [])]
             _write_run(rid, {
                 "id": rid,
                 "sequence": data["slug"],
@@ -241,13 +296,18 @@ class SequenceRunner:
                 "initiator": initiator,
                 "owner_pid": os.getpid(),
                 "error": None,
+                "links": links,
                 "steps": [{
                     "index": n + 1,
+                    "id": step["id"],
+                    "x": step["x"],
+                    "y": step["y"],
+                    "join": step.get("join", "all"),
                     "script_id": script.id,
                     "script_name": script.name,
                     "script_path": str(script.path),
+                    "ext": script.path.suffix.lstrip(".").lower(),
                     "host": spec.host,
-                    "on_failure": step["on_failure"],
                     "status": PENDING,
                     "run_id": None,
                     "error": None,
@@ -257,21 +317,21 @@ class SequenceRunner:
             self._runs[rid] = state
             if token:
                 self._tokens[token] = (rid, now)
-            state.thread = threading.Thread(target=self._run, args=(rid, data["name"], items, initiator),
+            state.thread = threading.Thread(target=self._run, args=(rid, data["name"], items, links, initiator),
                                             name=f"seq-{rid}", daemon=True)
             state.thread.start()
             return rid
 
     def cancel(self, rid: str) -> bool:
-        """Stop a running sequence: the current step is stopped, the rest are skipped."""
+        """Stop a running sequence: the steps running now are stopped, the rest are skipped."""
         with self._lock:
             state = self._runs.get(rid)
             if state is None:
                 return False
             state.cancel.set()
-            current = state.current
-        if current:
-            manager.cancel(current)
+            current = list(state.current)
+        for run_id in current:
+            manager.cancel(run_id)
         return True
 
     def is_active(self, rid: str) -> bool:
@@ -288,50 +348,94 @@ class SequenceRunner:
             time.sleep(0.05)
         return False
 
-    def _run(self, rid, name, items, initiator) -> None:
-        state = self._runs[rid]
-        failed, stopped_at = [], None
-        try:
-            for i, (step, script, spec) in enumerate(items):
+    def _submit_ready(self, rid, name, state, items, index, statuses, links_in, running, initiator) -> None:
+        """Start every step whose arrows allow it, skip those they never will (repeatedly:
+        a skipped step can decide the next one)."""
+        changed = True
+        while changed:
+            changed = False
+            for step, _script, spec in items:
+                sid = step["id"]
+                if statuses[sid] != PENDING:
+                    continue
+                what = decide(step, links_in[sid], statuses)
+                if what == "skip":
+                    statuses[sid] = SKIPPED
+                    _update_run(rid, steps={index[sid]: {"status": SKIPPED}})
+                    changed = True
+                    continue
+                if what != "run":
+                    continue
                 with self._lock:
                     if state.cancel.is_set():
-                        break
-                    spec.sequence = {"run": rid, "step": i + 1, "name": name}
-                    run_id = manager.submit(spec, initiator=initiator)
-                    state.current = run_id
-                _update_run(rid, steps={i: {"status": history.QUEUED, "run_id": run_id}})
-                manager.wait_finished(run_id)
-                meta = history.read_meta(run_id) or {}
-                status = meta.get("status") or history.FAILED
-                _update_run(rid, steps={i: {"status": status, "error": meta.get("error")}})
-                with self._lock:
-                    state.current = None
-                if status != history.SUCCESS:
-                    failed.append(i)
-                    if state.cancel.is_set() or step["on_failure"] != "continue":
-                        stopped_at = i
-                        break
+                        return
+                    spec.sequence = {"run": rid, "step": index[sid] + 1, "name": name}
+                    try:
+                        run_id = manager.submit(spec, initiator=initiator)
+                    except Exception as exc:  # noqa: BLE001 - recorded on the step
+                        statuses[sid] = history.FAILED
+                        _update_run(rid, steps={index[sid]: {"status": history.FAILED,
+                                                             "error": f"Could not start: {exc}"}})
+                        changed = True
+                        continue
+                    state.current.add(run_id)
+                running[run_id] = sid
+                statuses[sid] = history.QUEUED
+                _update_run(rid, steps={index[sid]: {"status": history.QUEUED, "run_id": run_id}})
+
+    def _run(self, rid, name, items, links, initiator) -> None:
+        state = self._runs[rid]
+        index = {step["id"]: i for i, (step, _script, _spec) in enumerate(items)}
+        statuses = {step["id"]: PENDING for step, _script, _spec in items}
+        links_in = {sid: [k for k in links if k["to"] == sid] for sid in statuses}
+        running = {}                                   # run id -> step id
+        try:
+            while True:
+                if not state.cancel.is_set():
+                    self._submit_ready(rid, name, state, items, index, statuses, links_in, running, initiator)
+                if not running:
+                    break
+                for run_id in manager.wait_any(list(running), timeout=1.0):
+                    sid = running.pop(run_id)
+                    meta = history.read_meta(run_id) or {}
+                    status = meta.get("status") or history.FAILED
+                    if status not in history.FINAL_STATUSES:
+                        status = history.FAILED
+                    statuses[sid] = status
+                    _update_run(rid, steps={index[sid]: {"status": status, "error": meta.get("error")}})
+                    with self._lock:
+                        state.current.discard(run_id)
         except Exception as exc:  # never leave a sequence stuck in 'running'
             _update_run(rid, error=f"Internal error: {exc!r}")
             state.cancel.set()
+            for run_id in list(running):
+                manager.cancel(run_id)
         finally:
-            data = read_run(rid) or {"steps": []}
-            skipped = {i: {"status": SKIPPED} for i, s in enumerate(data["steps"]) if s["status"] == PENDING}
-            if state.cancel.is_set():
-                status, error = history.CANCELLED, data.get("error") or "Stopped by user."
-            elif stopped_at is not None:
-                s = data["steps"][stopped_at]
-                status = history.FAILED
-                error = f"Step {stopped_at + 1} ({s['script_name']}) did not succeed"
-                error += "; the remaining steps were skipped." if skipped else "."
-            elif failed:
-                status = history.FAILED
-                error = f"{len(failed)} of {len(data['steps'])} steps did not succeed."
-            else:
-                status, error = history.SUCCESS, None
-            _update_run(rid, steps=skipped, status=status, error=error, finished_at=history.now_iso())
-            with self._lock:
-                self._runs.pop(rid, None)
+            self._finish(rid, state, links)
+
+    def _finish(self, rid, state, links) -> None:
+        data = read_run(rid) or {"steps": []}
+        skipped = {i: {"status": SKIPPED} for i, s in enumerate(data["steps"])
+                   if s["status"] not in history.FINAL_STATUSES + (SKIPPED,)}
+        handled = {k["from"] for k in links if k["when"] == "failure"}
+        failed = [s for s in data["steps"]
+                  if s["status"] in history.FINAL_STATUSES and s["status"] != history.SUCCESS
+                  and s.get("id") not in handled]
+        n_skipped = sum(1 for s in data["steps"] if s["status"] == SKIPPED) + len(skipped)
+        note = (f" {n_skipped} step{'s were' if n_skipped != 1 else ' was'} skipped.") if n_skipped else ""
+        if state.cancel.is_set():
+            status, error = history.CANCELLED, data.get("error") or "Stopped by user."
+        elif len(failed) == 1:
+            s = failed[0]
+            status, error = history.FAILED, f"Step {s['index']} ({s['script_name']}) did not succeed." + note
+        elif failed:
+            status = history.FAILED
+            error = f"{len(failed)} of {len(data['steps'])} steps did not succeed." + note
+        else:
+            status, error = history.SUCCESS, None
+        _update_run(rid, steps=skipped, status=status, error=error, finished_at=history.now_iso())
+        with self._lock:
+            self._runs.pop(rid, None)
 
     def recover_interrupted(self) -> list:
         """Sequence runs left running by a stopped application are marked interrupted."""

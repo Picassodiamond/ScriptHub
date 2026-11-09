@@ -1,7 +1,9 @@
 """Sequences: list, edit (steps), run and watch. Storage in runner/sequences.py,
 running in runner/sequence_runner.py. Like everywhere else, the browser sends script
 ids only, never file paths."""
+import json
 import uuid
+from pathlib import Path
 
 from django.contrib import messages
 from django.http import Http404, JsonResponse
@@ -30,16 +32,6 @@ def _detail_url(slug):
     return reverse("sequence_detail", args=[slug])
 
 
-def _index(value, data):
-    try:
-        i = int(value)
-    except (TypeError, ValueError):
-        raise Http404("Unknown step") from None
-    if not 0 <= i < len(data["steps"]):
-        raise Http404("Unknown step")
-    return i
-
-
 def _source_label(step, script):
     if step["preset"]:
         if script is not None:
@@ -62,7 +54,7 @@ def sequence_list(request):
         except OSError as exc:
             messages.error(request, f"Could not save the sequence: {exc}")
             return redirect("sequences")
-        messages.success(request, "Sequence created. Add the scripts to run, in order.")
+        messages.success(request, "Sequence created. Drag scripts from the left panel onto the page.")
         return redirect("sequence_detail", slug=slug)
     return render(request, "runner/sequences.html", {
         "sequences": sequences.list_sequences(),
@@ -71,32 +63,42 @@ def sequence_list(request):
 
 
 # --------------------------------------------------------------- detail ---
+def graph_payload(data, scripts=None) -> dict:
+    """The sequence as the page draws it: boxes (with what to show on them), arrows,
+    and the password fields to ask for when it runs."""
+    if scripts is None:
+        scripts = [sequences.resolve(s) for s in data["steps"]]
+    steps, passwords = [], []
+    for n, (step, script) in enumerate(zip(data["steps"], scripts), start=1):
+        label, problem = _source_label(step, script)
+        if script is not None and not script.meta_valid:
+            problem = "invalid metadata"
+        path = str(script.path) if script else step["path"]
+        steps.append({
+            "id": step["id"], "n": n,
+            "name": script.name if script else (step["name"] or step["script"]),
+            "ext": (script.path.suffix if script else Path(path).suffix).lstrip(".").lower(),
+            "path": path,
+            "host": step_host(step, script) if script else (step["host"] or "default"),
+            "source": label,
+            "problem": problem or ("" if script else "script not found"),
+            "x": step["x"], "y": step["y"], "join": step["join"],
+            "incoming": len(sequences.incoming(data, step["id"])),
+        })
+        if script is not None:
+            for p in password_params(script):
+                passwords.append({"input": f"pw_{step['id']}_{p['name']}", "label": p["label"], "step": n,
+                                  "script": script.name, "required": p.get("required", False)})
+    return {"steps": steps, "links": [dict(k) for k in data["links"]], "passwords": passwords}
+
+
 def sequence_detail(request, slug):
     data = _load_or_404(slug)
     scripts = [sequences.resolve(s) for s in data["steps"]]
     sequences.refresh(slug, data, scripts)
-    steps, passwords = [], []
-    for i, (step, script) in enumerate(zip(data["steps"], scripts)):
-        label, problem = _source_label(step, script)
-        if script is not None and not script.meta_valid:
-            problem = "invalid metadata"
-        steps.append({
-            "index": i, "n": i + 1, "step": step, "script": script,
-            "name": script.name if script else (step["name"] or step["script"]),
-            "path": str(script.path) if script else step["path"],
-            "host": step_host(step, script) if script else (step["host"] or "default"),
-            "source": label, "problem": problem or ("" if script else "script not found"),
-        })
-        if script is not None:
-            for p in password_params(script):
-                passwords.append({"input": f"pw_{i}_{p['name']}", "label": p["label"], "step": i + 1,
-                                  "script": script.name, "required": p.get("required", False)})
-    available, _problems = discovery.scan()
     return render(request, "runner/sequence.html", {
         "seq": data,
-        "steps": steps,
-        "passwords": passwords,
-        "available": sorted(available, key=lambda s: s.relative.lower()),
+        "graph": graph_payload(data, scripts),
         "runs": [live_view(r) for r in list_sequence_runs(slug, limit=10)],
         "token": uuid.uuid4().hex,
         "max_steps": sequences.STEPS_MAX,
@@ -127,41 +129,84 @@ def sequence_delete(request, slug):
     return redirect("sequences")
 
 
-@require_POST
-def sequence_steps(request, slug):
-    """Add, move or remove a step: ``op`` = add (with ``script_id``) | up | down | remove (with ``index``)."""
+def _new_step_for(script, x, y) -> dict:
+    """A step for ``script``, with the values of its last run (passwords never)."""
+    recent = presets.get_recent(script, 0) if script.meta_valid else None
+    params = script.meta.get("parameters", []) if script.meta_valid else []
+    values = presets.savable_values(params, (recent or {}).get("values") or {})
+    return sequences.new_step(script, values, x=x, y=y)
+
+
+def sequence_graph(request, slug):
+    """The page's editor: GET = the graph (JSON); POST (JSON body) = one change, answered
+    with the graph after it. ``op``:
+
+      add     {script, x, y}        a script of the open folder, by id   -> also returns ``id``
+      move    {positions: {id: [x, y], ...}}
+      remove  {id}
+      link    {from, to, when}      adds the arrow, or changes its condition
+      unlink  {from, to}
+    """
     data = _load_or_404(slug)
-    op = request.POST.get("op", "")
+    if request.method == "GET":
+        return JsonResponse({"graph": graph_payload(data)})
+    if request.method != "POST":
+        return JsonResponse({"error": "Method not allowed."}, status=405)
+    try:
+        body = json.loads(request.body.decode("utf-8") or "{}")
+        if not isinstance(body, dict):
+            raise ValueError
+    except (ValueError, UnicodeDecodeError):
+        return JsonResponse({"error": "Invalid request."}, status=400)
+    op, out = body.get("op"), {}
     try:
         if op == "add":
-            script = discovery.get_script(request.POST.get("script_id", ""))
+            script = discovery.get_script(str(body.get("script") or ""))
             if script is None:
-                messages.error(request, "Pick a script from the list.")
-                return redirect("sequence_detail", slug=slug)
-            recent = presets.get_recent(script, 0) if script.meta_valid else None
-            params = script.meta.get("parameters", []) if script.meta_valid else []
-            values = presets.savable_values(params, (recent or {}).get("values") or {})
-            i = sequences.add_step(slug, sequences.new_step(script, values))
-            messages.success(request, f"Added {script.name}" + (" with the values of its last run." if recent else "."))
-            return redirect("sequence_step", slug=slug, index=i)
-        i = _index(request.POST.get("index"), data)
-        if op in ("up", "down"):
-            sequences.move_step(slug, i, -1 if op == "up" else 1)
+                raise sequences.SequenceError("That script is not in the open folder (rescan, then try again).")
+            out["id"] = sequences.add_step(slug, _new_step_for(script, body.get("x"), body.get("y")))
+        elif op == "move":
+            positions = body.get("positions")
+            if not isinstance(positions, dict):
+                raise sequences.SequenceError("Invalid positions.")
+            clean = {}
+            for k, v in positions.items():
+                if not (isinstance(v, (list, tuple)) and len(v) == 2):
+                    raise sequences.SequenceError("Invalid positions.")
+                clean[str(k)] = (v[0], v[1])
+            sequences.move_steps(slug, clean)
         elif op == "remove":
-            sequences.remove_step(slug, i)
-            messages.success(request, f"Step {i + 1} removed.")
+            sequences.remove_step(slug, str(body.get("id") or ""))
+        elif op == "link":
+            sequences.link(slug, str(body.get("from") or ""), str(body.get("to") or ""),
+                           str(body.get("when") or "success"))
+        elif op == "unlink":
+            sequences.unlink(slug, str(body.get("from") or ""), str(body.get("to") or ""))
         else:
-            raise Http404("Unknown operation")
+            return JsonResponse({"error": "Unknown operation."}, status=400)
     except sequences.SequenceError as exc:
-        messages.error(request, str(exc))
-    return redirect("sequence_detail", slug=slug)
+        return JsonResponse({"error": str(exc), "graph": graph_payload(sequences.load(slug))}, status=400)
+    except OSError as exc:
+        return JsonResponse({"error": f"Could not save the sequence: {exc}"}, status=500)
+    out["graph"] = graph_payload(sequences.load(slug))
+    return JsonResponse(out)
 
 
 # ----------------------------------------------------------------- step ---
-def _step_page(request, data, i, script, *, raw=None, errors=None, source=None, host=None, on_failure=None,
-               status=200):
+def _step_url(slug, step_id, embed, **extra):
+    url = reverse("sequence_step", args=[slug, step_id])
+    query = {**({"embed": "1"} if embed else {}), **extra}
+    return url + ("?" + "&".join(f"{k}={v}" for k, v in query.items()) if query else "")
+
+
+def _step_page(request, data, step_id, script, embed, *, raw=None, errors=None, source=None, host=None,
+               join=None, status=200):
+    i = sequences.find(data, step_id)
     step = data["steps"][i]
-    ctx = {"seq": data, "index": i, "n": i + 1, "step": step, "script": script}
+    ctx = {"seq": data, "step": step, "n": i + 1, "script": script, "embed": embed,
+           "base": "base_embed.html" if embed else "base.html",
+           "incoming": len(sequences.incoming(data, step_id)),
+           "saved": embed and request.GET.get("saved") == "1"}
     if script is not None and script.meta_valid:
         params = [p for p in script.meta.get("parameters", []) if p["type"] != "password"]
         warnings = []
@@ -179,50 +224,57 @@ def _step_page(request, data, i, script, *, raw=None, errors=None, source=None, 
             hosts=ssh_hosts.allowed_hosts([default_host, step["host"]]),
             default_host=default_host,
             host=host if host is not None else step["host"],
-            on_failure=on_failure or step["on_failure"],
+            join=join or step["join"],
             has_password=any(p["type"] == "password" for p in script.meta.get("parameters", [])),
         )
     return render(request, "runner/sequence_step.html", ctx, status=status)
 
 
-def sequence_step(request, slug, index):
+def sequence_step(request, slug, step_id):
+    """A step's values, host and join, as a page or (``embed=1``) in the sequence page's
+    right-hand column."""
     data = _load_or_404(slug)
-    i = _index(index, data)
-    step = data["steps"][i]
+    try:
+        step = data["steps"][sequences.find(data, step_id)]
+    except sequences.SequenceError:
+        raise Http404("Unknown step") from None
+    embed = (request.GET.get("embed") or request.POST.get("embed")) == "1"
     script = sequences.resolve(step)
     if request.method != "POST":
-        return _step_page(request, data, i, script)
+        return _step_page(request, data, step_id, script, embed)
     if script is None or not script.meta_valid:
         messages.error(request, "This step's script cannot be configured (not found or invalid metadata).")
-        return redirect("sequence_detail", slug=slug)
+        return redirect(_step_url(slug, step_id, embed))
     params = [p for p in script.meta.get("parameters", []) if p["type"] != "password"]
     source = request.POST.get("source", "values")
     host = request.POST.get("host", "")
-    on_failure = request.POST.get("on_failure", "stop")
-    if on_failure not in sequences.ON_FAILURE:
-        on_failure = "stop"
+    join = request.POST.get("join", step["join"])
+    if join not in sequences.JOIN:
+        join = "all"
     default_host = script.meta.get("host", ssh_hosts.LOCAL)
     if host and host not in ssh_hosts.allowed_hosts([default_host, step["host"]]):
         messages.error(request, "Choose one of the listed hosts.")
-        return _step_page(request, data, i, script, source=source, on_failure=on_failure, status=400)
+        return _step_page(request, data, step_id, script, embed, source=source, join=join, status=400)
     try:
         if source == "values":
             raw = ps.raw_from_post(params, request.POST)
             _values, errors = ps.clean_values(params, raw)
             if errors:
-                return _step_page(request, data, i, script, raw=raw, errors=errors, source=source, host=host,
-                                  on_failure=on_failure, status=400)
-            sequences.update_step(slug, i, preset="", values=presets.savable_values(params, raw),
-                                  host=host, on_failure=on_failure)
+                return _step_page(request, data, step_id, script, embed, raw=raw, errors=errors, source=source,
+                                  host=host, join=join, status=400)
+            sequences.update_step(slug, step_id, preset="", values=presets.savable_values(params, raw),
+                                  host=host, join=join)
         else:
             if source not in {p["slug"] for p in presets.list_presets(script)}:
                 messages.error(request, "That preset was not found.")
-                return _step_page(request, data, i, script, host=host, on_failure=on_failure, status=400)
-            sequences.update_step(slug, i, preset=source, values={}, host=host, on_failure=on_failure)
+                return _step_page(request, data, step_id, script, embed, host=host, join=join, status=400)
+            sequences.update_step(slug, step_id, preset=source, values={}, host=host, join=join)
     except sequences.SequenceError as exc:
         messages.error(request, str(exc))
         return redirect("sequence_detail", slug=slug)
-    messages.success(request, f"Step {i + 1} saved.")
+    messages.success(request, f"Step {sequences.find(data, step_id) + 1} saved.")
+    if embed:
+        return redirect(_step_url(slug, step_id, True, saved="1"))
     return redirect("sequence_detail", slug=slug)
 
 
@@ -233,9 +285,9 @@ def sequence_start(request, slug):
     passwords = {}
     for key, value in request.POST.items():
         if key.startswith("pw_"):
-            index, _, name = key[3:].partition("_")
-            if index.isdigit() and name:
-                passwords[(int(index), name)] = value
+            step_id, _, name = key[3:].partition("_")
+            if step_id and name:
+                passwords[(step_id, name)] = value
     items, errors = prepare(data, passwords)
     if errors:
         for e in errors[:8]:
@@ -257,10 +309,22 @@ def _run_or_404(run_id):
     return live_view(data)
 
 
+def run_graph(data) -> dict:
+    """A sequence run for the page's diagram: boxes with their live status, and the arrows."""
+    return {
+        "steps": [{"id": s["id"], "n": s["index"], "name": s.get("script_name") or "", "ext": s.get("ext") or "",
+                   "path": s.get("script_path") or "", "host": s.get("host") or "", "x": s["x"], "y": s["y"],
+                   "join": s.get("join", "all"), "status": s["status"], "status_label": s["status_label"],
+                   "run_id": s.get("run_id"), "error": s.get("error")} for s in data["steps"]],
+        "links": data.get("links", []),
+    }
+
+
 def sequence_run(request, run_id):
     data = _run_or_404(run_id)
     return render(request, "runner/sequence_run.html", {
         "run": data,
+        "graph": run_graph(data),
         "seq_exists": sequences.get(data.get("sequence", "")) is not None,
     })
 
@@ -270,9 +334,8 @@ def sequence_run_status(request, run_id):
     return JsonResponse({
         "id": data["id"], "status": data["status"], "status_label": data["status_label"],
         "active": data["active"], "error": data.get("error"), "duration": data["duration"],
-        "done": data["done"],
-        "steps": [{"index": s["index"], "status": s["status"], "status_label": s["status_label"],
-                   "run_id": s.get("run_id"), "error": s.get("error")} for s in data["steps"]],
+        "done": data["done"], "total": len(data["steps"]),
+        "graph": run_graph(data),
     })
 
 
@@ -280,7 +343,7 @@ def sequence_run_status(request, run_id):
 def sequence_run_stop(request, run_id):
     _run_or_404(run_id)
     if sequencer.cancel(run_id):
-        messages.success(request, "Stopping the sequence: the current step is stopped, the rest are skipped.")
+        messages.success(request, "Stopping the sequence: the running steps are stopped, the rest are skipped.")
     else:
         messages.error(request, "This sequence is not running.")
     return redirect("sequence_run", run_id=run_id)

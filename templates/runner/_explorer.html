@@ -27,7 +27,7 @@
       <summary>{{ g.name }}<span class="tree-count">{{ g.scripts|length }}</span></summary>
       <div class="tree-items">
         {% for s in g.scripts %}
-        <a class="tree-item{% if s.id == current %} is-active{% endif %}" href="{% url 'script_detail' s.id %}"
+        <a class="tree-item{% if s.id == current %} is-active{% endif %}" href="{% url 'script_detail' s.id %}" data-id="{{ s.id }}"
            data-search="{{ s.name|lower }} {{ s.relative|lower }} {{ s.category|lower }}" title="{{ s.relative }}">
           <span class="lang lang-{{ s.ext }}">{{ s.ext }}</span>
           <span class="ti-name">{{ s.name }}</span>
