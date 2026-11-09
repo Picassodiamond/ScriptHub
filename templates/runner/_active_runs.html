@@ -1,7 +1,7 @@
 {# Running and queued executions and sequences, on top of History; History polls executions/?partial=1 for it while something is active. Empty when nothing is. #}
 {% if active or active_seqs %}
-<section class="panel" data-active-count="{{ active|length|add:active_seqs|length }}">
-  <div class="panel-head"><h2>Running <span class="count-pill">{{ active|length|add:active_seqs|length }}</span></h2></div>
+<section class="panel" data-active-count="{{ active_total }}">
+  <div class="panel-head"><h2>Running <span class="count-pill">{{ active_total }}</span></h2></div>
   <div class="table-wrap">
   <table class="table">
     <tbody>

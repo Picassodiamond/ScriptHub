@@ -28,6 +28,7 @@ MIT licensed — see [Licence and contributing](#licence-and-contributing).
 7. [Defining parameters](#defining-parameters)
 8. [Running a script, hosts and presets](#running-a-script-hosts-and-presets)
    - [Sequences: scripts connected by arrows](#sequences-scripts-connected-by-arrows)
+   - [Project files (.shp): take a folder and its sequences anywhere](#project-files-shp-take-a-folder-and-its-sequences-anywhere)
 9. [Creating and editing scripts](#creating-and-editing-scripts)
 10. [Execution lifecycle](#execution-lifecycle)
 11. [Logging, history and retention](#logging-history-and-retention)
@@ -618,6 +619,29 @@ A file that cannot be read is listed with the reason and never overwritten. File
 the first version of sequences (a plain list of steps with `on_failure: stop|continue`)
 open as a top-to-bottom chain (`continue` = an *always* arrow) and are written in the new
 form on the next change.
+
+### Project files (.shp): take a folder and its sequences anywhere
+
+**File → Save project as…** opens the system Save As dialog and writes one `.shp` file (a zip) there: the
+open folder's scripts and other files (helpers, data, documents), the sequences that use its scripts (with any
+script they need from elsewhere, under `_outside/`) and the scripts' presets. It never holds passwords, run
+history, Settings, files that look like secrets (`.env`, keys, keystores) or tool folders (`.git`, `.venv`,
+`node_modules`, `__pycache__`). (Browsers without the Save As API download the file instead.)
+
+**File → Open project…** on any computer: choose the file and ScriptHub shows what is in it and what to check
+(a host not in your settings, a path in a step's values that does not exist here, a sequence name that is taken,
+which then gets "(2)"). Then pick a **new or empty folder**: the files are unpacked there (nothing is
+overwritten), the sequences and presets are added (an existing preset is kept), every step points at its
+unpacked script, and the folder opens. Opening runs nothing; the file is checked first (no names leaving the
+folder, no links, size limits, every file against the SHA-256 in its manifest).
+
+```
+Ops.shp
+├─ manifest.json            format, version, name, date; every file with size and SHA-256
+├─ files/…                  the folder's files
+├─ sequences/<slug>.yaml    step paths point inside the project (files/…)
+└─ presets/<n>/<slug>.yaml  presets, with the script each belongs to in the manifest
+```
 
 ---
 

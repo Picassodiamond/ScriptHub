@@ -728,6 +728,51 @@
     return api;
   })();
 
+  // --------------------------------------------------------------- flash --
+  // A message at the top of the page, like the server's (success ones fade out).
+  sr.flash = function (text, kind) {
+    var body = document.getElementById('main-body');
+    if (!body) return;
+    var box = body.querySelector(':scope > .flashes');
+    if (!box) { box = document.createElement('div'); box.className = 'flashes notes'; body.insertBefore(box, body.firstChild); }
+    var el = document.createElement('div');
+    el.className = 'flash flash-' + (kind || 'success'); el.setAttribute('role', 'alert');
+    el.appendChild(document.createElement('span')).textContent = text;
+    box.textContent = ''; box.appendChild(el);
+    if ((kind || 'success') === 'success') setTimeout(function () { el.classList.add('flash-out'); setTimeout(function () { el.remove(); }, 350); }, 4000);
+  };
+
+  // ---------------------------------------------------- save project as --
+  // File > Save project as…: the system Save As dialog (File System Access API, Edge/Chrome), then the
+  // project file of the open folder is written to the chosen file. Without that API: a normal download.
+  document.addEventListener('click', function (e) {
+    var a = e.target.closest && e.target.closest('[data-save-project]');
+    if (!a || typeof window.showSaveFilePicker !== 'function') return;     // fallback: the link downloads
+    e.preventDefault();
+    [].forEach.call(document.querySelectorAll('details[data-menu][open]'), function (d) { d.open = false; });
+    var base = (a.getAttribute('data-save-project') || 'project').replace(/[^A-Za-z0-9._ -]+/g, '').trim() || 'project';
+    window.showSaveFilePicker({
+      suggestedName: base + '.shp',
+      types: [{ description: 'ScriptHub project', accept: { 'application/zip': ['.shp'] } }]
+    }).then(function (handle) {
+      sr.flash('Saving ' + handle.name + '…', 'info');
+      var url = a.getAttribute('href') + '?name=' + encodeURIComponent(handle.name);
+      return fetch(url, { credentials: 'same-origin', cache: 'no-store' }).then(function (r) {
+        var type = r.headers.get('Content-Type') || '';
+        if (!r.ok || type.indexOf('application/zip') !== 0) throw new Error('The project file was not made (see the page after a reload).');
+        var report = r.headers.get('X-ScriptHub-Report') || '';
+        return r.blob().then(function (blob) {
+          return handle.createWritable().then(function (w) {
+            return w.write(blob).then(function () { return w.close(); });
+          });
+        }).then(function () { sr.flash('Saved ' + handle.name + (report ? ': ' + report + '.' : '.')); });
+      });
+    }).catch(function (err) {
+      if (err && err.name === 'AbortError') return;                       // the dialog was cancelled
+      sr.flash((err && err.message) || 'The project could not be saved.', 'error');
+    });
+  });
+
   sr.palette = palette;
   sr.help = help;
   sr.closeOverlay = closeOverlay;

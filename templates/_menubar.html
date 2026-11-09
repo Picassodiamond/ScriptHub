@@ -48,6 +48,10 @@ open switches, Esc / outside click closes). data-action items are handled in app
       </form>
       {% endif %}
       <div class="menu-sep"></div>
+      <a class="menu-item" href="{% url 'project_open' %}" role="menuitem" title="Open a ScriptHub project file (.shp): its scripts, sequences and presets"><svg class="i i-sm"><use href="#i-download"/></svg><span>Open project…</span><span class="menu-hint">.shp</span></a>
+      {% if f %}<a class="menu-item" href="{% url 'project_save' %}" role="menuitem" data-save-project="{{ f.name }}" title="Save this folder with its sequences and presets as one project file (.shp)"><svg class="i i-sm"><use href="#i-save"/></svg><span>Save project as…</span><span class="menu-hint">.shp</span></a>
+      {% else %}<span class="menu-item is-disabled" title="Open a folder first"><svg class="i i-sm"><use href="#i-save"/></svg><span>Save project as…</span><span class="menu-hint">.shp</span></span>{% endif %}
+      <div class="menu-sep"></div>
       <a class="menu-item" href="{% url 'settings' %}" role="menuitem"><svg class="i i-sm"><use href="#i-gear"/></svg><span>Settings</span><kbd>g s</kbd></a>
     </div>
   </details>

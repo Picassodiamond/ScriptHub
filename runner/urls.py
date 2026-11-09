@@ -1,7 +1,7 @@
 from django.urls import path
 
 from . import (desktop, edit_views, execution_views, folder_views, history_views, new_views, preset_views,
-               script_views, sequence_views, views)
+               project_views, script_views, sequence_views, views)
 
 urlpatterns = [
     path("", views.dashboard, name="dashboard"),
@@ -19,6 +19,9 @@ urlpatterns = [
     path("scripts/<str:script_id>/presets/save/", preset_views.preset_save, name="preset_save"),
     path("scripts/<str:script_id>/presets/rename/", preset_views.preset_rename, name="preset_rename"),
     path("scripts/<str:script_id>/presets/delete/", preset_views.preset_delete, name="preset_delete"),
+    path("project/save/", project_views.project_save, name="project_save"),
+    path("project/open/", project_views.project_open, name="project_open"),
+    path("project/open/install/", project_views.project_install, name="project_install"),
     path("sequences/", sequence_views.sequence_list, name="sequences"),
     path("sequences/<str:slug>/", sequence_views.sequence_detail, name="sequence_detail"),
     path("sequences/<str:slug>/rename/", sequence_views.sequence_rename, name="sequence_rename"),

@@ -246,16 +246,29 @@ def _read(slug: str, strict: bool = False):
     return data
 
 
-def _write(slug: str, data: dict) -> None:
+def dump_text(data: dict) -> str:
+    """The file text of a sequence (also used inside project files)."""
     out = {"name": data["name"]}
     if data.get("description"):
         out["description"] = data["description"]
     out["saved_at"] = history.now_iso()
     out["steps"] = [_dump_step(s) for s in data["steps"]]
     out["links"] = [dict(link) for link in data.get("links", [])]
+    return yamlish.dump(out, header="Sequence for ScriptHub. Passwords are never stored.")
+
+
+def parse_text(text: str) -> dict:
+    """A sequence from file text (checked as a stored file is); raises SequenceError."""
+    try:
+        return _clean(yamlish.load(text))
+    except ValueError as exc:
+        raise SequenceError(str(exc)) from None
+
+
+def _write(slug: str, data: dict) -> None:
     path = _file(slug)
     path.parent.mkdir(parents=True, exist_ok=True)
-    atomic_write_text(path, yamlish.dump(out, header="Sequence for ScriptHub. Passwords are never stored."))
+    atomic_write_text(path, dump_text(data))
 
 
 # ------------------------------------------------------------------ graph ---
@@ -365,6 +378,21 @@ def create(name: str) -> str:
             slug = f"{base[:60]}-{n}"
             n += 1
         _write(slug, {"name": name, "steps": [], "links": []})
+        return slug
+
+
+def add_imported(data: dict) -> str:
+    """Store a sequence read with parse_text() under a new slug (its name must be free); returns the slug."""
+    name = clean_name(data["name"])
+    with _lock:
+        if any(s["name"].lower() == name.lower() for s in list_sequences()):
+            raise SequenceError(f"A sequence named '{name}' already exists.")
+        base = slug = slugify(name)
+        n = 2
+        while _file(slug).exists():
+            slug = f"{base[:60]}-{n}"
+            n += 1
+        _write(slug, {**data, "name": name})
         return slug
 
 

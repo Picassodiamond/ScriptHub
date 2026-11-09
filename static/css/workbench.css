@@ -1241,3 +1241,11 @@ a.doc-tab:hover { color: var(--text); text-decoration: none; background: var(--h
 .seq-card-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .panel-head .fav-mark { color: var(--warn); fill: currentColor; }
 .seq-side .table th:last-child, .seq-side .table td:last-child { display: none; }   /* duration: on the run page */
+
+/* Project files (.shp): save and open */
+.proj-seqs, .proj-files ul { margin: 6px 0 0; padding-left: 18px; }
+.proj-files > summary { cursor: pointer; }
+.proj-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-bottom: 12px; }
+.proj-stats > div { display: flex; flex-direction: column; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--panel-2); }
+.proj-stats strong { font-size: 20px; }
+.proj-stats span { font-size: 12px; color: var(--muted); }

@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}Open project{% endblock %}
+{% block content %}
+{# Open a project file (.shp): choose the file, see what is in it and what opening it does, choose a new folder, unpack. #}
+<div class="page page-narrow">
+{% if not preview %}
+<form method="post" enctype="multipart/form-data" class="panel">{% csrf_token %}
+  <div class="panel-head"><h2><svg class="i faint"><use href="#i-download"/></svg> Open project</h2></div>
+  <div class="panel-body">
+    <p class="muted small">Choose a ScriptHub project file ({{ ext }}). You see what is in it before anything is written;
+      then its files are unpacked into a new folder, its sequences and presets are added, and the folder opens.</p>
+    <div class="field">
+      <input class="input" type="file" name="project" accept="{{ ext }},application/zip" required aria-label="Project file">
+    </div>
+  </div>
+  <div class="panel-foot"><button class="btn btn-primary" type="submit">Check the file</button></div>
+</form>
+{% else %}
+<form method="post" action="{% url 'project_install' %}" class="panel">{% csrf_token %}
+  <input type="hidden" name="token" value="{{ token }}">
+  <div class="panel-head"><h2><svg class="i faint"><use href="#i-download"/></svg> {{ preview.name }}</h2><span class="spacer"></span>
+    <span class="small muted">{% if file_name %}{{ file_name }} · {% endif %}saved {{ preview.created_at }}{% if preview.scripthub %} with ScriptHub {{ preview.scripthub }}{% endif %}</span></div>
+  <div class="panel-body">
+    <div class="proj-stats">
+      <div><strong>{{ preview.scripts }}</strong><span>scripts</span></div>
+      <div><strong>{{ preview.files|add:"0" }}</strong><span>files in all</span></div>
+      <div><strong>{{ preview.sequences|length }}</strong><span>sequences</span></div>
+      <div><strong>{{ preview.presets }}</strong><span>presets</span></div>
+    </div>
+    {% if preview.sequences %}
+    <ul class="small proj-seqs">
+      {% for s in preview.sequences %}<li><svg class="i i-sm faint"><use href="#i-sequence"/></svg> {{ s.name }} <span class="muted">· {{ s.steps }} step{{ s.steps|pluralize }}{% if s.as != s.name %} · added as “{{ s.as }}” (the name is taken){% endif %}</span></li>{% endfor %}
+    </ul>
+    {% endif %}
+    <details class="small proj-files"><summary>Files ({{ preview.files }})</summary>
+      <ul class="mono small muted">{% for f in preview.file_list %}<li>{{ f }}</li>{% endfor %}</ul></details>
+    {% if preview.warnings %}
+    <div class="flash flash-warning notes" style="margin-top:12px"><span><strong>Check after opening:</strong>
+      <ul class="small">{% for w in preview.warnings %}<li>{{ w }}</li>{% endfor %}</ul></span></div>
+    {% endif %}
+    <div class="field" style="margin-top:14px">
+      <label class="field-label" for="p-dest">Unpack into this new folder</label>
+      <div class="inline-form">
+        <input class="input mono" id="p-dest" name="destination" value="{{ destination }}" required>
+        {% if folder_picker %}<button type="button" class="btn" data-pick-folder="#p-dest" data-title="Folder for the project">Browse…</button>{% endif %}
+      </div>
+      <div class="help">It must be new or empty: nothing is overwritten. It becomes the open folder.</div>
+    </div>
+    <p class="small muted">Opening runs nothing. The project's scripts will run with your rights when you run them:
+      open projects only from people you trust.</p>
+  </div>
+  <div class="panel-foot">
+    <button class="btn btn-primary" type="submit" data-once><svg class="i"><use href="#i-folder-open"/></svg> Open project</button>
+    <button class="btn btn-ghost" type="submit" name="cancel" value="1" formnovalidate>Cancel</button>
+  </div>
+</form>
+{% endif %}
+</div>
+{% endblock %}

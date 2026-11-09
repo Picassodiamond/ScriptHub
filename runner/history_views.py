@@ -92,6 +92,12 @@ def _row(kind, data) -> dict:
                               "started_display": (data.get("started_at") or data.get("queued_at") or "").replace("T", " ")}
 
 
+def running_panel() -> dict:
+    """Context of the Running panel (_active_runs.html): running script runs and sequences."""
+    active, seqs = active_runs(), sequence_runner.active_runs()
+    return {"active": active, "active_seqs": seqs, "active_total": len(active) + len(seqs)}
+
+
 def history_list(request):
     history_ops.maybe_apply_retention()
     f = _filters(request.GET)
@@ -129,8 +135,7 @@ def history_list(request):
         "history_days": cfg["history_retention_days"],
         "log_days": cfg["log_retention_days"],
         "return_query": urllib.parse.urlencode({**keep, "page": page}),
-        "active": active_runs(),                     # the Running panel on top (Jobs merged in)
-        "active_seqs": sequence_runner.active_runs(),
+        **running_panel(),                           # the Running panel on top (Jobs merged in)
     })
 
 
