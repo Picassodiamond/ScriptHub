@@ -19,7 +19,7 @@ from runner import history, runtime_data, sequences, workspace
 
 class LocationTests(SimpleTestCase):
     def setUp(self):
-        self.tmp = Path(tempfile.mkdtemp(prefix="sr-loc-"))
+        self.tmp = Path(tempfile.mkdtemp(prefix="sr-loc-")).resolve()
         self.addCleanup(shutil.rmtree, self.tmp, True)
         self.portable = self.tmp / "code" / "runtime"
 
@@ -45,7 +45,7 @@ class LocationTests(SimpleTestCase):
 
 class DataCase(SimpleTestCase):
     def setUp(self):
-        self.tmp = Path(tempfile.mkdtemp(prefix="sr-data-"))
+        self.tmp = Path(tempfile.mkdtemp(prefix="sr-data-")).resolve()
         self.addCleanup(shutil.rmtree, self.tmp, True)
         r = self.rt = self.tmp / "runtime"
         r.mkdir()

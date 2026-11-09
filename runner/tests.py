@@ -189,7 +189,7 @@ class PageTests(SimpleTestCase):
     """Drive the real views against a temp scripts directory."""
 
     def setUp(self):
-        self.tmp = Path(tempfile.mkdtemp())
+        self.tmp = Path(tempfile.mkdtemp()).resolve()
         self.scripts = self.tmp / "scripts"
         self.scripts.mkdir()
         (self.scripts / "tool.py").write_bytes(b"print('hi')\n")

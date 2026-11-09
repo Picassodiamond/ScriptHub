@@ -30,6 +30,8 @@ def wait_for(predicate, timeout=15.0, step=0.05):
             return True
         time.sleep(step)
     return False
+# The bash on PATH, as a full path: on Windows a bare "bash" finds System32's WSL stub first.
+BASH = shutil.which("bash")
 
 
 class EngineCase(SimpleTestCase):
@@ -37,7 +39,7 @@ class EngineCase(SimpleTestCase):
     per_host = 3
 
     def setUp(self):
-        self.tmp = Path(tempfile.mkdtemp(prefix="sr-test-"))
+        self.tmp = Path(tempfile.mkdtemp(prefix="sr-test-")).resolve()
         self.scripts = self.tmp / "scripts dir"      # a space on purpose
         self.scripts.mkdir()
         (self.tmp / "executions").mkdir()
@@ -294,7 +296,7 @@ class DuplicateAndRecoveryTests(EngineCase):
 
 class LogChunkTests(SimpleTestCase):
     def test_chunk_never_splits_multibyte_characters(self):
-        d = Path(tempfile.mkdtemp())
+        d = Path(tempfile.mkdtemp()).resolve()
         self.addCleanup(shutil.rmtree, d, True)
         f = d / "out.log"
         data = ("héllo ✓ wörld " * 20).encode("utf-8")
@@ -405,7 +407,7 @@ class CommandBuildingTests(SimpleTestCase):
             executor.resolve_interpreter(None, ".bat", "h1", self.CFG)
 
 
-@unittest.skipUnless(shutil.which("bash"), "bash is needed to emulate a remote host")
+@unittest.skipUnless(BASH, "bash is needed to emulate a remote host")
 class FakeSshRemoteTests(EngineCase):
     """End-to-end remote execution against a fake `ssh` that runs the remote
     command in a local bash. Proves streaming, PID capture and quoting."""
@@ -424,7 +426,7 @@ class FakeSshRemoteTests(EngineCase):
             if host == "down":
                 sys.stderr.write("ssh: connect to host down port 22: Connection refused\\n")
                 sys.exit(255)
-            sys.exit(subprocess.call(["bash", "-c", command]))
+            sys.exit(subprocess.call([{BASH!r}, "-c", command]))
         """))
         cfg = config.load_config()
         cfg["ssh_executable"] = f'"{PY}" "{self.fake}"'

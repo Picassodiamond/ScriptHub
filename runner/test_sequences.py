@@ -47,7 +47,7 @@ PARAMS = [
 
 class SequenceCase(SimpleTestCase):
     def setUp(self):
-        self.tmp = Path(tempfile.mkdtemp(prefix="sr-seq-"))
+        self.tmp = Path(tempfile.mkdtemp(prefix="sr-seq-")).resolve()
         self.root = self.tmp / "scripts"
         self.root.mkdir()
         self.out = self.tmp / "out.txt"
@@ -273,8 +273,8 @@ class RunnerTests(SequenceCase):
 
     def test_branches_run_side_by_side(self):
         slug = self.sequence((self.first, self.values(tag="a")), (self.second, self.values(tag="b", sleep="1.5")),
-                             (self.third, self.values(tag="c", sleep="1.5")),
-                             links=[("s1", "s2", "success"), ("s1", "s3", "success")])
+                             (self.third, self.values(tag="c", sleep="2.2")),   # ends apart: appends from two
+                             links=[("s1", "s2", "success"), ("s1", "s3", "success")])   # processes can collide on Windows
         run = self.run_sequence(slug)
         self.assertEqual(run["status"], history.SUCCESS)
         lines = self.lines()

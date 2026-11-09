@@ -21,7 +21,7 @@ from runner.process_manager import manager
 class ExecutionWebTests(SimpleTestCase):
     def setUp(self):
         self.manager = manager
-        self.tmp = Path(tempfile.mkdtemp(prefix="sr-web-"))
+        self.tmp = Path(tempfile.mkdtemp(prefix="sr-web-")).resolve()
         self.scripts = self.tmp / "scripts"
         self.scripts.mkdir()
         (self.tmp / "executions").mkdir()

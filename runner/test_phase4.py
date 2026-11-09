@@ -23,7 +23,7 @@ def days_ago(n, hours=0):
 
 class Phase4Case(SimpleTestCase):
     def setUp(self):
-        self.tmp = Path(tempfile.mkdtemp(prefix="sr-p4-"))
+        self.tmp = Path(tempfile.mkdtemp(prefix="sr-p4-")).resolve()
         self.scripts = self.tmp / "scripts"
         self.scripts.mkdir()
         for sub in ("executions", "presets"):

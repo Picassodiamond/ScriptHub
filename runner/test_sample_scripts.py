@@ -44,7 +44,7 @@ def default_argv(rel, **overrides):
 
 class TempCase(SimpleTestCase):
     def setUp(self):
-        self.tmp = Path(tempfile.mkdtemp(prefix="sr-samples-"))
+        self.tmp = Path(tempfile.mkdtemp(prefix="sr-samples-")).resolve()
         self.addCleanup(shutil.rmtree, self.tmp, True)
 
 
@@ -54,6 +54,11 @@ class MetadataTests(SimpleTestCase):
 
     def test_every_sample_has_valid_metadata_a_category_and_a_description(self):
         self.assertGreaterEqual(len(self.scripts()), 15)
+        cfg = config.load_config()           # .bat counts as a script on Linux too (its metadata is checked)
+        cfg = {**cfg, "interpreters": {**cfg["interpreters"], ".py": "python", ".sh": "bash", ".bat": "cmd"}}
+        patcher = mock.patch.object(config, "load_config", return_value=cfg)
+        patcher.start()
+        self.addCleanup(patcher.stop)
         for path in self.scripts():
             with self.subTest(script=path.relative_to(SAMPLES).as_posix()):
                 s = discovery.load_file(str(path))

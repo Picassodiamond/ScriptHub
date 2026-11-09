@@ -25,7 +25,7 @@ HAS_BASH = shutil.which("bash") is not None
 
 class TempCase(SimpleTestCase):
     def setUp(self):
-        self.tmp = Path(tempfile.mkdtemp(prefix="sr-edit-"))
+        self.tmp = Path(tempfile.mkdtemp(prefix="sr-edit-")).resolve()
         self.addCleanup(shutil.rmtree, self.tmp, True)
         self.root = self.tmp / "scripts"
         self.root.mkdir()

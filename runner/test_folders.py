@@ -1,11 +1,12 @@
 """Open folder: the scanned script folder, recent and favourite folders (runner/workspace.py,
 runner/folder_views.py)."""
 import json
+import os
 import shutil
 import tempfile
 import time
 from pathlib import Path
-from unittest import mock
+from unittest import mock, skipUnless
 
 from django.test import SimpleTestCase
 
@@ -15,7 +16,7 @@ from . import discovery, metadata, workspace
 
 class FolderCase(SimpleTestCase):
     def setUp(self):
-        self.tmp = Path(tempfile.mkdtemp(prefix="sh-folders-"))
+        self.tmp = Path(tempfile.mkdtemp(prefix="sh-folders-")).resolve()
         self.addCleanup(shutil.rmtree, self.tmp, True)
         self.a = self.make_folder("alpha", "one.py")
         self.b = self.make_folder("beta", "two.py")
@@ -45,7 +46,27 @@ class FolderCase(SimpleTestCase):
         return json.loads(workspace.state_file().read_text())
 
 
+def _short_name(path) -> str:
+    """The 8.3 short form of ``path`` on Windows (the same path when short names are off)."""
+    import ctypes
+    buf = ctypes.create_unicode_buffer(1024)
+    n = ctypes.windll.kernel32.GetShortPathNameW(str(path), buf, 1024)
+    return buf.value if 0 < n < 1024 else str(path)
+
+
 class WorkspaceTests(FolderCase):
+    @skipUnless(os.name == "nt", "8.3 short names exist on Windows only")
+    def test_a_short_windows_name_is_the_same_folder(self):
+        long = self.tmp / "A rather long folder name"
+        long.mkdir()
+        short = _short_name(long)
+        if short == str(long):
+            self.skipTest("short names are switched off on this drive")
+        self.assertTrue(workspace.same(short, str(long)))
+        workspace.open_folder(str(long))
+        workspace.forget(short)
+        self.assertEqual(self.state()["recent"], [])
+
     def test_nothing_open_on_a_fresh_install(self):
         self.assertIsNone(workspace.current())
         self.assertEqual(self.names(), [])

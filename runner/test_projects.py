@@ -23,7 +23,7 @@ WITH_ID = (b"# --- scripthub ---\n# {\"id\": \"a1b2c3d4e5f6\", \"name\": \"Alpha
 
 class ProjectCase(SimpleTestCase):
     def setUp(self):
-        self.tmp = Path(tempfile.mkdtemp(prefix="sr-proj-"))
+        self.tmp = Path(tempfile.mkdtemp(prefix="sr-proj-")).resolve()
         self.addCleanup(shutil.rmtree, self.tmp, True)
         runtime = self.tmp / "runtime"
         runtime.mkdir()

@@ -13,6 +13,8 @@ from runner.executor import ExecutionError
 from runner.test_execution import PY, EngineCase, FakeSshRemoteTests, wait_for
 
 BASH = shutil.which("bash")
+# Local runs get its full path: on Windows a bare "bash" finds System32's WSL stub first.
+BASH_CMD = f'"{BASH}"' if BASH else "bash"
 
 
 def lf(path):
@@ -245,7 +247,7 @@ echo three
 
     def test_step_and_breakpoint(self):
         p = lf(self.script("d.sh", self.SRC))
-        rid = self.mgr.submit(self.spec(p, interpreter="bash", extension=".sh", debug=True))
+        rid = self.mgr.submit(self.spec(p, interpreter=BASH_CMD, extension=".sh", debug=True))
         self.wait_paused(rid, 1)
         self.assertEqual(self.read_log(rid, "stdout"), "")
         self.step_to(rid, 5)
@@ -264,11 +266,11 @@ echo three
 
     def test_exit_code_and_cancel(self):
         p = lf(self.script("e.sh", "echo a\nexit 4\n"))
-        rid = self.mgr.submit(self.spec(p, interpreter="bash", extension=".sh", debug=True))
+        rid = self.mgr.submit(self.spec(p, interpreter=BASH_CMD, extension=".sh", debug=True))
         self.wait_paused(rid, 1)
         self.mgr.debug_command(rid, "continue")
         self.assertEqual(self.finished(rid)["exit_code"], 4)
-        rid = self.mgr.submit(self.spec(p, interpreter="bash", extension=".sh", debug=True))
+        rid = self.mgr.submit(self.spec(p, interpreter=BASH_CMD, extension=".sh", debug=True))
         self.wait_paused(rid, 1)
         self.assertTrue(self.mgr.cancel(rid))
         self.assertEqual(self.finished(rid)["status"], "cancelled")

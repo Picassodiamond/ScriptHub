@@ -16,6 +16,8 @@ from runner.process_manager import manager
 from runner.test_execution import PY, EngineCase, FakeSshRemoteTests, wait_for
 
 BASH = shutil.which("bash")
+# Local runs get its full path: on Windows a bare "bash" finds System32's WSL stub first.
+BASH_CMD = f'"{BASH}"' if BASH else "bash"
 
 
 def trace_numbers(case, rid):
@@ -152,7 +154,7 @@ class LocalBashTraceTests(EngineCase):
         """)
         # fixtures must use LF endings
         p.write_bytes(p.read_bytes().replace(b"\r\n", b"\n"))
-        rid = self.mgr.submit(self.spec(p, interpreter="bash", extension=".sh", trace={}))
+        rid = self.mgr.submit(self.spec(p, interpreter=BASH_CMD, extension=".sh", trace={}))
         m = self.finished(rid)
         self.assertEqual((m["status"], m["exit_code"]), ("success", 0), self.read_log(rid, "stderr"))
         self.assertIn("start", self.read_log(rid, "stdout"))
@@ -173,7 +175,7 @@ class LocalBashTraceTests(EngineCase):
             echo finished
         """)
         p.write_bytes(p.read_bytes().replace(b"\r\n", b"\n"))
-        rid = self.mgr.submit(self.spec(p, interpreter="bash", extension=".sh", trace={}))
+        rid = self.mgr.submit(self.spec(p, interpreter=BASH_CMD, extension=".sh", trace={}))
         self.assertTrue(wait_for(lambda: len(trace_numbers(self, rid)) > 3, 15))
         self.assertTrue(self.mgr.stop_trace(rid))
         time.sleep(0.6)

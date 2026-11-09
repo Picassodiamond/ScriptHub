@@ -34,8 +34,16 @@ def normalize(value: str) -> str:
     return str(config.resolve_dir(value))
 
 
+def _key(path: str) -> str:
+    try:                                   # also C:\PROGRA~1 (8.3 short names) = C:\Program Files
+        path = os.path.realpath(path)
+    except (OSError, ValueError):
+        path = os.path.normpath(path)
+    return os.path.normcase(path)
+
+
 def same(a: str, b: str) -> bool:
-    return os.path.normcase(os.path.normpath(a)) == os.path.normcase(os.path.normpath(b))
+    return _key(a) == _key(b)
 
 
 def _dedupe(paths, limit):

@@ -13,7 +13,7 @@ from . import backups, ids
 
 class IdsTests(SimpleTestCase):
     def setUp(self):
-        self.tmp = Path(tempfile.mkdtemp(prefix="sh-ids-"))
+        self.tmp = Path(tempfile.mkdtemp(prefix="sh-ids-")).resolve()
         self.addCleanup(shutil.rmtree, self.tmp, True)
         for p in (mock.patch.object(config, "CONFIG_FILE", self.tmp / "config.json"),
                   mock.patch.object(config, "PRESETS_DIR", self.tmp / "presets"),
