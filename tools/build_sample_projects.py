@@ -7,6 +7,7 @@ checks every sequence step the way a run would, and is saved with ScriptHub's ow
 throwaway data folder (SCRIPTHUB_HOME), so your own ScriptHub data is never touched.
 runner/test_sample_scripts.py fails when a project no longer matches the scripts.
 """
+import json
 import os
 import shutil
 import sys
@@ -92,8 +93,12 @@ PROJECTS = [
 
 
 def main() -> int:
-    home = Path(tempfile.mkdtemp(prefix="scripthub-samples-"))
-    os.environ["SCRIPTHUB_HOME"] = str(home / "data")       # before config is imported
+    home = Path(tempfile.mkdtemp(prefix="scripthub-samples-")).resolve()   # long names on Windows (not RUNNER~1)
+    data = home / "data"
+    data.mkdir()
+    # every sample type counts as a script, also where .bat is not one by default (Linux, macOS)
+    (data / "config.json").write_text(json.dumps({"interpreters": {".py": "python", ".sh": "bash", ".bat": "cmd"}}))
+    os.environ["SCRIPTHUB_HOME"] = str(data)                 # before config is imported
     os.environ.setdefault("DJANGO_SETTINGS_MODULE", "scripthub_project.settings")
     sys.path.insert(0, str(BASE))
     import django
