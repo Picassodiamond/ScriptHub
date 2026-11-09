@@ -8,6 +8,7 @@ Rules that matter for safety:
 """
 import os
 import shlex
+import shutil
 import signal
 import subprocess
 import sys
@@ -72,6 +73,51 @@ def _exe_stem(command: str) -> str:
     return base.rsplit(".", 1)[0] if "." in base else base
 
 
+def _git_bash_candidates():
+    bases = [os.environ.get("ProgramW6432"), os.environ.get("ProgramFiles"), r"C:\Program Files",
+             os.environ.get("ProgramFiles(x86)")]
+    local = os.environ.get("LOCALAPPDATA")
+    if local:
+        bases.append(str(Path(local) / "Programs"))
+    seen = set()
+    for base in bases:
+        if not base or base.lower() in seen:
+            continue
+        seen.add(base.lower())
+        root = Path(base) / "Git"
+        yield root / "bin" / "bash.exe"
+        yield root / "usr" / "bin" / "bash.exe"
+
+
+def find_windows_shell(name: str) -> str | None:
+    """Git Bash for a bare ``bash``/``sh`` on Windows: PATH first (but not WSL's
+    System32 launcher, which cannot take ``C:/`` paths), then the usual Git for
+    Windows folders. None when nothing is found."""
+    found = shutil.which(name)
+    if found and "system32" not in found.lower().replace("/", "\\").split("\\"):
+        return found
+    for cand in _git_bash_candidates():
+        if cand.is_file():
+            return str(cand)
+    return None
+
+
+def _local_interp(interp: list) -> list:
+    """On Windows, swap a bare bash/sh for the Git Bash that was found."""
+    if os.name != "nt" or not interp:
+        return interp
+    first = interp[0].strip('"')
+    if os.path.dirname(first) or _exe_stem(first) not in ("bash", "sh"):
+        return interp
+    found = find_windows_shell(_exe_stem(first))
+    if not found:
+        raise ExecutionError(
+            "Bash was not found. Install Git for Windows (Git Bash) or add bash to PATH, "
+            "or set the .sh interpreter in Settings."
+        )
+    return [found, *interp[1:]]
+
+
 def resolve_interpreter(meta_interpreter, extension: str, host: str, cfg: dict) -> str:
     """Interpreter command for this script on this host."""
     if meta_interpreter:
@@ -130,6 +176,7 @@ def build_command(spec: ExecutionSpec, cfg: dict) -> Command:
         raise ExecutionError("Line tracing is available for Python and Bash scripts only.")
 
     if spec.host == LOCAL:
+        interp = _local_interp(interp)
         if spec.debug:
             return _local_debug(spec, path, interp, stem, trace_kind, env_extra)
         if trace_kind:

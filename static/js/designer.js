@@ -47,21 +47,21 @@
   var codeTab = document.querySelector('.doc-tab[data-doc-tab="doc-code-panel"]');
   var curId = docEl ? docEl.getAttribute('data-script') : '';
   var ws = docEl ? docEl.getAttribute('data-ws') || '' : '';
-  var tabs = window.sr.tabs;
+  var srTabs = window.sr.tabs;
   var subMatch = /^\/scripts\/[^/]+\/(parameters\/|run\/)?/.exec(location.pathname);
   var sub = subMatch && subMatch[1] ? subMatch[1] : '';   // the right-hand tab of this page
-  function pageFor(id) { return tabs.url(id, sub); }      // the same right-hand tab, for another script
+  function pageFor(id) { return srTabs.url(id, sub); }      // the same right-hand tab, for another script
   if (codeTab && curId) {
-    var openList = tabs.load(ws).filter(function (id) { return id === curId || tabs.known(id); });
+    var openList = srTabs.load(ws).filter(function (id) { return id === curId || srTabs.known(id); });
     if (openList.indexOf(curId) < 0) openList.push(curId);
-    tabs.save(ws, openList);
+    srTabs.save(ws, openList);
     codeTab.classList.add('doc-script-tab');
     codeTab.dataset.script = curId;
-    codeTab.appendChild(tabs.closeX());
+    codeTab.appendChild(srTabs.closeX());
     var after = null;                                     // tabs before the current one go before it
     openList.forEach(function (id) {
       if (id === curId) { after = codeTab; return; }
-      var a = tabs.tab(id, sub);
+      var a = srTabs.tab(id, sub);
       if (!a) return;
       if (after) { after.parentNode.insertBefore(a, after.nextSibling); after = a; }
       else codeTab.parentNode.insertBefore(a, codeTab);
@@ -70,9 +70,9 @@
       var x = e.target.closest('.doc-script-tab .tab-x');
       if (!x) return;
       e.preventDefault(); e.stopPropagation();
-      var id = x.parentNode.dataset.script, list = tabs.load(ws), at = list.indexOf(id);
+      var id = x.parentNode.dataset.script, list = srTabs.load(ws), at = list.indexOf(id);
       list = list.filter(function (v) { return v !== id; });
-      tabs.save(ws, list);
+      srTabs.save(ws, list);
       if (id !== curId) { x.parentNode.remove(); return; }
       var next = list[Math.min(at, list.length - 1)];    // closing the selected tab: its neighbour
       location.href = next ? pageFor(next) : '/scripts/';
