@@ -8,7 +8,8 @@ random port and sets SCRIPTHUB_DESKTOP_TOKEN. Then:
 * "Show in folder" (Explorer) is desktop-only (404 in server mode) and only takes
   a script id or run id, never a path.
 
-The native folder picker (tkinter, part of Python) opens on the machine running
+The native folder picker (tkinter, part of Python; on Windows without tkinter, as in the
+portable build, the Windows Forms dialogs through PowerShell) opens on the machine running
 ScriptHub: it is available in desktop mode and, in server mode, to requests from
 that same machine (loopback). Nothing else here is active in server mode.
 """
@@ -80,32 +81,93 @@ def can_pick_folder(request) -> bool:
 
 
 # ------------------------------------------------------------- folder picker --
+def _tkinter():
+    """tkinter, or None where Python has none (the portable Windows build's embedded Python)."""
+    try:
+        import tkinter
+        from tkinter import filedialog  # noqa: F401
+        return tkinter
+    except ImportError:
+        return None
+
+
+# Windows dialogs through PowerShell (Windows Forms) when there is no tkinter. Inputs travel in
+# environment variables, never inside the command text; the result comes back on stdout (UTF-8).
+_PS_FOLDER = r"""
+[Console]::OutputEncoding = [Text.Encoding]::UTF8
+Add-Type -AssemblyName System.Windows.Forms
+$owner = New-Object System.Windows.Forms.Form -Property @{TopMost = $true; ShowInTaskbar = $false}
+$d = New-Object System.Windows.Forms.FolderBrowserDialog
+$d.Description = $env:SH_TITLE
+$d.SelectedPath = $env:SH_START
+if ($d.ShowDialog($owner) -eq [System.Windows.Forms.DialogResult]::OK) { [Console]::Out.Write($d.SelectedPath) }
+"""
+_PS_FILES = r"""
+[Console]::OutputEncoding = [Text.Encoding]::UTF8
+Add-Type -AssemblyName System.Windows.Forms
+$owner = New-Object System.Windows.Forms.Form -Property @{TopMost = $true; ShowInTaskbar = $false}
+$d = New-Object System.Windows.Forms.OpenFileDialog
+$d.Title = $env:SH_TITLE
+$d.InitialDirectory = $env:SH_START
+$d.Filter = $env:SH_FILTER
+$d.Multiselect = $true
+if ($d.ShowDialog($owner) -eq [System.Windows.Forms.DialogResult]::OK) { [Console]::Out.Write(($d.FileNames -join "`n")) }
+"""
+
+
+def _powershell_dialog(script: str, **env) -> str:
+    import base64
+    encoded = base64.b64encode(script.encode("utf-16-le")).decode("ascii")
+    done = subprocess.run(
+        ["powershell.exe", "-NoProfile", "-NonInteractive", "-STA", "-ExecutionPolicy", "Bypass",
+         "-EncodedCommand", encoded],
+        capture_output=True, timeout=3600, env={**os.environ, **{f"SH_{k.upper()}": v for k, v in env.items()}},
+        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+    if done.returncode != 0:
+        raise RuntimeError(done.stderr.decode("utf-8", "replace").strip() or "PowerShell dialog failed")
+    return done.stdout.decode("utf-8", "replace").strip()
+
+
 def ask_directory(initial: str = "", title: str = "Choose a folder") -> str:
-    """Native folder dialog (tkinter). Returns '' when cancelled or unavailable."""
-    import tkinter
+    """Native folder dialog (tkinter, or Windows Forms without it). Returns '' when cancelled."""
+    start = initial if initial and Path(initial).is_dir() else str(Path.home())
+    tkinter = _tkinter()
+    if tkinter is None:
+        if os.name != "nt":
+            raise RuntimeError("tkinter is not installed")
+        with _dialog_lock:
+            return _powershell_dialog(_PS_FOLDER, title=title, start=start)
     from tkinter import filedialog
     with _dialog_lock:                       # one dialog at a time
         root = tkinter.Tk()
         try:
             root.withdraw()
             root.attributes("-topmost", True)
-            start = initial if initial and Path(initial).is_dir() else str(Path.home())
             return filedialog.askdirectory(parent=root, initialdir=start, title=title, mustexist=True) or ""
         finally:
             root.destroy()
 
 
 def ask_file(initial: str = "", title: str = "Open scripts", extensions=()) -> list:
-    """Native open-file dialog (tkinter) for one or more script files. Returns [] when cancelled."""
-    import tkinter
+    """Native open-file dialog (tkinter, or Windows Forms without it) for one or more script
+    files. Returns [] when cancelled."""
+    start = initial if initial and Path(initial).is_dir() else (
+        str(Path(initial).parent) if initial and Path(initial).is_file() else str(Path.home()))
+    tkinter = _tkinter()
+    if tkinter is None:
+        if os.name != "nt":
+            raise RuntimeError("tkinter is not installed")
+        patterns = ";".join(f"*{e}" for e in sorted(extensions)) or "*.*"
+        with _dialog_lock:
+            out = _powershell_dialog(_PS_FILES, title=title, start=start,
+                                     filter=f"Scripts ({patterns})|{patterns}|All files (*.*)|*.*")
+        return [line for line in out.splitlines() if line.strip()]
     from tkinter import filedialog
     with _dialog_lock:
         root = tkinter.Tk()
         try:
             root.withdraw()
             root.attributes("-topmost", True)
-            start = initial if initial and Path(initial).is_dir() else (
-                str(Path(initial).parent) if initial and Path(initial).is_file() else str(Path.home()))
             pattern = " ".join(f"*{e}" for e in sorted(extensions)) or "*"
             chosen = filedialog.askopenfilenames(parent=root, initialdir=start, title=title,
                                                  filetypes=[("Scripts", pattern), ("All files", "*")])

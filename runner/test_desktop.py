@@ -1,7 +1,6 @@
 """Desktop mode: token gate, desktop-only endpoints, launcher helpers, tray icon file."""
 import http.cookiejar
 import os
-import struct
 import time
 import unittest
 import urllib.error
@@ -195,11 +194,38 @@ class LauncherTests(WebCase):
 
 @unittest.skipUnless(os.name == "nt", "the tray icon is Windows only")
 class TrayIconTests(unittest.TestCase):
-    def test_generated_icon_is_a_valid_ico(self):
-        from runner.desktop_tray import make_icon_bytes
-        data = make_icon_bytes(32)
-        self.assertEqual(struct.unpack("<HHH", data[:6]), (0, 1, 1))
-        width, height, _c, _r, planes, bpp, size, offset = struct.unpack("<BBBBHHII", data[6:22])
-        self.assertEqual((width, height, planes, bpp, offset), (32, 32, 1, 32, 22))
-        self.assertEqual(len(data), 22 + size)
-        self.assertEqual(size, 40 + 32 * 32 * 4 + 32 * 4)
+    def test_the_shipped_icon_loads_at_tray_size(self):
+        from runner import desktop_app, desktop_tray
+        self.assertTrue(desktop_app.ICON_FILE.is_file())
+        icon = desktop_tray.user32.LoadImageW(None, str(desktop_app.ICON_FILE), desktop_tray.IMAGE_ICON, 16, 16,
+                                              desktop_tray.LR_LOADFROMFILE)
+        self.assertTrue(icon)                    # PNG-compressed entries load (Windows Vista and later)
+        self.assertTrue(desktop_tray.load_icon(Path("missing.ico")))   # falls back to the Windows default
+
+
+class DialogFallbackTests(unittest.TestCase):
+    """Without tkinter (the portable build's embedded Python) Windows gets Windows Forms dialogs."""
+
+    def test_without_tkinter_the_powershell_dialogs_are_used(self):
+        with mock.patch.object(desktop, "_tkinter", return_value=None), \
+                mock.patch.object(desktop.os, "name", "nt"), \
+                mock.patch.object(desktop, "_powershell_dialog", return_value="C:/a b/x.py\nC:/c/y.sh\n") as ps:
+            self.assertEqual(desktop.ask_file("", "Open", [".py", ".sh"]), ["C:/a b/x.py", "C:/c/y.sh"])
+            self.assertEqual(ps.call_args.kwargs["filter"], "Scripts (*.py;*.sh)|*.py;*.sh|All files (*.*)|*.*")
+            ps.return_value = "D:/scripts"
+            self.assertEqual(desktop.ask_directory("", "Choose"), "D:/scripts")
+            self.assertIs(ps.call_args.args[0], desktop._PS_FOLDER)
+            ps.return_value = ""
+            self.assertEqual(desktop.ask_file(), [])                 # cancelled
+
+    def test_without_tkinter_elsewhere_the_dialog_is_unavailable(self):
+        with mock.patch.object(desktop, "_tkinter", return_value=None), mock.patch.object(desktop.os, "name", "posix"):
+            with self.assertRaises(RuntimeError):
+                desktop.ask_directory()
+
+    @unittest.skipUnless(os.name == "nt", "PowerShell dialogs are Windows-only")
+    def test_values_reach_powershell_as_data_not_code(self):
+        tricky = "Ünïcode ✓ \"quoted\" '; Remove-Item x; $(whoami) `n"
+        out = desktop._powershell_dialog("[Console]::OutputEncoding = [Text.Encoding]::UTF8\n"
+                                         "[Console]::Out.Write($env:SH_TITLE)", title=tricky)
+        self.assertEqual(out, tricky.strip())

@@ -6,7 +6,6 @@ Left click opens the window; right click shows Open / Start with Windows / Quit;
 clicking a notification calls its on_click.
 """
 import ctypes
-import struct
 import threading
 from ctypes import wintypes
 from pathlib import Path
@@ -27,7 +26,7 @@ NIF_MESSAGE, NIF_ICON, NIF_TIP, NIF_INFO, NIF_SHOWTIP = 0x1, 0x2, 0x4, 0x10, 0x8
 NIIF = {"info": 1, "warning": 2, "error": 3}
 MF_STRING, MF_CHECKED, MF_SEPARATOR = 0x0, 0x8, 0x800
 TPM_RIGHTBUTTON, TPM_NONOTIFY, TPM_RETURNCMD = 0x2, 0x80, 0x100
-IMAGE_ICON, LR_LOADFROMFILE, LR_DEFAULTSIZE = 1, 0x10, 0x40
+IMAGE_ICON, LR_LOADFROMFILE, SM_CXSMICON = 1, 0x10, 49
 MB_OKCANCEL, MB_ICONWARNING, MB_TOPMOST, MB_SETFOREGROUND, IDOK = 0x1, 0x30, 0x40000, 0x10000, 1
 CMD_OPEN, CMD_STARTUP, CMD_QUIT = 1, 2, 3
 
@@ -65,6 +64,7 @@ user32.LoadImageW.argtypes = [wintypes.HINSTANCE, wintypes.LPCWSTR, wintypes.UIN
 user32.LoadImageW.restype = wintypes.HANDLE
 user32.LoadIconW.argtypes = [wintypes.HINSTANCE, wintypes.LPVOID]
 user32.LoadIconW.restype = wintypes.HICON
+user32.GetSystemMetrics.argtypes = [ctypes.c_int]
 user32.CreatePopupMenu.restype = wintypes.HMENU
 user32.AppendMenuW.argtypes = [wintypes.HMENU, wintypes.UINT, ctypes.c_size_t, wintypes.LPCWSTR]
 user32.SetMenuDefaultItem.argtypes = [wintypes.HMENU, wintypes.UINT, wintypes.UINT]
@@ -85,30 +85,11 @@ kernel32.GetModuleHandleW.argtypes = [wintypes.LPCWSTR]
 kernel32.GetModuleHandleW.restype = wintypes.HMODULE
 
 
-def make_icon_bytes(size: int = 32) -> bytes:
-    """A small .ico (blue rounded square, white play triangle), drawn in code."""
-    rows = []
-    r = size * 7 // 32
-    for y in range(size - 1, -1, -1):              # BMP rows are stored bottom-up
-        row = bytearray()
-        for x in range(size):
-            cx = min(max(x, r), size - 1 - r)
-            cy = min(max(y, r), size - 1 - r)
-            inside = (x - cx) ** 2 + (y - cy) ** 2 <= r * r
-            tx, ty = x - size * 12 / 32, y + 0.5 - size / 2
-            in_tri = 0 <= tx <= size * 11 / 32 and abs(ty) <= (size * 11 / 32 - tx) * (7 / 11)
-            if not inside:
-                row += b"\x00\x00\x00\x00"
-            elif in_tri:
-                row += b"\xff\xff\xff\xff"
-            else:
-                row += bytes((0xff, 0x8c, 0x4f, 0xff))  # BGRA of #4f8cff
-        rows.append(bytes(row))
-    pixels = b"".join(rows)
-    mask = b"\x00" * (((size + 31) // 32) * 4 * size)
-    header = struct.pack("<IiiHHIIiiII", 40, size, size * 2, 1, 32, 0, len(pixels) + len(mask), 0, 0, 0, 0)
-    image = header + pixels + mask
-    return struct.pack("<HHH", 0, 1, 1) + struct.pack("<BBBBHHII", size, size, 0, 0, 1, 32, len(image), 22) + image
+def load_icon(path):
+    """The app icon (static/img/scripthub.ico) at the tray size; the Windows default if it cannot be read."""
+    size = user32.GetSystemMetrics(SM_CXSMICON) or 16
+    return user32.LoadImageW(None, str(path), IMAGE_ICON, size, size, LR_LOADFROMFILE) \
+        or user32.LoadIconW(None, ctypes.c_void_p(32512))       # IDI_APPLICATION
 
 
 class Tray:
@@ -134,11 +115,7 @@ class Tray:
         cls.lpszClassName = "ScriptHubTray"
         user32.RegisterClassW(ctypes.byref(cls))
         self.hwnd = user32.CreateWindowExW(0, cls.lpszClassName, self.title, 0, 0, 0, 0, 0, None, None, hinst, None)
-        if not self.icon_path.is_file():
-            self.icon_path.parent.mkdir(parents=True, exist_ok=True)
-            self.icon_path.write_bytes(make_icon_bytes())
-        self._icon = user32.LoadImageW(None, str(self.icon_path), IMAGE_ICON, 0, 0, LR_LOADFROMFILE | LR_DEFAULTSIZE) \
-            or user32.LoadIconW(None, ctypes.c_void_p(32512))       # IDI_APPLICATION
+        self._icon = load_icon(self.icon_path)
         self._add()
         self._ready.set()
         msg = wintypes.MSG()

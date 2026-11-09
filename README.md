@@ -53,7 +53,14 @@ MIT licensed — see [Licence and contributing](#licence-and-contributing).
 
 ## Quick start
 
-Requirements: **Python 3.10+** and **Django 5** (nothing else).
+**Windows, nothing to install:** download `ScriptHub-<version>-windows-portable.zip` from the
+[latest release](https://github.com/Picassodiamond/ScriptHub/releases/latest), unzip it anywhere (a USB
+stick works too) and double-click `ScriptHub.exe`. It brings its own Python, so your `.py` scripts run
+even on a PC without one, and it keeps its settings and history in its own `runtime\` folder. The exe is
+not code-signed: on first start Windows may say *Windows protected your PC*; click *More info* →
+*Run anyway*. See [Portable Windows build](#portable-windows-build).
+
+**From source** (Windows, Linux, macOS). Requirements: **Python 3.10+** and **Django 5** (nothing else).
 
 ```bash
 cd ScriptHub
@@ -111,6 +118,29 @@ python manage.py desktop --background   # tray only, no window
 
 For SSH hosts, `ssh` must already work for you from a terminal (see
 [Running on Linux servers over SSH](#running-on-linux-servers-over-ssh)).
+
+### Portable Windows build
+
+An optional download on every [release](https://github.com/Picassodiamond/ScriptHub/releases): the
+desktop app with everything it needs, for Windows 10/11 (64-bit) with Edge.
+
+```
+ScriptHub/
+├─ ScriptHub.exe   starts the desktop app (a small launcher for python\pythonw.exe desktop.pyw)
+├─ python\         the official embeddable Python from python.org, with Django
+├─ runtime\        settings, history, presets, sequences (portable mode: nothing goes to AppData)
+└─ ...             ScriptHub itself and the sample scripts
+```
+
+* `.py` scripts run on the bundled Python (standard library only). For packages, set
+  *Settings → Interpreters → .py* to your own Python. `.bat` runs as usual; `.sh` needs Bash.
+* *Browse…* opens the Windows dialogs (the bundled Python has no tkinter).
+* Update: unzip the new version and copy the `runtime\` folder across.
+* Build it yourself on Windows: `python tools/build_portable.py --check` →
+  `dist/ScriptHub-<version>-windows-portable.zip`. Pushing a tag `v*` makes GitHub Actions build it
+  and attach it to that release (`.github/workflows/release.yml`). The launcher is
+  `packaging/windows/ScriptHub.cs`, compiled with the C# compiler that ships with Windows; the icon is
+  drawn by `tools/make_icon.py` (`static/img/scripthub.ico`, also the tray and browser-tab icon).
 
 ---
 
@@ -1066,9 +1096,10 @@ ScriptHub/
 │   └── test*.py
 ├── sample_scripts/           example scripts to open as a folder (basics, files, system, network, data)
 ├── sample_projects/          example project files (.scripthub), built by tools/build_sample_projects.py
-├── templates/, static/       Django templates, custom CSS, vanilla JavaScript
-├── docs/screenshots/         the README's pictures (light and dark)
-└── tools/                    build_sample_projects.py, test_highlight.js
+├── templates/, static/       Django templates, custom CSS, vanilla JavaScript, the app icon
+├── docs/                     screenshots/ (the README's pictures, light and dark), icon.png
+├── packaging/windows/        the portable build's launcher (ScriptHub.cs) and README.txt
+└── tools/                    build_sample_projects.py, build_portable.py, make_icon.py, test_highlight.js
 ```
 
 ScriptHub's own data (settings, history, presets, sequences) is not in the code folder: see
