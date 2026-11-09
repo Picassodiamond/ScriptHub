@@ -71,6 +71,7 @@ def _require_desktop():
         raise Http404("Only available in desktop mode")
 
 
+WINDOWS = os.name == "nt"           # Windows Forms dialogs when tkinter is missing
 LOOPBACK = {"127.0.0.1", "::1", "::ffff:127.0.0.1"}
 
 
@@ -133,7 +134,7 @@ def ask_directory(initial: str = "", title: str = "Choose a folder") -> str:
     start = initial if initial and Path(initial).is_dir() else str(Path.home())
     tkinter = _tkinter()
     if tkinter is None:
-        if os.name != "nt":
+        if not WINDOWS:
             raise RuntimeError("tkinter is not installed")
         with _dialog_lock:
             return _powershell_dialog(_PS_FOLDER, title=title, start=start)
@@ -155,7 +156,7 @@ def ask_file(initial: str = "", title: str = "Open scripts", extensions=()) -> l
         str(Path(initial).parent) if initial and Path(initial).is_file() else str(Path.home()))
     tkinter = _tkinter()
     if tkinter is None:
-        if os.name != "nt":
+        if not WINDOWS:
             raise RuntimeError("tkinter is not installed")
         patterns = ";".join(f"*{e}" for e in sorted(extensions)) or "*.*"
         with _dialog_lock:

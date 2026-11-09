@@ -208,7 +208,7 @@ class DialogFallbackTests(unittest.TestCase):
 
     def test_without_tkinter_the_powershell_dialogs_are_used(self):
         with mock.patch.object(desktop, "_tkinter", return_value=None), \
-                mock.patch.object(desktop.os, "name", "nt"), \
+                mock.patch.object(desktop, "WINDOWS", True), \
                 mock.patch.object(desktop, "_powershell_dialog", return_value="C:/a b/x.py\nC:/c/y.sh\n") as ps:
             self.assertEqual(desktop.ask_file("", "Open", [".py", ".sh"]), ["C:/a b/x.py", "C:/c/y.sh"])
             self.assertEqual(ps.call_args.kwargs["filter"], "Scripts (*.py;*.sh)|*.py;*.sh|All files (*.*)|*.*")
@@ -219,7 +219,7 @@ class DialogFallbackTests(unittest.TestCase):
             self.assertEqual(desktop.ask_file(), [])                 # cancelled
 
     def test_without_tkinter_elsewhere_the_dialog_is_unavailable(self):
-        with mock.patch.object(desktop, "_tkinter", return_value=None), mock.patch.object(desktop.os, "name", "posix"):
+        with mock.patch.object(desktop, "_tkinter", return_value=None), mock.patch.object(desktop, "WINDOWS", False):
             with self.assertRaises(RuntimeError):
                 desktop.ask_directory()
 
