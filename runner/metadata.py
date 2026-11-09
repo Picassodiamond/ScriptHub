@@ -12,12 +12,16 @@
     # --- end scripthub ---
 
 Batch files use ``::`` instead of ``#``. The block goes after a ``#!`` line, a Python
-encoding line or ``@echo off``. Saving rewrites only the block (atomically, keeping
-the previous file as ``<name>.bak``, the line endings and a BOM).
+encoding line or ``@echo off``. Saving rewrites only the block (atomically, keeping the
+line endings and a BOM; the previous version goes to runtime/backups/<id>/).
+
+The first save writes a stable ``"id"`` (runner/ids.py) so the script keeps its saved
+values, backups and history when it is moved or renamed; a copy found with the same id
+as another script gets a new one on its next save (``conflict``).
 
 Older scripts may still have a sidecar ``<stem>.json``; it is read until the next
 save, which moves it into the script. When the script cannot be written, the
-metadata goes to runtime/metadata_overrides/<script_id>.json instead.
+metadata (with its id) goes to runtime/metadata_overrides/<path id>.json instead.
 """
 import json
 import os
@@ -26,6 +30,7 @@ import tempfile
 from pathlib import Path
 
 import config
+from . import backups, ids
 from .fsutil import _replace_with_retry, atomic_write_json, read_json
 
 START, END = "--- scripthub ---", "--- end scripthub ---"
@@ -108,7 +113,12 @@ def _read_script(script_path: Path):
 
 
 # ----------------------------------------------------------------- load ---
-def load_raw(script_path: Path, script_id: str):
+def _override_for(script_path) -> Path:
+    """The override file is found by the script's path (it cannot carry an id in the file)."""
+    return override_path(ids.path_id(Path(script_path).resolve()))
+
+
+def load_raw(script_path: Path, script_id: str = ""):
     """Return (data_dict, source_path_or_None, error_or_None). Never raises.
     ``source`` is the script itself when it has a block."""
     try:
@@ -118,7 +128,7 @@ def load_raw(script_path: Path, script_id: str):
     data, err = parse_block(text)
     if data is not None:
         return data, Path(script_path), err
-    for candidate in (sidecar_path(script_path), override_path(script_id)):
+    for candidate in (sidecar_path(script_path), _override_for(script_path)):
         if candidate.is_file():
             try:
                 data = read_json(candidate)
@@ -152,7 +162,7 @@ def with_block(content: str, data: dict, script_path: Path, newline: str) -> str
     return newline.join(lines) + (newline if trailing or not content else "")
 
 
-def _write_script(script_path: Path, data: dict) -> None:
+def _write_script(script_path: Path, data: dict, sid: str) -> None:
     script_path = Path(script_path)
     raw = script_path.read_bytes()
     bom = raw.startswith(b"\xef\xbb\xbf")
@@ -162,7 +172,8 @@ def _write_script(script_path: Path, data: dict) -> None:
     payload = (b"\xef\xbb\xbf" if bom else b"") + new.encode("utf-8")
     if payload == raw:
         return
-    script_path.with_name(script_path.name + ".bak").write_bytes(raw)   # "Restore previous" in the editor
+    backups.migrate_side_bak(sid, script_path)          # an old <script>.bak moves to runtime/backups/
+    backups.add(sid, script_path.name, raw)             # "Restore previous" in the editor
     fd, tmp = tempfile.mkstemp(dir=str(script_path.parent), prefix=script_path.name + ".", suffix=".tmp")
     try:
         with os.fdopen(fd, "wb") as fh:
@@ -182,16 +193,34 @@ def _write_script(script_path: Path, data: dict) -> None:
         raise
 
 
-def save_raw(script_path: Path, script_id: str, data: dict) -> Path:
+def with_id(data: dict, conflict: bool = False) -> dict:
+    """``data`` with a stable id first: kept when valid, new when missing or a duplicate."""
+    current = data.get("id")
+    sid = ids.new_id() if conflict or not ids.valid(current) else current
+    return {"id": sid, **{k: v for k, v in data.items() if k != "id"}}
+
+
+def save_raw(script_path: Path, script_id: str, data: dict, conflict: bool = False) -> Path:
     """Write the metadata into the script (moving an old sidecar in); falls back to
-    runtime/metadata_overrides/ when the script cannot be written. Returns where it went."""
+    runtime/metadata_overrides/ when the script cannot be written. Returns where it went.
+
+    ``script_id`` is what the script is known as now; when the stable id written here
+    differs (first save, or a duplicate given a new id), the script's saved values and
+    backups move to it and the old id becomes an alias (runner/ids.py)."""
+    script_path = Path(script_path)
+    pid = ids.path_id(script_path.resolve())
+    data = with_id(data, conflict)
+    sid = data["id"]
+    previous = script_id if ids.valid(script_id) else pid
+    if previous != sid:
+        ids.adopt(previous, sid)
     try:
-        _write_script(script_path, data)
-    except (OSError, UnicodeDecodeError):
-        target = override_path(script_id)
+        _write_script(script_path, data, sid)
+    except (OSError, UnicodeDecodeError, backups.BackupError):
+        target = override_path(pid)
         atomic_write_json(target, data)
         return target
-    for old in (sidecar_path(script_path), override_path(script_id)):   # now inside the script
+    for old in (sidecar_path(script_path), override_path(pid)):   # now inside the script
         try:
             if isinstance(read_json(old), dict):     # only a metadata object, never an unrelated file
                 old.unlink()

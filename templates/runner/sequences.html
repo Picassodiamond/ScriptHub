@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}Sequences{% endblock %}
+{% block content %}
+<div class="page page-narrow">
+
+<section class="panel">
+  <div class="panel-head"><h2>Sequences <span class="count-pill">{{ sequences|length }}</span></h2></div>
+  {% if sequences %}
+  <div class="table-wrap">
+  <table class="table">
+    <thead><tr><th>Name</th><th class="num">Steps</th><th class="hide-sm">Saved</th><th></th></tr></thead>
+    <tbody>
+      {% for s in sequences %}
+      <tr>
+        {% if s.error %}
+        <td><span class="strong mono">{{ s.slug }}</span><div class="field-error small">{{ s.error }}</div></td>
+        <td class="num">—</td><td class="hide-sm"></td>
+        {% else %}
+        <td class="strong"><a href="{% url 'sequence_detail' s.slug %}">{{ s.name }}</a></td>
+        <td class="num mono small">{{ s.steps }}</td>
+        <td class="small muted mono nowrap hide-sm">{{ s.saved_display }}</td>
+        {% endif %}
+        <td class="actions">
+          <div class="btn-row">
+            {% if not s.error %}<a class="btn btn-ghost btn-sm" href="{% url 'sequence_detail' s.slug %}"><svg class="i"><use href="#i-edit"/></svg> Open</a>{% endif %}
+            <form method="post" action="{% url 'sequence_delete' s.slug %}" data-confirm="Delete the sequence “{{ s.name }}”? Its past runs stay in History.">{% csrf_token %}
+              <button class="btn btn-ghost btn-icon btn-sm btn-del" type="submit" title="Delete sequence" aria-label="Delete sequence"><svg class="i"><use href="#i-trash"/></svg></button>
+            </form>
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+  <div class="panel-body muted small">A sequence runs existing scripts one after another, each with its own values and host. Create one below.</div>
+  {% endif %}
+  <div class="panel-foot">
+    <form method="post" class="inline-form grow">{% csrf_token %}
+      <input class="input input-sm" type="text" name="name" maxlength="60" placeholder="New sequence name, e.g. Nightly maintenance" required aria-label="New sequence name">
+      <button class="btn btn-primary btn-sm" type="submit"><svg class="i"><use href="#i-plus"/></svg> New sequence</button>
+    </form>
+  </div>
+</section>
+
+{% if runs %}
+<section class="panel">
+  <div class="panel-head"><h2>Recent sequence runs</h2></div>
+  {% include "runner/_sequence_runs.html" with show_name=True %}
+</section>
+{% endif %}
+</div>
+{% endblock %}

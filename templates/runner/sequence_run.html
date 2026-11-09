@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+{% block title %}{{ run.id }} · {{ run.name }}{% endblock %}
+{% block body_mod %}fill{% endblock %}
+{% block content %}
+<section class="panel" style="flex:none">
+  <div class="panel-head">
+    <svg class="i faint"><use href="#i-sequence"/></svg>
+    {% if seq_exists %}<a class="strong" href="{% url 'sequence_detail' run.sequence %}">{{ run.name }}</a>{% else %}<span class="strong">{{ run.name }}</span>{% endif %}
+    <span class="mono small faint">{{ run.id }}</span>
+    <span class="st st-{{ run.status }}" id="seq-status">{{ run.status_label }}</span>
+    <span class="small muted" id="seq-progress">{{ run.done }}/{{ run.steps|length }} steps · <span id="seq-duration">{{ run.duration }}</span></span>
+    <span class="spacer"></span>
+    {% if run.active %}
+    <form method="post" action="{% url 'sequence_run_stop' run.id %}" id="seq-stop" data-confirm="Stop this sequence? The running step is stopped and the remaining steps are skipped.">{% csrf_token %}
+      <button class="btn btn-sm btn-danger" type="submit"><svg class="i"><use href="#i-stop"/></svg> Stop</button>
+    </form>
+    {% endif %}
+    {% if seq_exists %}<a class="btn btn-sm" href="{% url 'sequence_detail' run.sequence %}" id="seq-again"{% if run.active %} hidden{% endif %}><svg class="i"><use href="#i-play"/></svg> Run again…</a>{% endif %}
+  </div>
+  <div class="panel-body small error-text" id="seq-error"{% if not run.error %} hidden{% endif %}>{{ run.error|default:"" }}</div>
+</section>
+
+<div class="seq-run" data-status-url="{% url 'sequence_run_status' run.id %}" data-console-url="{% url 'execution_console' 'XID' %}?embed=1" data-interval="{{ polling_interval }}" id="seq-run">
+  <section class="panel seq-run-steps" aria-label="Steps">
+    {% for s in run.steps %}
+    <button type="button" class="seq-step" data-index="{{ s.index }}" data-run="{{ s.run_id|default:'' }}"{% if not s.run_id %} disabled{% endif %}>
+      <span class="seq-step-top"><span class="mono small faint">{{ s.index }}</span><span class="strong">{{ s.script_name }}</span><span class="st st-sm st-{{ s.status }}" data-st>{{ s.status_label }}</span></span>
+      <span class="small muted clamp-1">{{ s.host }}{% if s.on_failure == 'continue' %} · continues on failure{% endif %}{% if s.run_id %} · <span class="mono">{{ s.run_id }}</span>{% endif %}</span>
+    </button>
+    {% endfor %}
+  </section>
+  <section class="panel seq-console">
+    <iframe id="seq-frame" title="Console of the selected step" hidden></iframe>
+    <div class="empty" id="seq-empty"><h2>No step has started yet</h2><p class="small">The console of the running step appears here.</p></div>
+  </section>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+/* Sequence run: poll the status, follow the running step's console until the user picks a step. */
+(function () {
+  var root = document.getElementById('seq-run');
+  if (!root) return;
+  var frame = document.getElementById('seq-frame'), empty = document.getElementById('seq-empty');
+  var interval = Math.max(500, parseInt(root.getAttribute('data-interval'), 10) || 2000);
+  var shown = null, pinned = false;
+
+  function show(runId) {
+    if (!runId || runId === shown) return;
+    shown = runId;
+    frame.src = root.getAttribute('data-console-url').replace('XID', encodeURIComponent(runId));
+    frame.hidden = false; empty.hidden = true;
+    root.querySelectorAll('.seq-step').forEach(function (b) { b.classList.toggle('is-active', b.getAttribute('data-run') === runId); });
+  }
+  function current() {          /* the running step, else the last one that started */
+    var pick = null;
+    root.querySelectorAll('.seq-step').forEach(function (b) {
+      var run = b.getAttribute('data-run');
+      if (!run) return;
+      var live = /st-(running|queued)/.test(b.querySelector('[data-st]').className);
+      if (!pick || !pick.live) pick = {run: run, live: live};
+    });
+    return pick && pick.run;
+  }
+  root.addEventListener('click', function (e) {
+    var b = e.target.closest('.seq-step');
+    if (!b || b.disabled) return;
+    pinned = true; show(b.getAttribute('data-run'));
+  });
+  function apply(d) {
+    d.steps.forEach(function (s) {
+      var b = root.querySelector('.seq-step[data-index="' + s.index + '"]');
+      if (!b) return;
+      var st = b.querySelector('[data-st]');
+      st.className = 'st st-sm st-' + s.status; st.textContent = s.status_label;
+      if (s.run_id && b.getAttribute('data-run') !== s.run_id) {
+        b.setAttribute('data-run', s.run_id); b.disabled = false;
+        var meta = b.querySelector('.small.muted');
+        if (meta && meta.textContent.indexOf(s.run_id) < 0) {
+          var id = document.createElement('span');
+          id.className = 'mono'; id.textContent = s.run_id;
+          meta.append(' · ', id);
+        }
+      }
+    });
+    var top = document.getElementById('seq-status');
+    top.className = 'st st-' + d.status; top.textContent = d.status_label;
+    document.getElementById('seq-progress').firstChild.textContent = d.done + '/' + d.steps.length + ' steps · ';
+    document.getElementById('seq-duration').textContent = d.duration;
+    var err = document.getElementById('seq-error');
+    err.textContent = d.error || ''; err.hidden = !d.error;
+    if (!pinned) show(current());
+    if (!d.active) {
+      var stop = document.getElementById('seq-stop'), again = document.getElementById('seq-again');
+      if (stop) stop.remove();
+      if (again) again.hidden = false;
+    }
+    return d.active;
+  }
+  function poll() {
+    fetch(root.getAttribute('data-status-url'), {headers: {'Accept': 'application/json'}, cache: 'no-store'})
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (d) { if (d === null || apply(d)) setTimeout(poll, interval); })
+      .catch(function () { setTimeout(poll, interval * 2); });
+  }
+  show(current());
+  {% if run.active %}poll();{% endif %}
+})();
+</script>
+{% endblock %}

@@ -52,7 +52,7 @@
     {% if adhoc_args %}<p class="muted small" style="margin-top:10px">Arguments:</p><pre class="codebox">{% for a in adhoc_args %}{{ a }}
 {% endfor %}</pre>{% endif %}
     {% if adhoc_source and not trace_lines %}<p class="muted small" style="margin-top:10px">Ad-hoc script that ran (kept with this execution):</p><pre class="codebox adhoc-source">{{ adhoc_source }}</pre>{% endif %}
-    <p class="muted small" style="margin:10px 0 0">{% if run.adhoc %}Stored as{% else %}Script:{% endif %} <span class="mono wrap-anywhere">{{ run.script_path }}</span>{% if run.initiator %} · started from <span class="mono">{{ run.initiator }}</span>{% endif %}</p>
+    <p class="muted small" style="margin:10px 0 0">{% if run.adhoc %}Stored as{% else %}Script:{% endif %} <span class="mono wrap-anywhere">{{ run.script_path }}</span>{% if run.initiator %} · started from <span class="mono">{{ run.initiator }}</span>{% endif %}{% if run.sequence.run %} · step {{ run.sequence.step }} of <a href="{% url 'sequence_run' run.sequence.run %}" target="_top">{{ run.sequence.name }} ({{ run.sequence.run }})</a>{% endif %}</p>
   </div>
 </details>
 

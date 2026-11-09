@@ -1,0 +1,94 @@
+{% comment %}Menu bar (VS Code style): File / View / Run / Help on the left, the open folder or file and the
+page in the middle. Menus are <details data-menu> (app.js: click opens, hovering another while one is
+open switches, Esc / outside click closes). data-action items are handled in app.js.{% endcomment %}
+{% with f=wb_folder.folder %}
+<header class="menubar" role="menubar">
+  <span class="mb-logo" aria-hidden="true"><svg class="i"><use href="#i-play"/></svg></span>
+
+  <details class="mb-menu" data-menu>
+    <summary role="menuitem">File</summary>
+    <div class="menu" role="menu">
+      {% if editing_enabled and f and not f.is_file %}<a class="menu-item" href="{% url 'script_new' %}{% if script.id %}?from={{ script.id }}{% endif %}" role="menuitem"><svg class="i i-sm"><use href="#i-plus"/></svg><span>New script</span><kbd>g n</kbd></a>
+      {% else %}<span class="menu-item is-disabled" title="{% if not editing_enabled %}Script editing is off in Settings{% elif f.is_file %}A single script is open: open a folder to create scripts in it{% else %}Open a folder first{% endif %}"><svg class="i i-sm"><use href="#i-plus"/></svg><span>New script</span><kbd>g n</kbd></span>{% endif %}
+      <div class="menu-sep"></div>
+      <a class="menu-item" href="{% url 'folder' %}" role="menuitem" data-open-file><svg class="i i-sm"><use href="#i-file"/></svg><span>Open file…</span></a>
+      <a class="menu-item" href="{% url 'folder' %}" role="menuitem" data-open-folder data-hotkey="g f" data-hint="Open folder"><svg class="i i-sm"><use href="#i-folder-open"/></svg><span>Open folder…</span><kbd>g f</kbd></a>
+      {% if wb_folder.favorites or wb_folder.recent %}
+      <div class="menu-sub">
+        <span class="menu-item" role="menuitem" aria-haspopup="true"><svg class="i i-sm"><use href="#i-clock"/></svg><span>Open recent</span><span class="sub-caret" aria-hidden="true"></span></span>
+        <div class="menu submenu" role="menu">
+          {% if wb_folder.favorites %}<div class="menu-label">Favourites</div>
+          {% for x in wb_folder.favorites %}{% include "runner/_folder_menu_item.html" %}{% endfor %}{% endif %}
+          {% if wb_folder.recent %}<div class="menu-label">Recent</div>
+          {% for x in wb_folder.recent %}{% include "runner/_folder_menu_item.html" %}{% endfor %}{% endif %}
+          <div class="menu-sep"></div>
+          <a class="menu-item" href="{% url 'folder' %}" role="menuitem"><svg class="i i-sm"><use href="#i-list"/></svg><span>Manage folders…</span></a>
+        </div>
+      </div>
+      {% endif %}
+      {% if f %}
+      <div class="menu-sep"></div>
+      <form method="post" action="{% url 'folder_favorite' %}">{% csrf_token %}
+        <input type="hidden" name="path" value="{{ f.path }}"><input type="hidden" name="on" value="{% if f.favorite %}0{% else %}1{% endif %}"><input type="hidden" name="next" value="{{ request.get_full_path }}">
+        <button class="menu-item" type="submit" role="menuitem"><svg class="i i-sm"><use href="#i-star"/></svg><span>{% if f.favorite %}Remove from favourites{% else %}Add to favourites{% endif %}</span></button>
+      </form>
+      <form method="post" action="{% url 'folder_close' %}">{% csrf_token %}
+        <button class="menu-item" type="submit" role="menuitem"><svg class="i i-sm"><use href="#i-x"/></svg><span>Close {% if f.is_file %}file{% else %}folder{% endif %}</span></button>
+      </form>
+      {% endif %}
+      <div class="menu-sep"></div>
+      <a class="menu-item" href="{% url 'settings' %}" role="menuitem"><svg class="i i-sm"><use href="#i-gear"/></svg><span>Settings</span><kbd>g s</kbd></a>
+    </div>
+  </details>
+
+  <details class="mb-menu" data-menu>
+    <summary role="menuitem">View</summary>
+    <div class="menu" role="menu">
+      <button type="button" class="menu-item" data-action="palette" role="menuitem"><svg class="i i-sm"><use href="#i-command"/></svg><span>Command palette</span><kbd>Ctrl K</kbd></button>
+      <div class="menu-sep"></div>
+      <a class="menu-item" href="{% url 'dashboard' %}" role="menuitem"><svg class="i i-sm"><use href="#i-home"/></svg><span>Home</span><kbd>g o</kbd></a>
+      <a class="menu-item" href="{% url 'library' %}" role="menuitem"><svg class="i i-sm"><use href="#i-files"/></svg><span>Library</span><kbd>g l</kbd></a>
+      <a class="menu-item" href="{% url 'sequences' %}" role="menuitem"><svg class="i i-sm"><use href="#i-sequence"/></svg><span>Sequences</span><kbd>g q</kbd></a>
+      <a class="menu-item" href="{% url 'history' %}" role="menuitem"><svg class="i i-sm"><use href="#i-pulse"/></svg><span>Runs</span><kbd>g h</kbd></a>
+      <div class="menu-sep"></div>
+      <button type="button" class="menu-item" data-action="side" role="menuitem"><svg class="i i-sm"><use href="#i-panel"/></svg><span>Side panel</span><kbd>Ctrl B</kbd></button>
+      {% if script.id %}
+      <button type="button" class="menu-item" data-action="side2" role="menuitem"><svg class="i i-sm i-flip"><use href="#i-panel"/></svg><span>Right panel</span><kbd>Ctrl Alt B</kbd></button>
+      <button type="button" class="menu-item" data-action="bottom" role="menuitem"><svg class="i i-sm"><use href="#i-layout-rows"/></svg><span>Saved values panel</span><kbd>Ctrl J</kbd></button>
+      {% endif %}
+      <button type="button" class="menu-item" data-tree-collapse role="menuitem"><svg class="i i-sm"><use href="#i-collapse"/></svg><span>Collapse explorer</span></button>
+      <div class="menu-sep"></div>
+      <button type="button" class="menu-item" data-action="theme" role="menuitem"><svg class="i i-sm theme-ic-dark"><use href="#i-moon"/></svg><svg class="i i-sm theme-ic-light"><use href="#i-sun"/></svg><span>Light / dark theme</span></button>
+    </div>
+  </details>
+
+  <details class="mb-menu" data-menu>
+    <summary role="menuitem">Run</summary>
+    <div class="menu" role="menu">
+      {% if script.id and script.meta_valid %}
+      <a class="menu-item" href="{% url 'script_run' script.id %}" data-action="run" data-mode="normal" role="menuitem"><svg class="i i-sm"><use href="#i-play"/></svg><span>Run {{ script.name }}</span><kbd>Ctrl ↵</kbd></a>
+      <a class="menu-item" href="{% url 'script_run' script.id %}" data-action="run" data-mode="trace" role="menuitem"><svg class="i i-sm"><use href="#i-eye"/></svg><span>Run with Trace</span></a>
+      <a class="menu-item" href="{% url 'script_run' script.id %}" data-action="run" data-mode="debug" role="menuitem"><svg class="i i-sm"><use href="#i-bug"/></svg><span>Run with Debug</span></a>
+      {% else %}
+      <span class="menu-item is-disabled" title="Open a script first"><svg class="i i-sm"><use href="#i-play"/></svg><span>Run script</span><kbd>Ctrl ↵</kbd></span>
+      {% endif %}
+      <div class="menu-sep"></div>
+      <form method="post" action="{% url 'library_refresh' %}">{% csrf_token %}
+        <button class="menu-item" type="submit" role="menuitem"{% if not f %} disabled{% endif %}><svg class="i i-sm"><use href="#i-refresh"/></svg><span>Rescan folder</span></button>
+      </form>
+      <a class="menu-item" href="{% url 'history' %}" role="menuitem"><svg class="i i-sm"><use href="#i-pulse"/></svg><span>Runs</span>{% if active_runs %}<span class="count-pill">{{ active_runs }}</span>{% endif %}<kbd>g h</kbd></a>
+    </div>
+  </details>
+
+  <details class="mb-menu" data-menu>
+    <summary role="menuitem">Help</summary>
+    <div class="menu" role="menu">
+      <button type="button" class="menu-item" data-action="help" role="menuitem"><svg class="i i-sm"><use href="#i-keyboard"/></svg><span>Keyboard shortcuts</span><kbd>?</kbd></button>
+      <div class="menu-sep"></div>
+      <span class="menu-item is-disabled"><svg class="i i-sm"><use href="#i-play"/></svg><span>ScriptHub {{ app_version }}{% if desktop %} · desktop{% endif %}</span></span>
+    </div>
+  </details>
+
+  <span class="mb-title" title="{{ f.path|default:'' }}">{% if script.name %}{{ script.name }} — {% endif %}{% if f %}{{ f.name }}{% else %}No folder open{% endif %}</span>
+</header>
+{% endwith %}

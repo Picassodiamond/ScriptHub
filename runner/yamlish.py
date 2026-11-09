@@ -12,8 +12,13 @@ Written by ``dump`` and read by ``load``:
       hosts:                       # block list of scalars
         - web-1
         - web-2
+    steps:                         # block list of mappings (sequences)
+      - script: 3f9a1c0b7d22
+        on_failure: stop
+      - {}
 
-Anything else (anchors, multi-line strings, flow collections with items, tabs for
+Anything else (anchors, multi-line strings, flow collections with items, lists
+inside lists, tabs for
 indentation) raises ``YamlError``: the files are written by ScriptHub and only
 occasionally edited by hand, so a clear error beats guessing.
 """
@@ -67,8 +72,17 @@ def _dump_map(d: dict, level: int, out: list) -> None:
                 continue
             out.append(f"{pad}{_key(k)}:")
             for item in v:
-                if isinstance(item, (dict, list, tuple)):
-                    raise YamlError("Only lists of plain values are supported.")
+                if isinstance(item, dict):           # "- key: value", further keys under the first
+                    if not item:
+                        out.append(f"{pad}{INDENT}- {{}}")
+                        continue
+                    sub = []
+                    _dump_map(item, level + 2, sub)
+                    sub[0] = f"{pad}{INDENT}- " + sub[0].lstrip(" ")
+                    out.extend(sub)
+                    continue
+                if isinstance(item, (list, tuple)):
+                    raise YamlError("Lists inside lists are not supported.")
                 out.append(f"{pad}{INDENT}- {_scalar(item)}")
         else:
             out.append(f"{pad}{_key(k)}: {_scalar(v)}")
@@ -165,6 +179,18 @@ def load(text: str) -> dict:
         lines.append((n, indent, _strip_comment(raw.strip())))
 
     pos = 0
+    item_key = re.compile(r'^("(?:[^"\\]|\\.)*"|[^\s"\'\-\[{&*!|>#][^:]*):(\s|$)')
+
+    def item():
+        """The list item at ``pos`` ("- scalar" or "- key: value" starting a mapping)."""
+        nonlocal pos
+        n, ind, content = lines[pos]
+        rest = content[1:].lstrip(" ")
+        if item_key.match(rest):                     # a mapping: its keys line up after "- "
+            lines[pos] = (n, ind + len(content) - len(rest), rest)
+            return block(lines[pos][1])
+        pos += 1
+        return _parse_scalar(rest, n)
 
     def block(indent):
         nonlocal pos
@@ -180,8 +206,7 @@ def load(text: str) -> dict:
                     result = []
                 elif not isinstance(result, list):
                     raise YamlError(f"line {n}: a list item inside a mapping")
-                result.append(_parse_scalar(content[1:], n))
-                pos += 1
+                result.append(item())
                 continue
             if result is None:
                 result = {}
@@ -196,8 +221,7 @@ def load(text: str) -> dict:
                     items = []                           # "key:" followed by "- item" at the same indent
                     while pos < len(lines) and lines[pos][1] == indent and \
                             (lines[pos][2].startswith("- ") or lines[pos][2] == "-"):
-                        items.append(_parse_scalar(lines[pos][2][1:], lines[pos][0]))
-                        pos += 1
+                        items.append(item())
                     result[key] = items
                 else:
                     result[key] = None

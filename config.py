@@ -19,6 +19,9 @@ EXECUTIONS_DIR = RUNTIME_DIR / "executions"
 PRESETS_DIR = RUNTIME_DIR / "presets"
 LOCKS_DIR = RUNTIME_DIR / "locks"
 METADATA_OVERRIDE_DIR = RUNTIME_DIR / "metadata_overrides"
+BACKUPS_DIR = RUNTIME_DIR / "backups"          # previous versions of scripts, per script id
+SEQUENCES_DIR = RUNTIME_DIR / "sequences"      # <slug>.yaml: scripts run one after another
+SEQUENCE_RUNS_DIR = RUNTIME_DIR / "sequence_runs"   # SEQ-YYYYMMDD-NNN/metadata.json
 
 log = logging.getLogger(__name__)
 

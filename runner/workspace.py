@@ -1,7 +1,8 @@
-"""The open script folder, plus recent and favourite folders (runtime/workspace.json).
+"""The open script folder (or a single script file), plus recent and favourite
+folders and files (runtime/workspace.json).
 
-Like an editor's "Open Folder": one folder is open at a time and is scanned for
-scripts; it is reopened on the next start. This is state the user changes from
+Like an editor's "Open Folder" / "Open File": one folder (scanned for scripts) or
+one script file is open at a time; it is reopened on the next start. This is state the user changes from
 the UI (Open folder page, explorer header), not a setting.
 
 Installs from before this file existed used the ``script_directories`` setting;
@@ -75,24 +76,39 @@ def _save(state: dict) -> None:
     atomic_write_json(state_file(), state)
 
 
+def script_extensions() -> set:
+    """File types ScriptHub can run (the configured interpreters)."""
+    return {k.lower() for k in config.load_config()["interpreters"]}
+
+
 def current() -> Path | None:
     folder = load()["folder"]
     return Path(folder) if folder else None
 
 
+def current_is_file() -> bool:
+    """True when a single script file is open (not a folder)."""
+    path = current()
+    return bool(path) and path.is_file()
+
+
 def roots() -> list[Path]:
-    """Directories to scan: the open folder (missing folders are reported by discovery)."""
+    """What to scan: the open folder or the open script file (missing ones are reported by discovery)."""
     folder = current()
     return [folder] if folder else []
 
 
 def open_folder(value: str) -> Path:
-    """Open ``value`` (must be an existing directory) and put it first in the recent list.
-    Raises ValueError with a message for the user."""
+    """Open ``value``, an existing folder or a script file (a configured extension), and put
+    it first in the recent list. Raises ValueError with a message for the user."""
     from .security import clean_directory_input
     path = normalize(clean_directory_input(value))
-    if not Path(path).is_dir():
-        raise ValueError(f"Not an existing folder: {path}")
+    p = Path(path)
+    if p.is_file():
+        if p.suffix.lower() not in script_extensions():
+            raise ValueError(f"Not a script type ScriptHub can run (see Settings, Interpreters): {p.name}")
+    elif not p.is_dir():
+        raise ValueError(f"Not an existing folder or script file: {path}")
     with _lock:
         state = load()
         state["folder"] = path
@@ -132,7 +148,7 @@ def overview() -> dict:
     favs = state["favorites"]
 
     def item(p):
-        return {"path": p, "name": Path(p).name or p, "exists": Path(p).is_dir(),
+        return {"path": p, "name": Path(p).name or p, "exists": Path(p).exists(), "is_file": Path(p).is_file(),
                 "favorite": any(same(p, f) for f in favs),
                 "is_open": bool(state["folder"]) and same(p, state["folder"])}
     folder = item(state["folder"]) if state["folder"] else None
@@ -143,8 +159,8 @@ def overview() -> dict:
 
 # ------------------------------------------------------------- folder browser --
 def browse(value: str) -> dict:
-    """Sub-folders of ``value`` for the in-page folder browser (works without the desktop
-    dialog). Empty/unknown value: the drives (Windows) or "/" plus the home folder."""
+    """Sub-folders and script files of ``value`` for the in-page browser (works without the
+    desktop dialog). Empty/unknown value: the drives (Windows) or "/" plus the home folder."""
     places = [{"path": str(Path.home()), "name": "Home"}]
     if os.name == "nt":
         import string
@@ -160,20 +176,26 @@ def browse(value: str) -> dict:
         except (OSError, ValueError):
             path = None
     if path is None:
-        return {"path": "", "parent": "", "dirs": [], "places": places, "crumbs": [], "error": ""}
-    dirs, error = [], ""
+        return {"path": "", "parent": "", "dirs": [], "files": [], "places": places, "crumbs": [], "error": ""}
+    dirs, files, error = [], [], ""
+    exts = script_extensions()
     try:
         with os.scandir(path) as it:
             for e in it:
                 try:
-                    if e.is_dir() and not e.name.startswith((".", "$")):
+                    if e.name.startswith((".", "$")):
+                        continue
+                    if e.is_dir():
                         dirs.append({"path": str(path / e.name), "name": e.name})
+                    elif Path(e.name).suffix.lower() in exts:
+                        files.append({"path": str(path / e.name), "name": e.name})
                 except OSError:
                     continue
     except OSError as exc:
         error = f"Cannot list this folder: {exc.strerror or exc}"
     dirs.sort(key=lambda d: d["name"].lower())
+    files.sort(key=lambda d: d["name"].lower())
     crumbs = [{"path": str(p), "name": p.name or str(p)} for p in reversed([path, *path.parents])]
     parent = str(path.parent) if path.parent != path else ""
-    return {"path": str(path), "parent": parent, "dirs": dirs[:500], "more": len(dirs) > 500,
+    return {"path": str(path), "parent": parent, "dirs": dirs[:500], "files": files[:500], "more": len(dirs) > 500,
             "places": places, "crumbs": crumbs, "error": error}

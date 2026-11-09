@@ -53,6 +53,8 @@ class ExecutionSpec:
     trace: dict | None = None
     # Step debugging (implies tracing): the process reads control lines from stdin.
     debug: bool = False
+    # A step of a sequence: {"run": "SEQ-…", "step": n, "name": "…"}, recorded with the run.
+    sequence: dict | None = None
 
 
 @dataclass

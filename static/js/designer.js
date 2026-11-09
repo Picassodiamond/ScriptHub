@@ -246,7 +246,7 @@
         if (!res.ok || !hash) { nativeSubmit(editForm); return false; }
         editForm.querySelector('[name="base_hash"]').value = hash.value;
         var theirs = doc.getElementById('restore-form'), mine = $('restore-form');
-        if (theirs && mine) mine.hidden = theirs.hidden;
+        if (theirs && mine) mine.replaceWith(document.importNode(theirs, true));   // the new backup is listed
         window.srEditor.markSaved(edRoot);
         savedBlock = blockOf(edTa.value);
         addFlashes(doc);

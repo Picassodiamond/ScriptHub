@@ -95,6 +95,38 @@ def ask_directory(initial: str = "", title: str = "Choose a folder") -> str:
             root.destroy()
 
 
+def ask_file(initial: str = "", title: str = "Open a script", extensions=()) -> str:
+    """Native open-file dialog (tkinter) for script files. Returns '' when cancelled."""
+    import tkinter
+    from tkinter import filedialog
+    with _dialog_lock:
+        root = tkinter.Tk()
+        try:
+            root.withdraw()
+            root.attributes("-topmost", True)
+            start = initial if initial and Path(initial).is_dir() else (
+                str(Path(initial).parent) if initial and Path(initial).is_file() else str(Path.home()))
+            pattern = " ".join(f"*{e}" for e in sorted(extensions)) or "*"
+            return filedialog.askopenfilename(parent=root, initialdir=start, title=title,
+                                              filetypes=[("Scripts", pattern), ("All files", "*")]) or ""
+        finally:
+            root.destroy()
+
+
+@require_POST
+def pick_file(request):
+    """Open file: the native dialog for one script (same rules as the folder picker)."""
+    if not can_pick_folder(request):
+        raise Http404("Only available on the machine running ScriptHub")
+    from . import workspace
+    try:
+        path = ask_file(request.POST.get("initial", ""), request.POST.get("title", "") or "Open a script",
+                        workspace.script_extensions())
+    except Exception as exc:                 # no tkinter, no display, ...
+        return JsonResponse({"ok": False, "error": f"The file dialog is not available: {exc}"}, status=501)
+    return JsonResponse({"ok": True, "path": os.path.normpath(path) if path else ""})
+
+
 @require_POST
 def pick_folder(request):
     if not can_pick_folder(request):

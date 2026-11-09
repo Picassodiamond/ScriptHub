@@ -27,6 +27,7 @@ MIT licensed — see [Licence and contributing](#licence-and-contributing).
 6. [Metadata reference](#metadata-reference)
 7. [Defining parameters](#defining-parameters)
 8. [Running a script, hosts and presets](#running-a-script-hosts-and-presets)
+   - [Sequences: scripts one after another](#sequences-scripts-one-after-another)
 9. [Creating and editing scripts](#creating-and-editing-scripts)
 10. [Execution lifecycle](#execution-lifecycle)
 11. [Logging, history and retention](#logging-history-and-retention)
@@ -106,19 +107,30 @@ For SSH hosts, `ssh` must already work for you from a terminal (see
 
 ## A tour of the pages
 
-Version 2 is laid out like an IDE workbench (dark theme by default; **Theme** in the
-status bar or the moon/sun icon switches to light, remembered per browser):
+Version 2 is laid out like an IDE workbench (dark theme by default; *View → Light /
+dark theme* switches, remembered per browser):
 
-* **Activity bar** (far left): Home (the app icon), Library, **Runs** (what is running
-  now, with a live count, and the history), Settings, plus the side-panel toggle,
-  the command palette and the theme switch.
-* **Side panel**: the **Explorer** (every script grouped by category, with a dot for its
-  last result and a filter box) on most pages; the list of executions in the
+* **Menu bar** (top), as in VS Code; the open folder or file and the script are shown
+  in the middle. Click a menu (then hover to move between menus, Esc closes):
+  * **File**: New script (`g n`), **Open file…**, **Open folder…** (`g f`), *Open
+    recent* (favourites and recent folders/files), add to / remove from favourites,
+    Close folder, Settings.
+  * **View**: Command palette (Ctrl+K), Home / Library / Runs, Side panel (Ctrl+B),
+    Right panel (Ctrl+Alt+B) and Saved values panel (Ctrl+J) on script pages,
+    Collapse explorer, Light / dark theme.
+  * **Run**: Run the script (Ctrl+Enter), Run with Trace, Run with Debug, Rescan
+    folder, Runs.
+  * **Help**: Keyboard shortcuts (`?`), version.
+* **Activity bar** (far left): Home, Library, **Runs** (what is running now, with a
+  live count, and the history); Settings at the bottom.
+* **Side panel**: the **Explorer** (the open folder's name with New script, Rescan
+  and Collapse all; every script grouped by category, with a dot for its last
+  result and a filter box) on most pages; the list of executions in the
   console; the filters on History; the section list on Settings. **Ctrl+B** hides it.
 * **Main area**: no page header (the activity bar shows the section, the explorer the
   script); script pages have the tabs **Overview · Parameters · Run** on top of a right
   column that **Ctrl+Alt+B** (or its ◧ button) hides and shows.
-* **Status bar**: running/queued count, command palette, shortcuts, theme.
+* **Status bar**: version, running/queued count and the progress of a folder scan.
 
 | Page | What it does |
 |---|---|
@@ -129,7 +141,7 @@ status bar or the moon/sun icon switches to light, remembered per browser):
 | **Script › Overview** | The script's settings on the right: name, category, description, interpreter, default host, working directory, environment, platforms; below, recent runs. (The old `/configure/` URL opens this page.) |
 | **Script › Parameters** | The **parameter definitions** the run form is built from (click a row to edit; hover to see where the script uses it). |
 | **Script › Run** | On the right: where the values come from (defaults, a recent run or a preset), the host and the parameters (focusing one marks the lines that use it), and *+ Save current values as preset…* at the end of the values list. **Run** (Ctrl+Enter) in the bottom bar, with the mode **Normal · Trace · Debug** next to it, starts the script straight away (unsaved script edits are saved first) and opens the run as a tab next to the script; **Reset** loads the defaults. |
-| **New script** (`/scripts/new/`, **+** in the explorer header) | Name, language, optional sub-folder and category; creates the file (with a short starter) and its metadata in the open folder, then opens it in the editor. |
+| **New script** (`/scripts/new/`, *File → New script*, **+** in the explorer header) | Name, language, optional sub-folder and category; creates the file (with a short starter) and its metadata in the open folder, then opens it in the editor. |
 | **Console** (`/executions/RUN-…/`) | Step 3. Live status, duration, exit code, stdout and stderr (side by side, stacked or stdout only), auto-scroll, copy, download, stop; the running line (trace) or the **debugger** (debug). |
 | **Runs** (`/history/`; `/executions/` redirects here) | What is running or queued on top (refreshes by itself while something runs), then every execution with search, filters, paging, delete and retention. |
 | **History** | Search and filter every past execution, open or download logs, delete runs, apply retention. |
@@ -147,7 +159,7 @@ Ctrl+Enter runs it), type `run ` to list run actions only, paste a run id such a
 | `Ctrl+B` | Toggle the side panel |
 | `/` | Focus the page search (or the explorer filter) |
 | `g o` `g l` `g h` `g s` | Go to Home, Library, Runs, Settings |
-| `g n` `g f` | New script, Open folder (explorer header) |
+| `g n` `g f` | New script, Open folder |
 | `g n` | New script (in the open folder) |
 | `i` (or `c`) `r` | On a script: Overview (configuration), Run (run / view / edit) |
 | `Ctrl+Enter` | Run (Run tab), Create (New script) |
@@ -209,20 +221,21 @@ The names used before the rename (`SCRIPT_RUNNER_DEBUG`, `SCRIPT_RUNNER_ALLOWED_
 
 ## Script folder
 
-ScriptHub works on **one folder at a time**, like an editor's *Open Folder*. It is
-not a setting: on first start the Overview asks you to open one (or the bundled
+ScriptHub works on **one folder at a time**, like an editor's *Open Folder*, or on a
+**single script** (*File → Open file…*: the explorer then shows just that script;
+New script needs a folder). It is not a setting: on first start the Overview asks you to open one (or the bundled
 `./scripts` examples), and the folder you open is reopened on the next start.
 
-* **Open folder…** (explorer folder menu, Overview, Ctrl+K) shows the system
-  folder dialog and opens the folder you pick. The dialog appears on the machine
+* **Open folder…** / **Open file…** (File menu, Ctrl+K) show the system dialog
+  (folders, or files filtered to the script types) and open what you pick. The dialog appears on the machine
   running ScriptHub, so it is offered in the desktop app and in a browser on that
   same machine. From another machine, the `/folder/` page is used instead: type a
-  path or click through the drives and sub-folders.
+  path (folder or script) or click through the drives, sub-folders and scripts.
 * A large folder (a whole drive, say) is scanned in the background: the app stays
   usable, the status bar shows the folders and scripts counted so far, and the
   Overview / Library reload when the scan is done.
-* **Recent** keeps the last 10 folders; **favourites** (star) stay until you
-  unstar them. Both are in the explorer's folder menu and the command palette
+* **Recent** keeps the last 10 folders and files; **favourites** (star) stay until
+  you unstar them. Both are in *File → Open recent* and the command palette
   (Ctrl+K), so switching is one click.
 * The state lives in `runtime/workspace.json`. An older `script_directories`
   list in `config.json` is used once to fill it (first existing folder is opened,
@@ -500,13 +513,61 @@ fine to edit by hand).
   `runtime/presets/<script id>/<name>.json`.
 * A file that cannot be read is skipped and never overwritten.
 
+### Sequences: scripts one after another
+
+A **sequence** runs existing scripts in order: each step starts when the one before it
+has finished. Open **Sequences** in the activity bar (or **g q**), create one, then
+**Add step** for each script (from the open folder). For every step choose:
+
+* **Values**: *saved with this step* (edited with the script's own form; a new step starts
+  with the values of the script's last run) or **a preset** of the script, which stays
+  up to date when the preset changes;
+* **Host**: the script's default, `local` or an SSH host;
+* **If it fails**: *stop the sequence* (default) or *continue with the next step*.
+
+Steps can be reordered and removed. **Run sequence** (Ctrl+Enter) first checks every step
+(script found, values valid, host allowed) and starts nothing if one is wrong. Password
+parameters are asked for on the sequence page each time and never saved.
+
+The run page lists the steps with their live status next to the console of the running
+step (click a step to see its console). **Stop** stops the running step and skips the
+rest. Every step is a normal run in **Runs**, and its console links back to the sequence
+run. A sequence finishes as *Success* when every step succeeded, otherwise *Failed*
+(or *Cancelled*); like runs, sequences are not resumed after a restart (*Interrupted*).
+
+Sequences are kept in `runtime/sequences/`, one YAML file each, and their runs in
+`runtime/sequence_runs/SEQ-YYYYMMDD-NNN/metadata.json`:
+
+```yaml
+# Sequence for ScriptHub. Passwords are never stored.
+name: Nightly maintenance
+saved_at: 2026-11-08T21:10:00
+steps:
+  - script: 3f9a1c0b7d22          # the script id (stable id from its metadata block)
+    path: C:\scripts\db\backup.py # last known path: shown, and used when its folder is not open
+    name: Database backup
+    preset: production            # values from this preset ...
+    on_failure: stop
+  - script: 81be44f0a913
+    path: C:\scripts\cleanup.sh
+    name: Cleanup
+    host: web-1                   # empty or missing = the script's default host
+    values:                       # ... or values stored with the step
+      days: 30
+    on_failure: continue
+```
+
+A step finds its script by id in the open folder, else at its last known path (when that
+file still has the same id), so a sequence keeps working when another folder is open.
+A file that cannot be read is listed with the reason and never overwritten.
+
 ---
 
 ## Creating and editing scripts
 
 ### New script
 
-**New script** (the **+** in the explorer header, `g n`, or Ctrl+K → *New script*)
+**New script** (*File → New script*, the **+** in the explorer header, `g n`, or Ctrl+K)
 creates a file in the **open folder**: give a file name, language, and optionally a
 sub-folder (created if needed; existing ones are suggested) and a category. The file
 starts with its metadata block and a few lines of example code, then
@@ -865,7 +926,7 @@ ScriptHub/
 ├── runner/
 │   ├── views.py, script_views.py, execution_views.py, history_views.py,
 │   │   preset_views.py, edit_views.py, new_views.py,
-│   │   folder_views.py                                    thin HTTP layer
+│   │   folder_views.py, sequence_views.py                 thin HTTP layer
 │   ├── workspace.py          open folder, recent and favourite folders
 │   ├── script_editor.py      safe saving of script files (backup, conflicts, line endings)
 │   ├── discovery.py          approved-script catalogue
@@ -874,10 +935,11 @@ ScriptHub/
 │   ├── executor.py           builds and supervises one process (local / SSH)
 │   ├── process_manager.py    queue, limits, threads, cancel, recovery
 │   ├── history.py, history_ops.py   run records, search, retention
+│   ├── sequences.py, sequence_runner.py   sequences: storage, running steps in order
 │   ├── presets.py (saved parameters), ssh_hosts.py, security.py, validators.py, fsutil.py
 │   └── test*.py
 ├── scripts/                  bundled examples (system, django, python_packages, …)
-├── runtime/                  config.json, executions/, presets/, metadata_overrides/
+├── runtime/                  config.json, executions/, presets/, sequences/, sequence_runs/, metadata_overrides/
 ├── templates/, static/       Django templates, custom CSS, vanilla JavaScript
 └── tools/test_highlight.js
 ```

@@ -16,7 +16,7 @@ import unittest
 from django.test import SimpleTestCase
 
 import config
-from runner import discovery, history, script_editor
+from runner import backups, discovery, history, ids, script_editor
 from runner.process_manager import manager
 from runner.script_editor import ConflictError, EditError
 
@@ -29,6 +29,13 @@ class TempCase(SimpleTestCase):
         self.addCleanup(shutil.rmtree, self.tmp, True)
         self.root = self.tmp / "scripts"
         self.root.mkdir()
+        p = mock.patch.object(config, "BACKUPS_DIR", self.tmp / "backups")    # never the real runtime/
+        p.start()
+        self.addCleanup(p.stop)
+
+    def newest_backup(self, path):
+        """Text of the newest backup of ``path`` (kept under its path id: no metadata block)."""
+        return backups.read(ids.path_id(Path(path).resolve())).decode("utf-8").replace("\r\n", "\n")
 
 
 # ------------------------------------------------------------ editing service
@@ -76,17 +83,17 @@ class EditorServiceTests(TempCase):
         result = script_editor.save_script(p, self.root, "print('new')\n", info["hash"])
         self.assertTrue(result["changed"])
         self.assertEqual(p.read_text(), "print('new')\n")
-        self.assertEqual(script_editor.backup_path(p).read_text(), "print('old')\n")
-        self.assertEqual([x.name for x in self.root.iterdir() if x.suffix == ".tmp"], [])   # no temp files left
+        self.assertEqual(self.newest_backup(p), "print('old')\n")
+        self.assertEqual([x.name for x in self.root.iterdir()], ["a.py"])   # no .bak, no temp files next to it
 
     def test_unchanged_save_does_not_touch_the_backup(self):
         p = self.make("a.py", "print(1)\n")
         script_editor.save_script(p, self.root, "print(2)\n", script_editor.read_for_edit(p, self.root)["hash"])
-        before = script_editor.backup_path(p).read_text()
+        before = self.newest_backup(p)
         info = script_editor.read_for_edit(p, self.root)
         result = script_editor.save_script(p, self.root, info["text"], info["hash"])
         self.assertFalse(result["changed"])
-        self.assertEqual(script_editor.backup_path(p).read_text(), before)
+        self.assertEqual(self.newest_backup(p), before)
 
     def test_conflict_when_the_file_changed_after_opening(self):
         p = self.make("a.py", "v1\n")
@@ -97,7 +104,7 @@ class EditorServiceTests(TempCase):
         self.assertEqual(p.read_text(), "someone else edited this\n")
         script_editor.save_script(p, self.root, "mine\n", stale, force=True)       # explicit overwrite
         self.assertEqual(p.read_text(), "mine\n")
-        self.assertEqual(script_editor.backup_path(p).read_text(), "someone else edited this\n")
+        self.assertEqual(self.newest_backup(p), "someone else edited this\n")
 
     def test_line_ending_policy(self):
         browser_text = "line1\r\nline2\r\n"                                        # what a browser posts
@@ -177,6 +184,37 @@ class EditorServiceTests(TempCase):
         self.assertEqual(p.read_text(), "v2\n")
         with self.assertRaises(EditError):
             script_editor.restore_backup(self.make("fresh.py", "x\n"), self.root)
+
+    def test_backups_keep_the_last_ten_and_any_can_be_restored(self):
+        p = self.make("a.py", "v0\n")
+        for i in range(1, 13):
+            script_editor.save_script(p, self.root, f"v{i}\n", script_editor.read_for_edit(p, self.root)["hash"])
+        sid = ids.path_id(p.resolve())
+        versions = backups.versions(sid)
+        self.assertEqual(len(versions), backups.KEEP)
+        self.assertEqual(backups.read(sid, versions[-1]["name"]).decode(), "v2\n")     # the oldest kept
+        script_editor.restore_backup(p, self.root, sid=sid, version=versions[-1]["name"])
+        self.assertEqual(p.read_text(), "v2\n")
+        self.assertEqual(self.newest_backup(p), "v12\n")                                  # what was replaced
+        with self.assertRaises(EditError):
+            script_editor.restore_backup(p, self.root, sid=sid, version="../../etc/passwd")
+
+    def test_an_old_bak_next_to_the_script_moves_into_the_backups(self):
+        p = self.make("a.py", "v2\n")
+        (self.root / "a.py.bak").write_bytes(b"v1 from an older version\n")
+        script_editor.save_script(p, self.root, "v3\n", script_editor.read_for_edit(p, self.root)["hash"])
+        self.assertFalse((self.root / "a.py.bak").exists())
+        texts = [backups.read(ids.path_id(p.resolve()), v["name"]).decode() for v in backups.versions(ids.path_id(p.resolve()))]
+        self.assertEqual(texts, ["v2\n", "v1 from an older version\n"])
+
+    def test_a_bak_that_cannot_be_copied_is_left_alone(self):
+        p = self.make("a.py", "v2\n")
+        (self.root / "a.py.bak").write_bytes(b"precious\n")
+        with mock.patch.object(backups, "add", side_effect=OSError("disk full")):
+            with self.assertRaises(EditError):                 # no backup possible: nothing is saved
+                script_editor.save_script(p, self.root, "v3\n", script_editor.read_for_edit(p, self.root)["hash"])
+        self.assertEqual((self.root / "a.py.bak").read_bytes(), b"precious\n")
+        self.assertEqual(p.read_text(), "v2\n")
 
 
 # --------------------------------------------------------------- web: editing
@@ -263,7 +301,8 @@ class WebEditTests(WebCase):
         r = self.client.post(self.url(), {"content": "print('v2')\r\n", "base_hash": self.hash_on_page(), "action": "save"}, follow=True)
         self.assertContains(r, "Saved tool.py")
         self.assertEqual(self.script.read_text(), "print('v2')\n")
-        self.assertEqual((self.root / "tool.py.bak").read_text(), "print('v1')\n")
+        self.assertFalse((self.root / "tool.py.bak").exists())                       # not next to the script
+        self.assertEqual(self.newest_backup(self.script), "print('v1')\n")
         self.assertContains(r, "Restore previous")
 
     def test_syntax_error_is_a_warning_not_a_failure(self):
@@ -306,9 +345,24 @@ class WebEditTests(WebCase):
     def test_restore_view(self):
         self.client.post(self.url(), {"content": "print('v2')\n", "base_hash": self.hash_on_page()})
         r = self.client.post(self.url("restore/"), follow=True)
-        self.assertContains(r, "Restored the previous version")
+        self.assertContains(r, "Restored. The version you replaced is kept too")
         self.assertEqual(self.script.read_text(), "print('v1')\n")
         self.assertEqual(self.client.get(self.url("restore/")).status_code, 405)
+
+    def test_versions_list_and_restoring_an_earlier_one(self):
+        for n in (2, 3):
+            self.client.post(self.url(), {"content": f"print('v{n}')\n", "base_hash": self.hash_on_page()})
+        page = self.client.get(self.url())
+        self.assertContains(page, 'name="version"')
+        self.assertContains(page, "Versions…")
+        oldest = backups.versions(self.sid)[-1]                     # print('v1')
+        self.assertContains(page, f'value="{oldest["name"]}"')
+        self.client.post(self.url("restore/"), {"version": oldest["name"]})
+        self.assertEqual(self.script.read_text(), "print('v1')\n")
+        r = self.client.post(self.url("restore/"), {"version": "nope__tool.py"}, follow=True)
+        self.assertContains(r, "no longer exists")
+        r = self.client.post(self.url("restore/"), {"previous": "1", "version": oldest["name"]})   # the button wins
+        self.assertEqual(self.script.read_text(), "print('v3')\n")
 
     def test_unknown_script_and_no_way_to_name_a_path(self):
         self.assertEqual(self.client.get("/scripts/doesnotexist/edit/").status_code, 404)

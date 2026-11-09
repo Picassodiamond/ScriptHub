@@ -35,7 +35,8 @@ class Phase4Case(SimpleTestCase):
         }))
         for p in (mock.patch.object(config, "CONFIG_FILE", self.cfg_file),
                   mock.patch.object(config, "EXECUTIONS_DIR", self.tmp / "executions"),
-                  mock.patch.object(config, "PRESETS_DIR", self.tmp / "presets")):
+                  mock.patch.object(config, "PRESETS_DIR", self.tmp / "presets"),
+                  mock.patch.object(config, "BACKUPS_DIR", self.tmp / "backups")):
             p.start()
             self.addCleanup(p.stop)
         self.addCleanup(shutil.rmtree, self.tmp, True)

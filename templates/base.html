@@ -25,15 +25,15 @@
   {# Icon sprite: <svg class="i"><use href="#i-name"/></svg> #}
   {% include "_icons.html" %}
 
+  {% include "_menubar.html" %}
+
   {% with na=nav_active %}
   <nav class="activity" aria-label="Main">
-    <a class="act-brand" href="{% url 'dashboard' %}" data-hotkey="g o" data-hint="Go to Home" title="Home  (g o)" aria-label="Home"><svg class="i"><use href="#i-play"/></svg></a>
-    <button type="button" class="act act-toggle" data-action="side" title="Toggle side panel  (Ctrl+B)" aria-controls="side"><svg class="i"><use href="#i-panel"/></svg></button>
+    <a class="act {% if na == 'dashboard' %}is-active{% endif %}" href="{% url 'dashboard' %}" data-hotkey="g o" data-hint="Go to Home" title="Home  (g o)"><svg class="i"><use href="#i-home"/></svg><span class="act-label">Home</span></a>
     <a class="act {% if na == 'library' or na == 'script' %}is-active{% endif %}" href="{% url 'library' %}" data-hotkey="g l" data-hint="Go to Script Library" title="Script Library  (g l)"><svg class="i"><use href="#i-files"/></svg><span class="act-label">Library</span></a>
+    <a class="act {% if na == 'sequences' or na == 'sequence' %}is-active{% endif %}" href="{% url 'sequences' %}" data-hotkey="g q" data-hint="Go to Sequences" title="Sequences — scripts run one after another  (g q)"><svg class="i"><use href="#i-sequence"/></svg><span class="act-label">Sequences</span></a>
     <a class="act {% if na == 'history' or na == 'executions' or na == 'execution' %}is-active{% endif %}" href="{% url 'history' %}" data-hotkey="g h|g j" data-hint="Go to Runs" title="Runs — running now and history  (g h)"><svg class="i"><use href="#i-pulse"/></svg><span class="act-label">Runs</span>{% if active_runs %}<span class="act-badge" title="Running or queued">{{ active_runs }}</span>{% endif %}</a>
     <span class="act-spacer"></span>
-    <button type="button" class="act act-opt" data-action="palette" title="Command palette  (Ctrl+K)"><svg class="i"><use href="#i-command"/></svg></button>
-    <button type="button" class="act act-opt" data-action="theme" title="Switch light / dark theme"><svg class="i theme-ic-dark"><use href="#i-moon"/></svg><svg class="i theme-ic-light"><use href="#i-sun"/></svg></button>
     <a class="act {% if na == 'settings' %}is-active{% endif %}" href="{% url 'settings' %}" data-hotkey="g s" data-hint="Go to Settings" title="Settings  (g s)"><svg class="i"><use href="#i-gear"/></svg><span class="act-label">Settings</span></a>
   </nav>
   {% endwith %}
@@ -66,9 +66,6 @@
     {% block status_extra %}{% endblock %}
     {% with sc=wb_scan %}{% if sc.scanning %}<span class="sb-item sb-live sb-scan" id="sb-scan" role="status" aria-live="polite" data-url="{% url 'folder_scan' %}" data-version="{{ sc.version }}" title="{{ sc.current }}"><span class="sb-dot"></span><span data-scan-text>Scanning {{ sc.folder }} · {{ sc.dirs }} folders · {{ sc.found }} scripts</span></span>{% endif %}{% endwith %}
     <span class="sb-spacer"></span>
-    <button type="button" class="sb-item" data-action="palette" title="Command palette">Commands <kbd>Ctrl</kbd><kbd>K</kbd></button>
-    <button type="button" class="sb-item" data-action="help" title="Keyboard shortcuts">Shortcuts <kbd>?</kbd></button>
-    <button type="button" class="sb-item" data-action="theme" title="Switch light / dark theme"><svg class="i i-sm theme-ic-dark"><use href="#i-moon"/></svg><svg class="i i-sm theme-ic-light"><use href="#i-sun"/></svg> Theme</button>
   </footer>
 
   {{ wb_palette|json_script:"wb-palette" }}

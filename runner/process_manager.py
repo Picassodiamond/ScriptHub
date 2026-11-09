@@ -76,6 +76,7 @@ class ExecutionManager:
         self._specs = {}     # queued run_id -> spec
         self._active = {}    # running run_id -> _Active
         self._tokens = {}    # submit token -> (run_id, time)
+        self._changed = threading.Condition(self._lock)   # notified when a run leaves the queue/active set
 
     # ------------------------------------------------------------ public ---
     def submit(self, spec: ExecutionSpec, initiator: str = "local") -> str:
@@ -116,6 +117,7 @@ class ExecutionManager:
                 "debug": {"enabled": True} if spec.debug else None,
                 "owner_pid": os.getpid(),
                 "error": None,
+                **({"sequence": dict(spec.sequence)} if spec.sequence else {}),
             })
             self._specs[run_id] = spec
             self._queue.append(run_id)
@@ -133,6 +135,7 @@ class ExecutionManager:
                 now = history.now_iso()
                 history.update_meta(run_id, status=history.CANCELLED, finished_at=now,
                                     error="Cancelled while queued.")
+                self._changed.notify_all()
                 return True
             active = self._active.get(run_id)
             if active is None:
@@ -287,6 +290,18 @@ class ExecutionManager:
     def is_active(self, run_id: str) -> bool:
         with self._lock:
             return run_id in self._active or run_id in self._specs
+
+    def wait_finished(self, run_id: str, timeout: float | None = None) -> bool:
+        """Block until ``run_id`` is neither queued nor running (its metadata then holds the
+        final status). False when ``timeout`` seconds passed first."""
+        end = None if timeout is None else time.monotonic() + timeout
+        with self._lock:
+            while run_id in self._active or run_id in self._specs:
+                wait = 1.0 if end is None else min(1.0, end - time.monotonic())
+                if wait <= 0:
+                    return False
+                self._changed.wait(wait)
+        return True
 
     def counts(self) -> dict:
         with self._lock:
@@ -450,6 +465,7 @@ class ExecutionManager:
         finally:
             with self._lock:
                 self._active.pop(run_id, None)
+                self._changed.notify_all()
             self._dispatch()
 
     @staticmethod

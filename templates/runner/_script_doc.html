@@ -10,9 +10,7 @@
     <span class="faint small mono hide-sm" id="doc-refs"></span>
     {% if ed %}
     <span class="faint small hide-sm" title="Line endings are kept when saving">{{ ed.newline }}{% if not ed.writable %} · <span class="error-text">read-only file</span>{% endif %}</span>
-    <form method="post" action="{% url 'script_restore' script.id %}" id="restore-form" data-confirm="Swap this file with its previous version ({{ script.path.name }}.bak)? What you have now becomes the backup." {% if not has_backup %}hidden{% endif %}>{% csrf_token %}
-      <button class="btn btn-ghost btn-sm" type="submit" title="Swap with the previous saved version"><svg class="i"><use href="#i-refresh"/></svg> <span class="hide-sm">Restore previous</span></button>
-    </form>
+    {% include "runner/_restore.html" %}
     {% endif %}
     {% if desktop %}<button type="button" class="btn btn-ghost btn-icon btn-sm" data-reveal-script="{{ script.id }}" title="Show in folder"><svg class="i"><use href="#i-folder"/></svg></button>{% endif %}
     <button type="button" class="btn btn-ghost btn-icon btn-sm" data-copy-source title="Copy the script"><svg class="i"><use href="#i-copy"/></svg><span hidden>Copy</span></button>

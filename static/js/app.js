@@ -145,9 +145,8 @@
       if (e.key === 'Escape') { filter.value = ''; filter.dispatchEvent(new Event('input')); filter.blur(); }
       if (e.key === 'Enter') { var first = tree.querySelector('.tree-item:not([hidden])'); if (first) first.click(); }
     });
-    var collapse = document.querySelector('[data-tree-collapse]');
-    if (collapse) collapse.addEventListener('click', function () {
-      groups.forEach(function (g) { g.open = false; });
+    document.addEventListener('click', function (e) {    // explorer header icon or View > Collapse explorer
+      if (e.target.closest && e.target.closest('[data-tree-collapse]')) groups.forEach(function (g) { g.open = false; });
     });
   }
 
@@ -180,7 +179,8 @@
     });
     return list;
   }
-  function usable(el) { return !el.disabled && !el.classList.contains('btn-disabled') && (visible(el) || el.closest('.activity')); }
+  // Menu bar items keep their shortcuts while their menu is closed.
+  function usable(el) { return !el.disabled && !el.classList.contains('btn-disabled') && (visible(el) || el.closest('.activity') || el.closest('.menubar')); }
   var pending = null, pendingTimer = null;
 
   document.addEventListener('keydown', function (e) {
@@ -262,9 +262,21 @@
     document.body.appendChild(f); f.submit();
   }
 
-  // Drop-down menus (<details data-menu>): close on outside click and Escape.
+  // Drop-down menus (<details data-menu>): close on outside click and Escape, and after an item
+  // is chosen. In the menu bar, hovering another menu while one is open switches to it.
   document.addEventListener('click', function (e) {
     [].forEach.call(document.querySelectorAll('details[data-menu][open]'), function (d) { if (!d.contains(e.target)) d.open = false; });
+    var item = e.target.closest && e.target.closest('.menubar .menu-item');
+    if (item && !item.closest('.menu-sub > .menu-item') && !item.classList.contains('is-disabled')) {
+      var menu = item.closest('details[data-menu]');
+      if (menu) setTimeout(function () { menu.open = false; }, 0);
+    }
+  });
+  [].forEach.call(document.querySelectorAll('.menubar details[data-menu]'), function (d) {
+    d.querySelector('summary').addEventListener('mouseenter', function () {
+      var other = document.querySelector('.menubar details[data-menu][open]');
+      if (other && other !== d) { other.open = false; d.open = true; }
+    });
   });
   document.addEventListener('keydown', function (e) {
     if (e.key !== 'Escape') return;
@@ -404,7 +416,7 @@
     open: function () {
       var rows = [
         ['Global', [['Command palette', 'Ctrl K'], ['Toggle side panel', 'Ctrl B'], ['Toggle right panel (script pages)', 'Ctrl Alt B'], ['Toggle saved values panel', 'Ctrl J'], ['Focus search / explorer filter', '/'], ['This sheet', '?']]],
-        ['Go to', [['Home', 'g o'], ['Script Library', 'g l'], ['Runs (running + history)', 'g h'], ['Settings', 'g s']]],
+        ['Go to', [['Home', 'g o'], ['Script Library', 'g l'], ['Sequences', 'g q'], ['Runs (running + history)', 'g h'], ['Settings', 'g s']]],
         ['Script', [['Overview: settings', 'i  or  c'], ['Parameters and saved values', 'p'], ['Run: run, view, edit', 'r  or  s'], ['Save the script / settings / parameters', 'Ctrl S']]],
         ['Run & debug', [['Review / launch', 'Ctrl ↵'], ['Back from review', 'Esc'], ['Continue', 'F5'], ['Step to next line', 'F10  or  n'], ['Pause', 'F6'], ['Stop the run', 'Shift F5']]]
       ];
@@ -492,6 +504,39 @@
       .then(function (j) { if (j.path) postForm('/folder/open/', { path: j.path }); })
       .catch(function () { location.href = '/folder/'; });               // no dialog here: use the page
   }
+  // File > Open file…: one script on its own (the system dialog, filtered to script types).
+  function openFile() {
+    if (!canPick) { location.href = '/folder/'; return; }
+    if (picking) return;
+    picking = true;
+    document.documentElement.style.cursor = 'progress';
+    post('/desktop/pick-file/', { initial: document.body.dataset.folder || '', title: 'Open a script' })
+      .then(function (j) { if (j.path) postForm('/folder/open/', { path: j.path }); })
+      .catch(function () { location.href = '/folder/'; })
+      .finally(function () { picking = false; document.documentElement.style.cursor = ''; });
+  }
+  sr.openFile = openFile;
+  document.addEventListener('click', function (e) {
+    var f = e.target.closest('[data-open-file]');
+    if (f && canPick) { e.preventDefault(); openFile(); }
+  });
+  // "Versions…" next to Restore previous: picking one restores it (after the form's confirmation).
+  document.addEventListener('change', function (e) {
+    var sel = e.target.closest && e.target.closest('[data-restore-pick]');
+    if (!sel || !sel.value) return;
+    if (sel.form.requestSubmit) sel.form.requestSubmit(); else sel.form.submit();
+    setTimeout(function () { sel.value = ''; }, 0);        // cancelled: back to "Versions…"
+  });
+  // Run menu: on the Run tab it submits the form (with the chosen mode); elsewhere it opens the Run tab.
+  document.addEventListener('click', function (e) {
+    var a = e.target.closest('[data-action="run"]');
+    var form = document.getElementById('run-form');
+    if (!a || !form) return;
+    e.preventDefault();
+    var radio = document.querySelector('input[name="mode"][value="' + (a.dataset.mode || 'normal') + '"]');
+    if (radio) radio.checked = true;
+    if (form.requestSubmit) form.requestSubmit(); else form.submit();
+  });
   sr.openFolder = openFolder;
   document.addEventListener('click', function (e) {
     var open = e.target.closest('[data-open-folder]');

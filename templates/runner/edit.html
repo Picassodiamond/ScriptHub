@@ -14,11 +14,7 @@
   <span class="mono small strong">{{ script.path.name }}</span>
   <span class="spacer"></span>
   <span class="muted small mono wrap-anywhere hide-sm">{{ size }} bytes · {{ newline }}{% if not writable %} · <span class="error-text">read-only file</span>{% endif %}</span>
-  {% if has_backup %}
-  <form method="post" action="{% url 'script_restore' script.id %}" data-confirm="Swap this file with its previous version ({{ script.path.name }}.bak)? What you have now becomes the backup.">{% csrf_token %}
-    <button class="btn btn-ghost btn-sm" type="submit" title="Swap with the previous saved version (.bak)"><svg class="i"><use href="#i-refresh"/></svg> Restore previous</button>
-  </form>
-  {% endif %}
+  {% include "runner/_restore.html" %}
   {% if not conflict %}
   <button class="btn btn-primary btn-sm" type="submit" form="edit-form" name="action" value="save" data-save data-hotkey="Ctrl+s" data-hint="Save the script"><svg class="i"><use href="#i-save"/></svg> Save <kbd>Ctrl</kbd><kbd>S</kbd></button>
   {% endif %}

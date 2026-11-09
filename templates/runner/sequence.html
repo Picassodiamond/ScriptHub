@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% block title %}{{ seq.name }}{% endblock %}
+{% block content %}
+<div class="page page-narrow">
+
+<section class="panel">
+  <div class="panel-head">
+    <form method="post" action="{% url 'sequence_rename' seq.slug %}" class="inline-form grow">{% csrf_token %}
+      <svg class="i faint"><use href="#i-sequence"/></svg>
+      <input class="input input-sm seq-name" type="text" name="name" maxlength="60" value="{{ seq.name }}" required aria-label="Sequence name">
+      <button class="btn btn-ghost btn-sm" type="submit">Rename</button>
+    </form>
+    <form method="post" action="{% url 'sequence_delete' seq.slug %}" data-confirm="Delete the sequence “{{ seq.name }}”? Its past runs stay in History.">{% csrf_token %}
+      <button class="btn btn-ghost btn-icon btn-sm btn-del" type="submit" title="Delete sequence" aria-label="Delete sequence"><svg class="i"><use href="#i-trash"/></svg></button>
+    </form>
+  </div>
+
+  {% if steps %}
+  <div class="table-wrap">
+  <table class="table seq-steps">
+    <thead><tr><th class="num">#</th><th>Script</th><th>Values</th><th class="hide-sm">Host</th><th class="hide-sm">If it fails</th><th></th></tr></thead>
+    <tbody>
+      {% for s in steps %}
+      <tr{% if s.problem %} class="has-problem"{% endif %}>
+        <td class="num mono small">{{ s.n }}</td>
+        <td>
+          {% if s.script %}<a class="strong" href="{% url 'script_run' s.script.id %}">{{ s.name }}</a>{% else %}<span class="strong">{{ s.name }}</span>{% endif %}
+          <div class="mono small faint clamp-1" title="{{ s.path }}">{{ s.path }}</div>
+          {% if s.problem %}<div class="field-error small">{{ s.problem|capfirst }}</div>{% endif %}
+        </td>
+        <td class="small">{{ s.source }}</td>
+        <td class="small muted hide-sm">{{ s.host }}</td>
+        <td class="small hide-sm">{% if s.step.on_failure == 'continue' %}Continue{% else %}Stop{% endif %}</td>
+        <td class="actions">
+          <div class="btn-row">
+            <form method="post" action="{% url 'sequence_steps' seq.slug %}">{% csrf_token %}
+              <input type="hidden" name="index" value="{{ s.index }}">
+              <button class="btn btn-ghost btn-icon btn-sm" type="submit" name="op" value="up" title="Move up" aria-label="Move step {{ s.n }} up"{% if forloop.first %} disabled{% endif %}><svg class="i"><use href="#i-up"/></svg></button>
+              <button class="btn btn-ghost btn-icon btn-sm" type="submit" name="op" value="down" title="Move down" aria-label="Move step {{ s.n }} down"{% if forloop.last %} disabled{% endif %}><svg class="i"><use href="#i-down"/></svg></button>
+            </form>
+            <a class="btn btn-ghost btn-icon btn-sm" href="{% url 'sequence_step' seq.slug s.index %}" title="Values, host and failure handling" aria-label="Edit step {{ s.n }}"><svg class="i"><use href="#i-sliders"/></svg></a>
+            <form method="post" action="{% url 'sequence_steps' seq.slug %}" data-confirm="Remove step {{ s.n }} ({{ s.name }})?">{% csrf_token %}
+              <input type="hidden" name="index" value="{{ s.index }}">
+              <button class="btn btn-ghost btn-icon btn-sm btn-del" type="submit" name="op" value="remove" title="Remove step" aria-label="Remove step {{ s.n }}"><svg class="i"><use href="#i-x"/></svg></button>
+            </form>
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+  <div class="panel-body muted small">No steps yet. Add the scripts to run, in order; each step runs after the one before it has finished.</div>
+  {% endif %}
+
+  <div class="panel-foot">
+    {% if available and steps|length < max_steps %}
+    <form method="post" action="{% url 'sequence_steps' seq.slug %}" class="inline-form grow">{% csrf_token %}
+      <input type="hidden" name="op" value="add">
+      <select class="input input-sm" name="script_id" required aria-label="Script to add">
+        <option value="">Add a script from the open folder…</option>
+        {% for a in available %}<option value="{{ a.id }}">{{ a.relative }}{% if a.name != a.relative %} — {{ a.name }}{% endif %}</option>{% endfor %}
+      </select>
+      <button class="btn btn-sm" type="submit"><svg class="i"><use href="#i-plus"/></svg> Add step</button>
+    </form>
+    {% elif not available %}
+    <span class="muted small">Open a folder with scripts to add steps. Steps already added keep working when another folder is open.</span>
+    {% else %}
+    <span class="muted small">A sequence has at most {{ max_steps }} steps.</span>
+    {% endif %}
+  </div>
+</section>
+
+{% if steps %}
+<form method="post" action="{% url 'sequence_start' seq.slug %}" class="panel" id="seq-run-form" autocomplete="off">{% csrf_token %}
+  <input type="hidden" name="submit_token" value="{{ token }}">
+  {% if passwords %}
+  <div class="panel-head"><h2>Passwords</h2><span class="faint small">Asked for each run, never saved.</span></div>
+  <div class="panel-body">
+    {% for p in passwords %}
+    <div class="field">
+      <label class="field-label" for="{{ p.input }}">Step {{ p.step }} · {{ p.script }} · {{ p.label }}{% if p.required %}<span class="req" title="Required">*</span>{% endif %}</label>
+      <input class="input" type="password" name="{{ p.input }}" id="{{ p.input }}" autocomplete="new-password">
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+  <div class="panel-foot">
+    <button class="btn btn-primary play" type="submit" data-once data-hotkey="Ctrl+Enter" data-hint="Run sequence"><svg class="i"><use href="#i-play"/></svg> Run sequence <kbd>Ctrl</kbd><kbd>↵</kbd></button>
+    <span class="muted small">{{ steps|length }} step{{ steps|length|pluralize }}, one after another. Every step is checked before the first one starts.</span>
+  </div>
+</form>
+{% endif %}
+
+{% if runs %}
+<section class="panel">
+  <div class="panel-head"><h2>Runs of this sequence</h2></div>
+  {% include "runner/_sequence_runs.html" %}
+</section>
+{% endif %}
+</div>
+{% endblock %}

@@ -21,6 +21,13 @@ class RunnerConfig(AppConfig):
         except Exception:  # never block startup
             log.exception("Execution recovery failed")
         try:
+            from .sequence_runner import sequencer
+            fixed = sequencer.recover_interrupted()
+            if fixed:
+                log.warning("Marked %d interrupted sequence run(s): %s", len(fixed), ", ".join(fixed))
+        except Exception:  # never block startup
+            log.exception("Sequence recovery failed")
+        try:
             from . import history_ops
             history_ops.maybe_apply_retention()
         except Exception:

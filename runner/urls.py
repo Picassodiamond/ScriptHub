@@ -1,6 +1,7 @@
 from django.urls import path
 
-from . import desktop, edit_views, execution_views, folder_views, history_views, new_views, preset_views, script_views, views
+from . import (desktop, edit_views, execution_views, folder_views, history_views, new_views, preset_views,
+               script_views, sequence_views, views)
 
 urlpatterns = [
     path("", views.dashboard, name="dashboard"),
@@ -18,6 +19,16 @@ urlpatterns = [
     path("scripts/<str:script_id>/presets/save/", preset_views.preset_save, name="preset_save"),
     path("scripts/<str:script_id>/presets/rename/", preset_views.preset_rename, name="preset_rename"),
     path("scripts/<str:script_id>/presets/delete/", preset_views.preset_delete, name="preset_delete"),
+    path("sequences/", sequence_views.sequence_list, name="sequences"),
+    path("sequences/<str:slug>/", sequence_views.sequence_detail, name="sequence_detail"),
+    path("sequences/<str:slug>/rename/", sequence_views.sequence_rename, name="sequence_rename"),
+    path("sequences/<str:slug>/delete/", sequence_views.sequence_delete, name="sequence_delete"),
+    path("sequences/<str:slug>/steps/", sequence_views.sequence_steps, name="sequence_steps"),
+    path("sequences/<str:slug>/steps/<int:index>/", sequence_views.sequence_step, name="sequence_step"),
+    path("sequences/<str:slug>/start/", sequence_views.sequence_start, name="sequence_start"),
+    path("sequence-runs/<str:run_id>/", sequence_views.sequence_run, name="sequence_run"),
+    path("sequence-runs/<str:run_id>/status/", sequence_views.sequence_run_status, name="sequence_run_status"),
+    path("sequence-runs/<str:run_id>/stop/", sequence_views.sequence_run_stop, name="sequence_run_stop"),
     path("history/", history_views.history_list, name="history"),
     path("history/delete-old/", history_views.history_delete_old, name="history_delete_old"),
     path("history/retention/", history_views.history_apply_retention, name="history_apply_retention"),
@@ -39,6 +50,7 @@ urlpatterns = [
     path("folder/forget/", folder_views.folder_forget, name="folder_forget"),
     path("folder/scan/", folder_views.folder_scan, name="folder_scan"),
     path("desktop/pick-folder/", desktop.pick_folder, name="desktop_pick_folder"),
+    path("desktop/pick-file/", desktop.pick_file, name="desktop_pick_file"),
     path("desktop/reveal/", desktop.reveal, name="desktop_reveal"),
     path("desktop/ping/", desktop.ping, name="desktop_ping"),
     path("desktop/bye/", desktop.bye, name="desktop_bye"),

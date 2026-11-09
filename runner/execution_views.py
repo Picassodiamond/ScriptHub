@@ -232,7 +232,7 @@ def _is_active(meta):
 
 
 def execution_console(request, run_id):
-    meta = _get_meta_or_404(run_id)
+    meta = history.canonical_script(_get_meta_or_404(run_id))     # the script's id as it is known now
     params = meta.get("parameters") or {}
     adhoc_source = None
     if meta.get("adhoc"):                      # show exactly the code that ran

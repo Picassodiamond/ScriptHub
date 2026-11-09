@@ -1,8 +1,8 @@
-{# One folder in the explorer's folder menu: click opens it. #}
+{# One recent / favourite folder or script file in File > Open recent: click opens it. #}
 <form method="post" action="{% url 'folder_open' %}">{% csrf_token %}
   <input type="hidden" name="path" value="{{ x.path }}">
   <button class="menu-item{% if x.is_open %} is-active{% endif %}" type="submit" role="menuitem" title="{{ x.path }}"{% if not x.exists %} disabled{% endif %}>
-    <svg class="i i-sm"><use href="#i-{% if x.favorite %}star{% else %}folder{% endif %}"/></svg>
+    <svg class="i i-sm"><use href="#i-{% if x.favorite %}star{% elif x.is_file %}file{% else %}folder{% endif %}"/></svg>
     <span class="clamp-1">{{ x.name }}</span><span class="menu-hint clamp-1">{% if x.exists %}{{ x.path }}{% else %}not found{% endif %}</span>
   </button>
 </form>

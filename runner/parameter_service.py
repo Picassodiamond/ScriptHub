@@ -424,6 +424,9 @@ def validate_metadata(data):
     if not isinstance(data, dict):
         raise ValidationError(["Metadata must be a JSON object."])
     clean = dict(data)
+    sid = clean.get("id")
+    if sid is not None and not (isinstance(sid, str) and re.match(r"^[0-9a-f]{12}$", sid)):
+        errors.append("'id' must be 12 lowercase hex characters (ScriptHub writes it; remove it to get a new one).")
 
     def text(key, limit):
         v = clean.get(key)

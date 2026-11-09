@@ -3,7 +3,6 @@
 Only files whose extension is explicitly mapped to an interpreter in the
 configuration are catalogued. Nothing is ever executed during discovery.
 """
-import hashlib
 import os
 import threading
 import time
@@ -11,7 +10,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import config
-from . import metadata
+from . import ids, metadata
 from .parameter_service import validate_metadata
 from .validators import ValidationError
 
@@ -76,6 +75,9 @@ class Script:
     language: str = ""
     language_label: str = ""
     platforms: list = field(default_factory=list)
+    # ``id`` is the stable id from the metadata block when it has one, else the path id.
+    path_id: str = ""
+    id_conflict: str = ""          # path of another script with the same stable id (this is a copy)
 
     @property
     def platform_labels(self) -> list:
@@ -94,8 +96,52 @@ class Script:
 
 
 def script_id(path: Path) -> str:
-    key = os.path.normcase(str(path))
-    return hashlib.sha1(key.encode("utf-8")).hexdigest()[:12]
+    """The path id (a script without a stable id in its metadata is known by this)."""
+    return ids.path_id(path)
+
+
+def all_ids(script) -> set:
+    """Every id runs or links may use for ``script``: its id, its path id, and old ids
+    that now alias to it."""
+    out = {script.id, script.path_id} - {""}
+    out |= {old for old in ids.aliases() if ids.canonical(old) == script.id}
+    return out
+
+
+def _is_original(a: Script, b: Script) -> bool:
+    """Of two scripts with the same stable id, is ``a`` the original (b the copy)? The one
+    whose old path id became that id (where the id was first written) wins, else the file
+    created first."""
+    a_home, b_home = ids.canonical(a.path_id) == a.id, ids.canonical(b.path_id) == b.id
+    if a_home != b_home:
+        return a_home
+
+    def created(s):
+        try:
+            return s.path.stat().st_ctime
+        except OSError:
+            return float("inf")
+    return (created(a), str(a.path)) <= (created(b), str(b.path))
+
+
+def _place(scripts: dict, script: Script, problems=None) -> None:
+    """Add ``script``; of two scripts with the same stable id, the copy keeps its path id
+    (and gets a new stable id on its next save)."""
+    other = scripts.get(script.id)
+    if other is not None and other.path != script.path:
+        original, copy = (script, other) if _is_original(script, other) else (other, script)
+        if copy is other:
+            del scripts[other.id]
+        copy.id_conflict = str(original.path)
+        copy.id = copy.path_id
+        scripts[copy.id] = copy
+        scripts[original.id] = original
+        msg = (f"{copy.path} has the same id as {original.path} (a copy?); "
+               "it gets a new id the next time it is saved.")
+        if problems is not None and msg not in problems:
+            problems.append(msg)
+        return
+    scripts[script.id] = script
 
 
 def _pretty(stem: str) -> str:
@@ -103,9 +149,10 @@ def _pretty(stem: str) -> str:
 
 
 def _build(path: Path, root: Path, interpreters: dict) -> Script:
-    sid = script_id(path)
+    pid = script_id(path)
     ext = path.suffix.lower()
-    data, source, err = metadata.load_raw(path, sid)
+    data, source, err = metadata.load_raw(path, pid)
+    sid = data.get("id") if ids.valid(data.get("id")) else pid
     if not isinstance(data.get("name"), str) or not data["name"].strip():
         name = _pretty(path.stem)
     else:
@@ -147,6 +194,7 @@ def _build(path: Path, root: Path, interpreters: dict) -> Script:
         language=lang_key,
         language_label=lang_label,
         platforms=[p for p in ALL_PLATFORMS if p in platforms],
+        path_id=pid,
     )
 
 
@@ -191,7 +239,16 @@ class _Job:
     def _walk(self):
         cfg = config.load_config()
         interpreters = {k.lower(): v for k, v in cfg["interpreters"].items()}
+        seen = set()
         for root in self.roots:
+            if root.is_file():                      # a single script opened on its own
+                if root.suffix.lower() in interpreters:
+                    script = _build(root, root.parent, interpreters)
+                    with _lock:
+                        _place(self.scripts, script, self.problems)
+                else:
+                    self.problems.append(f"Not a script type with an interpreter: {root}")
+                continue
             if not root.is_dir():
                 self.problems.append(f"Folder not found: {root}")
                 continue
@@ -220,12 +277,12 @@ class _Job:
                         continue
                     if not real.is_file():
                         continue
-                    sid = script_id(real)
-                    if sid in self.scripts:  # duplicate/overlapping roots
+                    if real in seen:          # overlapping roots: the same file twice
                         continue
+                    seen.add(real)
                     script = _build(real, root, interpreters)
                     with _lock:
-                        self.scripts[sid] = script
+                        _place(self.scripts, script, self.problems)
             if too_deep:
                 more = f" (and {len(too_deep) - 1} more)" if len(too_deep) > 1 else ""
                 self.problems.append(f"Not scanned, more than {MAX_DEPTH} folder levels deep: {too_deep[0]}{more}")
@@ -310,8 +367,9 @@ def update_file(path) -> None:
     key, roots = _roots()
     path = Path(path).resolve()
     interpreters = {k.lower(): v for k, v in config.load_config()["interpreters"].items()}
-    root = next((r for r in roots if is_within(path, r)), None)
-    sid = script_id(path)
+    root = next((r for r in roots if r == path or is_within(path, r)), None)
+    if root is not None and root == path:          # a single script opened on its own
+        root = path.parent
     script = None
     if root is not None and path.suffix.lower() in interpreters and path.is_file():
         script = _build(path, root, interpreters)
@@ -322,12 +380,13 @@ def update_file(path) -> None:
         if _job is not None and _job.key == key:
             targets.append(_job.scripts)
         for scripts in targets:
-            if script is None:
-                scripts.pop(sid, None)
-            else:
-                if sid not in scripts and scripts is _state["scripts"]:
+            # its id may have changed (a stable id was written), so drop it by path
+            for old_key in [k for k, s in scripts.items() if s.path == path]:
+                del scripts[old_key]
+            if script is not None:
+                if scripts is _state["scripts"]:
                     _state["version"] += 1
-                scripts[sid] = script
+                _place(scripts, script, _state["problems"] if scripts is _state["scripts"] else None)
 
 
 def status() -> dict:
@@ -345,8 +404,32 @@ def status() -> dict:
 
 
 def get_script(sid: str, force: bool = False) -> Script | None:
+    """By id; an old id (its path id, or one that became an alias) finds it too."""
     scripts, _ = scan(force=force)
     for s in scripts:
         if s.id == sid:
             return s
+    for s in scripts:
+        if s.path_id == sid:
+            return s
+    stable = ids.canonical(sid)
+    if stable != sid:
+        for s in scripts:
+            if s.id == stable:
+                return s
     return None
+
+
+def load_file(path) -> Script | None:
+    """One script file read directly (not from the scan), with its folder as root: a
+    sequence step whose script is outside the open folder. None when the file is gone or
+    has no interpreter. ``path`` comes from ScriptHub's own files, never from the browser."""
+    cfg = config.load_config()
+    interpreters = {k.lower(): v for k, v in cfg["interpreters"].items()}
+    try:
+        real = Path(path).resolve()
+        if not real.is_file() or real.suffix.lower() not in interpreters:
+            return None
+        return _build(real, real.parent, interpreters)
+    except (OSError, ValueError):
+        return None

@@ -124,13 +124,27 @@ def list_run_ids(newest_first: bool = True):
     return sorted(ids, reverse=newest_first)
 
 
+def canonical_script(meta: dict) -> dict:
+    """A run's ``script_id`` as the script is known now: runs recorded under an old path id
+    belong to the stable id that replaced it (runner/ids.py)."""
+    from . import ids
+    if meta.get("script_id"):
+        meta["script_id"] = ids.canonical(meta["script_id"])
+    return meta
+
+
 def list_runs(limit=None, statuses=None, script_id=None):
+    """Newest first; ``script_id`` (any id of the script) keeps only its runs."""
     out = []
+    if script_id:
+        from . import ids
+        script_id = ids.canonical(script_id)
     for run_id in list_run_ids():
         meta = read_meta(run_id)
         if meta is None:
             continue
         meta.setdefault("id", run_id)
+        canonical_script(meta)
         if statuses and meta.get("status") not in statuses:
             continue
         if script_id and meta.get("script_id") != script_id:
