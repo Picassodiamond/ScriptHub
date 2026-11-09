@@ -1,16 +1,34 @@
 # --- scripthub ---
-# {
-#   "name": "Search a log file",
-#   "description": "Show the lines of a log that match a pattern, with context, and a count per level. Try it on app.log next to it.",
-#   "category": "Data",
-#   "parameters": [
-#     {"name": "file", "label": "Log file", "type": "file", "default": "app.log", "required": true, "help": "Relative paths start in this script's folder"},
-#     {"name": "pattern", "label": "Pattern (regular expression)", "type": "text", "default": "ERROR|WARN", "required": true},
-#     {"name": "ignore_case", "label": "Ignore case", "type": "boolean", "default": true},
-#     {"name": "context", "label": "Lines of context", "type": "number", "default": 0, "min": 0, "max": 20},
-#     {"name": "fail_if_found", "label": "Fail when found", "type": "boolean", "default": false, "help": "Useful in a sequence"}
-#   ]
-# }
+# name: Search a log file
+# description: Show the lines of a log that match a pattern, with context, and a count per level. Try it on app.log next to it.
+# category: Data
+# parameters:
+#   - name: file
+#     label: Log file
+#     type: file
+#     default: app.log
+#     required: true
+#     help: "Relative paths start in this script's folder"
+#   - name: pattern
+#     label: Pattern (regular expression)
+#     type: text
+#     default: "ERROR|WARN"
+#     required: true
+#   - name: ignore_case
+#     label: Ignore case
+#     type: boolean
+#     default: true
+#   - name: context
+#     label: Lines of context
+#     type: number
+#     default: 0
+#     min: 0
+#     max: 20
+#   - name: fail_if_found
+#     label: Fail when found
+#     type: boolean
+#     default: false
+#     help: Useful in a sequence
 # --- end scripthub ---
 """grep-like search that works the same on Windows and Linux."""
 import argparse

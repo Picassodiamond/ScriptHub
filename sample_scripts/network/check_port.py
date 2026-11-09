@@ -1,14 +1,26 @@
 # --- scripthub ---
-# {
-#   "name": "Check a TCP port",
-#   "description": "Try to connect to host:port and fail when it is closed or does not answer in time.",
-#   "category": "Network",
-#   "parameters": [
-#     {"name": "host", "label": "Host", "type": "text", "default": "github.com", "required": true, "pattern": "[A-Za-z0-9.:-]+"},
-#     {"name": "port", "label": "Port", "type": "number", "default": 443, "min": 1, "max": 65535},
-#     {"name": "timeout", "label": "Timeout (seconds)", "type": "number", "default": 5, "min": 1, "max": 120}
-#   ]
-# }
+# name: Check a TCP port
+# description: Try to connect to host:port and fail when it is closed or does not answer in time.
+# category: Network
+# parameters:
+#   - name: host
+#     label: Host
+#     type: text
+#     default: github.com
+#     required: true
+#     pattern: "[A-Za-z0-9.:-]+"
+#   - name: port
+#     label: Port
+#     type: number
+#     default: 443
+#     min: 1
+#     max: 65535
+#   - name: timeout
+#     label: Timeout (seconds)
+#     type: number
+#     default: 5
+#     min: 1
+#     max: 120
 # --- end scripthub ---
 """Exit 0 when a TCP connection to HOST:PORT succeeds, 1 otherwise."""
 import argparse

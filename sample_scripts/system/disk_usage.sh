@@ -1,15 +1,21 @@
 #!/usr/bin/env bash
 # --- scripthub ---
-# {
-#   "name": "Largest folders (Bash)",
-#   "description": "The biggest entries in a folder (du) and the file system's free space (df). For Linux hosts over SSH.",
-#   "category": "System",
-#   "platforms": ["linux", "macos"],
-#   "parameters": [
-#     {"name": "path", "label": "Folder", "type": "directory", "default": "/var/log", "required": true},
-#     {"name": "top", "label": "Entries", "type": "number", "default": 10, "min": 1, "max": 100}
-#   ]
-# }
+# name: Largest folders (Bash)
+# description: "The biggest entries in a folder (du) and the file system's free space (df). For Linux hosts over SSH."
+# category: System
+# platforms: [linux, macos]
+# parameters:
+#   - name: path
+#     label: Folder
+#     type: directory
+#     default: /var/log
+#     required: true
+#   - name: top
+#     label: Entries
+#     type: number
+#     default: 10
+#     min: 1
+#     max: 100
 # --- end scripthub ---
 set -u
 path="" top=10

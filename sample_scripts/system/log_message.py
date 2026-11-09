@@ -1,14 +1,23 @@
 # --- scripthub ---
-# {
-#   "name": "Log a message",
-#   "description": "Print a message and append it, with the time, to a log file. Use it at the end of a sequence: one after the success arrows, one after the failure arrows.",
-#   "category": "System",
-#   "parameters": [
-#     {"name": "message", "label": "Message", "type": "text", "default": "All done.", "required": true, "max_length": 500},
-#     {"name": "level", "label": "Level", "type": "select", "choices": ["info", "warning", "error"], "default": "info"},
-#     {"name": "log_file", "label": "Log file", "type": "file", "help": "Empty = scripthub-messages.log in the temp folder"}
-#   ]
-# }
+# name: Log a message
+# description: "Print a message and append it, with the time, to a log file. Use it at the end of a sequence: one after the success arrows, one after the failure arrows."
+# category: System
+# parameters:
+#   - name: message
+#     label: Message
+#     type: text
+#     default: All done.
+#     required: true
+#     max_length: 500
+#   - name: level
+#     label: Level
+#     type: select
+#     choices: [info, warning, error]
+#     default: info
+#   - name: log_file
+#     label: Log file
+#     type: file
+#     help: Empty = scripthub-messages.log in the temp folder
 # --- end scripthub ---
 """Append '<time> <LEVEL> <message>' to a log file and print it."""
 import argparse

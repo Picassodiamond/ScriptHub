@@ -1,15 +1,30 @@
 # --- scripthub ---
-# {
-#   "name": "Find large files",
-#   "description": "List the largest files under a folder.",
-#   "category": "Files",
-#   "parameters": [
-#     {"name": "folder", "label": "Folder", "type": "directory", "default": ".", "required": true},
-#     {"name": "min_mb", "label": "At least (MB)", "type": "number", "default": 10, "min": 0, "max": 1000000},
-#     {"name": "top", "label": "Show", "type": "number", "default": 20, "min": 1, "max": 1000},
-#     {"name": "pattern", "label": "File pattern", "type": "text", "default": "*", "help": "e.g. *.log"}
-#   ]
-# }
+# name: Find large files
+# description: List the largest files under a folder.
+# category: Files
+# parameters:
+#   - name: folder
+#     label: Folder
+#     type: directory
+#     default: .
+#     required: true
+#   - name: min_mb
+#     label: At least (MB)
+#     type: number
+#     default: 10
+#     min: 0
+#     max: 1000000
+#   - name: top
+#     label: Show
+#     type: number
+#     default: 20
+#     min: 1
+#     max: 1000
+#   - name: pattern
+#     label: File pattern
+#     type: text
+#     default: "*"
+#     help: "e.g. *.log"
 # --- end scripthub ---
 """Walk a folder and print the largest files, biggest first. Folders it cannot read are skipped."""
 import argparse

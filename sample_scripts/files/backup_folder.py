@@ -1,15 +1,33 @@
 # --- scripthub ---
-# {
-#   "name": "Back up a folder",
-#   "description": "Pack a folder into a dated .zip or .tar.gz and keep only the newest backups.",
-#   "category": "Files",
-#   "parameters": [
-#     {"name": "source", "label": "Folder to back up", "type": "directory", "required": true, "placeholder": "C:\\Users\\me\\Documents\\notes"},
-#     {"name": "destination", "label": "Backup folder", "type": "directory", "required": true, "placeholder": "D:\\Backups"},
-#     {"name": "format", "label": "Format", "type": "select", "choices": [{"value": "zip", "label": ".zip"}, {"value": "gztar", "label": ".tar.gz"}], "default": "zip"},
-#     {"name": "keep", "label": "Backups to keep", "type": "number", "default": 5, "min": 1, "max": 365}
-#   ]
-# }
+# name: Back up a folder
+# description: Pack a folder into a dated .zip or .tar.gz and keep only the newest backups.
+# category: Files
+# parameters:
+#   - name: source
+#     label: Folder to back up
+#     type: directory
+#     required: true
+#     placeholder: C:\Users\me\Documents\notes
+#   - name: destination
+#     label: Backup folder
+#     type: directory
+#     required: true
+#     placeholder: D:\Backups
+#   - name: format
+#     label: Format
+#     type: select
+#     choices:
+#       - value: zip
+#         label: .zip
+#       - value: gztar
+#         label: .tar.gz
+#     default: zip
+#   - name: keep
+#     label: Backups to keep
+#     type: number
+#     default: 5
+#     min: 1
+#     max: 365
 # --- end scripthub ---
 """Archive SOURCE into DESTINATION/<name>-YYYYMMDD-HHMMSS.<ext>, then delete the oldest beyond --keep."""
 import argparse

@@ -356,10 +356,10 @@ class PageTests(SimpleTestCase):
     def test_editing_the_block_in_the_script_changes_the_metadata(self):
         self.client.post(f"/scripts/{self.sid}/", {"name": "Tool", "host": "local"})     # moves it into tool.py
         text = (self.scripts / "tool.py").read_text()
-        self.assertIn('"name": "Tool"', text)
+        self.assertIn("\n# name: Tool\n", text)                     # YAML, not JSON
         page = self.client.get(self.url("edit"))
         base_hash = page.content.decode().split('name="base_hash" value="', 1)[1].split('"', 1)[0]
-        r = self.client.post(self.url("edit"), {"content": text.replace('"name": "Tool"', '"name": "Edited in code"'),
+        r = self.client.post(self.url("edit"), {"content": text.replace("# name: Tool\n", "# name: Edited in code\n"),
                                                 "base_hash": base_hash, "action": "save"})
         self.assertEqual(r.status_code, 302)
         self.assertEqual(discovery.get_script(self.sid, force=True).name, "Edited in code")

@@ -24,7 +24,7 @@ class YamlishTests(SimpleTestCase):
         self.assertEqual(yamlish.load(text), {"a": 1, "b": ["x", "it's"], "c": None, "d": {"e": "q"}})
 
     def test_unsupported_or_broken_input_raises(self):
-        for bad in ("a:\n\t- x", "a: [1, 2]", "a: &anchor x", "- x\n- y", "a: 1\n  b: 2", "a: 'open", 'a: "bad\\q"',
+        for bad in ("a:\n\t- x", "a: [1, 2", "a: [1 2]x", "a: {k}", "a: ['x]", "a: [&x]", "a: &anchor x", "- x\n- y", "a: 1\n  b: 2", "a: 'open", 'a: "bad\\q"',
                     "a:\n  - b: 1\n    - c"):
             with self.assertRaises(yamlish.YamlError, msg=bad):
                 yamlish.load(bad)
@@ -50,3 +50,22 @@ class YamlishTests(SimpleTestCase):
     def test_lists_inside_lists_are_refused(self):
         with self.assertRaises(yamlish.YamlError):
             yamlish.dump({"a": [["x"]]})
+
+    def test_flow_collections(self):
+        text = ("a: [1, 'x''y', \"q,w\", {k: v, z: [true, null]}]\np:\n  - {name: a, type: text}\n  - [1, 2]\n"
+                "e: [ ]\nu: [http://x:80/a]\nt: [a, b, ]\n")
+        self.assertEqual(yamlish.load(text), {"a": [1, "x'y", "q,w", {"k": "v", "z": [True, None]}],
+                                              "p": [{"name": "a", "type": "text"}, [1, 2]], "e": [],
+                                              "u": ["http://x:80/a"], "t": ["a", "b"]})
+
+    def test_flow_dump_round_trip(self):
+        data = {"name": "Hello", "parameters": [
+            {"name": "greeting", "type": "select", "default": "on",
+             "choices": ["Hello", "Hi, there", "on", "5", "[x]", "a: b", "", "it's", "{y}"]},
+            {"name": "n", "type": "number", "default": 1.5, "min": -3, "help": None}],
+            "tags": [], "nested": {"a": [1, 2]}, "lol": [[1, 2], ["a,b"]], "long": ["x" * 30] * 5}
+        text = yamlish.dump(data, flow=True)
+        self.assertIn('\n    choices: [Hello, "Hi, there", "on", "5", "[x]", "a: b", "", "it\'s", "{y}"]\n', text)
+        self.assertIn("\nlong:\n  - xxx", text)                  # too long for one line
+        self.assertEqual(yamlish.load(text), data)
+        self.assertNotIn("[", yamlish.dump({"a": ["x", "y"]}))    # saved values keep block lists

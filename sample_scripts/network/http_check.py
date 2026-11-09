@@ -1,15 +1,30 @@
 # --- scripthub ---
-# {
-#   "name": "Check a web page",
-#   "description": "Request a URL and fail when the status code or the page text is not what you expect.",
-#   "category": "Network",
-#   "parameters": [
-#     {"name": "url", "label": "URL", "type": "text", "default": "https://example.com/", "required": true, "pattern": "https?://\\S+"},
-#     {"name": "status", "label": "Expected status", "type": "number", "default": 200, "min": 100, "max": 599},
-#     {"name": "contains", "label": "Page contains", "type": "text", "help": "Optional text that must be on the page"},
-#     {"name": "timeout", "label": "Timeout (seconds)", "type": "number", "default": 10, "min": 1, "max": 120}
-#   ]
-# }
+# name: Check a web page
+# description: Request a URL and fail when the status code or the page text is not what you expect.
+# category: Network
+# parameters:
+#   - name: url
+#     label: URL
+#     type: text
+#     default: https://example.com/
+#     required: true
+#     pattern: "https?://\\S+"
+#   - name: status
+#     label: Expected status
+#     type: number
+#     default: 200
+#     min: 100
+#     max: 599
+#   - name: contains
+#     label: Page contains
+#     type: text
+#     help: Optional text that must be on the page
+#   - name: timeout
+#     label: Timeout (seconds)
+#     type: number
+#     default: 10
+#     min: 1
+#     max: 120
 # --- end scripthub ---
 """GET a URL (redirects followed); exit 1 on a different status, missing text or no answer."""
 import argparse

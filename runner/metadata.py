@@ -1,17 +1,22 @@
-"""Script metadata: a JSON block in a comment at the top of the script itself.
+"""Script metadata: a YAML block in a comment at the top of the script itself.
 
     #!/usr/bin/env python3
     # --- scripthub ---
-    # {
-    #   "name": "Directory Backup",
-    #   "category": "Backup",
-    #   "parameters": [
-    #     {"name": "source", "type": "directory", "required": true, "arg": "--source"}
-    #   ]
-    # }
+    # name: Directory Backup
+    # category: Backup
+    # parameters:
+    #   - name: source
+    #     type: directory
+    #     required: true
+    #     arg: --source
+    #   - name: mode
+    #     type: select
+    #     choices: [full, incremental]
     # --- end scripthub ---
 
-Batch files use ``::`` instead of ``#``. The block goes after a ``#!`` line, a Python
+The YAML is the subset of runner/yamlish.py (no third-party parser). Blocks written as
+JSON (before version 2.2: the body starts with ``{``) are still read and become YAML on
+the next save. Batch files use ``::`` instead of ``#``. The block goes after a ``#!`` line, a Python
 encoding line or ``@echo off``. Saving rewrites only the block (atomically, keeping the
 line endings and a BOM; the previous version goes to runtime/backups/<id>/).
 
@@ -30,7 +35,7 @@ import tempfile
 from pathlib import Path
 
 import config
-from . import backups, ids
+from . import backups, ids, yamlish
 from .fsutil import _replace_with_retry, atomic_write_json, read_json
 
 START, END = "--- scripthub ---", "--- end scripthub ---"
@@ -39,6 +44,7 @@ MAX_SCAN = 256 * 1024                     # the block is near the top; never rea
 _MARK = re.compile(r"^\s*(?:#|::|rem\b)\s*(" + re.escape(START) + "|" + re.escape(END) + r")\s*$", re.I)
 _PREFIX = re.compile(r"^\s*(?:#|::|rem\b) ?", re.I)
 _KEEP_FIRST = re.compile(r"^(#!|#.*coding[:=]|@echo\s+off\b)", re.I)
+_YAML_LINE = re.compile(r"\bline (\d+)\b")
 
 
 def prefix_for(script_path: Path) -> str:
@@ -76,30 +82,27 @@ def parse_block(text: str):
     if span is None:
         return None, None
     body = "\n".join(_PREFIX.sub("", line, count=1) for line in lines[span[0] + 1:span[1]])
+    where = f"lines {span[0] + 1}-{span[1] + 1}"
+    if body.lstrip().startswith("{"):                 # written as JSON (before 2.2)
+        try:
+            data = json.loads(body)
+        except ValueError as exc:
+            return {}, f"Invalid metadata block ({where}, JSON): {exc}"
+        if not isinstance(data, dict):
+            return {}, "The metadata block must contain a JSON object {…}."
+        return data, None
     try:
-        data = json.loads(body or "{}")
-    except ValueError as exc:
-        return {}, f"Invalid metadata block (lines {span[0] + 1}-{span[1] + 1}): {exc}"
-    if not isinstance(data, dict):
-        return {}, "The metadata block must contain a JSON object {…}."
+        data = yamlish.load(body)
+    except yamlish.YamlError as exc:                 # "line n" of the block -> line of the script
+        msg = _YAML_LINE.sub(lambda m: f"line {int(m.group(1)) + span[0] + 1}", str(exc), count=1)
+        return {}, f"Invalid metadata block ({where}): {msg}"
     return data, None
 
 
 def format_block(data: dict, prefix: str = "#") -> list:
-    """The block's lines: one key per line, one parameter per line (compact and diff-friendly)."""
-    body = ["{"]
-    items = list(data.items())
-    for n, (key, value) in enumerate(items):
-        comma = "," if n < len(items) - 1 else ""
-        if key == "parameters" and isinstance(value, list) and value:
-            body.append(f'  "parameters": [')
-            for i, p in enumerate(value):
-                body.append("    " + json.dumps(p, ensure_ascii=False) + ("," if i < len(value) - 1 else ""))
-            body.append("  ]" + comma)
-        else:
-            body.append(f"  {json.dumps(key)}: {json.dumps(value, ensure_ascii=False)}{comma}")
-    body.append("}")
-    return [f"{prefix} {START}"] + [f"{prefix} {line}" for line in body] + [f"{prefix} {END}"]
+    """The block's lines: YAML, one key per line, short lists such as ``choices`` on one line."""
+    body = yamlish.dump(data, flow=True).splitlines() if data else []
+    return [f"{prefix} {START}"] + [f"{prefix} {line}".rstrip() for line in body] + [f"{prefix} {END}"]
 
 
 def _read_script(script_path: Path):

@@ -16,10 +16,10 @@ Written by ``dump`` and read by ``load``:
       - script: 3f9a1c0b7d22
         on_failure: stop
       - {}
+    choices: [Hello, "Hi, there"]  # flow list / {a: 1, b: [x]} flow mapping (one line)
 
-Anything else (anchors, multi-line strings, flow collections with items, lists
-inside lists, tabs for
-indentation) raises ``YamlError``: the files are written by ScriptHub and only
+Anything else (anchors, multi-line strings, flow collections over several lines,
+block lists inside lists, tabs for indentation) raises ``YamlError``: the files are written by ScriptHub and only
 occasionally edited by hand, so a clear error beats guessing.
 """
 import json
@@ -52,24 +52,45 @@ def _scalar(v) -> str:
     return json.dumps(s, ensure_ascii=False)          # a JSON string is a valid double-quoted YAML scalar
 
 
+_FLOW_BAD = re.compile(r"[,\[\]{}]")
+FLOW_WIDTH = 100                                       # longer lists of scalars are written as blocks
+
+
+def _flow(v) -> str:
+    """``v`` as a one-line flow value (lists and mappings in brackets)."""
+    if isinstance(v, dict):
+        return "{" + ", ".join(f"{_key(k)}: {_flow(x)}" for k, x in v.items()) + "}"
+    if isinstance(v, (list, tuple)):
+        return "[" + ", ".join(_flow(x) for x in v) + "]"
+    text = _scalar(v)
+    if not text.startswith('"') and _FLOW_BAD.search(text):
+        text = json.dumps(str(v), ensure_ascii=False)
+    return text
+
+
 def _key(k) -> str:
     k = str(k)
     return k if _KEY.match(k) and k.lower() not in _RESERVED else json.dumps(k, ensure_ascii=False)
 
 
-def _dump_map(d: dict, level: int, out: list) -> None:
+def _dump_map(d: dict, level: int, out: list, flow: bool = False) -> None:
     pad = INDENT * level
     for k, v in d.items():
         if isinstance(v, dict):
             if v:
                 out.append(f"{pad}{_key(k)}:")
-                _dump_map(v, level + 1, out)
+                _dump_map(v, level + 1, out, flow)
             else:
                 out.append(f"{pad}{_key(k)}: {{}}")
         elif isinstance(v, (list, tuple)):
             if not v:
                 out.append(f"{pad}{_key(k)}: []")
                 continue
+            if flow and not any(isinstance(item, dict) for item in v):
+                line = f"{pad}{_key(k)}: {_flow(v)}"
+                if len(line) <= FLOW_WIDTH or any(isinstance(item, (list, tuple)) for item in v):
+                    out.append(line)
+                    continue
             out.append(f"{pad}{_key(k)}:")
             for item in v:
                 if isinstance(item, dict):           # "- key: value", further keys under the first
@@ -77,21 +98,25 @@ def _dump_map(d: dict, level: int, out: list) -> None:
                         out.append(f"{pad}{INDENT}- {{}}")
                         continue
                     sub = []
-                    _dump_map(item, level + 2, sub)
+                    _dump_map(item, level + 2, sub, flow)
                     sub[0] = f"{pad}{INDENT}- " + sub[0].lstrip(" ")
                     out.extend(sub)
                     continue
                 if isinstance(item, (list, tuple)):
-                    raise YamlError("Lists inside lists are not supported.")
+                    if not flow:
+                        raise YamlError("Lists inside lists are not supported.")
+                    out.append(f"{pad}{INDENT}- {_flow(item)}")
+                    continue
                 out.append(f"{pad}{INDENT}- {_scalar(item)}")
         else:
             out.append(f"{pad}{_key(k)}: {_scalar(v)}")
 
 
-def dump(data: dict, header: str = "") -> str:
-    """``data`` (a mapping of scalars, lists of scalars and nested mappings) as YAML text."""
+def dump(data: dict, header: str = "", flow: bool = False) -> str:
+    """``data`` (a mapping of scalars, lists of scalars and nested mappings) as YAML text.
+    ``flow``: short lists of scalars on one line (``choices: [a, b]``)."""
     out = [f"# {line}".rstrip() for line in header.splitlines()] if header else []
-    _dump_map(data, 0, out)
+    _dump_map(data, 0, out, flow)
     return "\n".join(out) + "\n"
 
 
@@ -123,11 +148,9 @@ def _parse_scalar(s: str, line_no: int):
         if len(s) < 2 or not s.endswith("'"):
             raise YamlError(f"line {line_no}: unterminated single-quoted string")
         return s[1:-1].replace("''", "'")
-    if s in ("[]",):
-        return []
-    if s in ("{}",):
-        return {}
-    if s.startswith(("[", "{", "&", "*", "!", "|", ">")):
+    if s.startswith(("[", "{")):
+        return _parse_flow(s, line_no)
+    if s.startswith(("&", "*", "!", "|", ">")):
         raise YamlError(f"line {line_no}: this YAML feature is not supported here")
     low = s.lower()
     if low in ("true", "yes", "on"):
@@ -141,6 +164,98 @@ def _parse_scalar(s: str, line_no: int):
     if _FLOAT.match(s):
         return float(s)
     return s
+
+
+def _parse_flow(s: str, line_no: int):
+    """A one-line flow collection: ``[a, "b, c", {k: v}]`` or ``{k: v, n: [1, 2]}``."""
+    pos = 0
+
+    def fail(what):
+        raise YamlError(f"line {line_no}: {what} in a [...] / {{...}} value")
+
+    def spaces():
+        nonlocal pos
+        while pos < len(s) and s[pos] in " \t":
+            pos += 1
+
+    def quoted():
+        nonlocal pos
+        q, end = s[pos], pos + 1
+        while end < len(s):
+            if q == '"' and s[end] == "\\":
+                end += 2
+                continue
+            if s[end] == q:
+                if q == "'" and s[end + 1:end + 2] == "'":
+                    end += 2
+                    continue
+                break
+            end += 1
+        if end >= len(s):
+            fail("an unterminated string")
+        text, pos = s[pos:end + 1], end + 1
+        return _parse_scalar(text, line_no)
+
+    def plain(stop):
+        nonlocal pos
+        start = pos
+        while pos < len(s) and s[pos] not in stop:    # values may contain ':' (http://x:80)
+            pos += 1
+        return s[start:pos].strip()
+
+    def value():
+        nonlocal pos
+        spaces()
+        if pos >= len(s):
+            fail("a missing value")
+        c = s[pos]
+        if c in "[{":
+            return collection()
+        if c in "\"'":
+            return quoted()
+        text = plain(",]}")
+        if text.startswith(("&", "*", "!", "|", ">", "#")):
+            fail(f"an unsupported value {text!r}")
+        return _parse_scalar(text, line_no)
+
+    def collection():
+        nonlocal pos
+        is_map, close = s[pos] == "{", "}" if s[pos] == "{" else "]"
+        pos += 1
+        result = {} if is_map else []
+        spaces()
+        if pos < len(s) and s[pos] == close:
+            pos += 1
+            return result
+        while True:
+            spaces()
+            if is_map:
+                key = quoted() if pos < len(s) and s[pos] == '"' else plain(":,]}")
+                spaces()
+                if pos >= len(s) or s[pos] != ":":
+                    fail("a key without ': value'")
+                pos += 1
+                result[str(key)] = value()
+            else:
+                result.append(value())
+            spaces()
+            if pos < len(s) and s[pos] == ",":
+                pos += 1
+                spaces()
+                if pos < len(s) and s[pos] == close:     # a trailing comma: [a, b,]
+                    pos += 1
+                    return result
+                continue
+            if pos < len(s) and s[pos] == close:
+                pos += 1
+                return result
+            fail(f"a missing ',' or '{close}'")
+
+    result = collection()
+    spaces()
+    if pos < len(s):
+        fail("text after the closing bracket")
+    return result
 
 
 def _split_key(text: str, line_no: int):

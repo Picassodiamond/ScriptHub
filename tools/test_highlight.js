@@ -4,15 +4,14 @@ eval(fs.readFileSync('static/js/highlight.js', 'utf8'));
 const h = window.highlight;
 let fail = 0;
 function check(name, ok) { if (!ok) fail++; console.log((ok ? 'ok   ' : 'FAIL ') + name); }
-const files = { python: 'sample_scripts/basics/parameter_tour.py', bash: 'sample_scripts/system/disk_usage.sh', batch: 'sample_scripts/system/list_directory.bat', json: 'sample_scripts/basics/parameter_tour.py' };
-// JSON sample: the metadata block at the top of parameter_tour.py, without its "# " prefixes.
-function metadataJson(src) {
-  const lines = src.split('\n'), s = lines.findIndex(l => /--- scripthub ---/.test(l)), e = lines.findIndex(l => /--- end scripthub ---/.test(l));
-  return lines.slice(s + 1, e).map(l => l.replace(/^# ?/, '')).join('\n');
+const files = { python: 'sample_scripts/basics/parameter_tour.py', bash: 'sample_scripts/system/disk_usage.sh', batch: 'sample_scripts/system/list_directory.bat', json: null };
+// JSON sample (an old metadata sidecar file; the block in a script is YAML now).
+function metadataJson() {
+  return JSON.stringify({ name: 'Parameter tour', category: 'Basics', count: 3, ratio: -1.5e3, flag: true, none: null,
+    parameters: [{ name: 'target', type: 'text', choices: ['a', 'b "c"'] }] }, null, 2);
 }
 for (const [lang, f] of Object.entries(files)) {
-  let text = fs.readFileSync(f, 'utf8').replace(/\r\n/g, '\n').replace(/\n$/, '');
-  if (lang === 'json') text = metadataJson(text);
+  const text = f ? fs.readFileSync(f, 'utf8').replace(/\r\n/g, '\n').replace(/\n$/, '') : metadataJson();
   const lines = h.lines(lang, text);
   check(lang + ' line count matches (' + lines.length + ')', lines.length === text.split('\n').length);
   const plain = lines.map(l => l.replace(/<[^>]+>/g, '').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&')).join('\n');

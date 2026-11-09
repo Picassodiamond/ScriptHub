@@ -1,14 +1,23 @@
 # --- scripthub ---
-# {
-#   "name": "File checksum",
-#   "description": "Print a file's hash, or check it against the expected one (fails when it differs).",
-#   "category": "Files",
-#   "parameters": [
-#     {"name": "file", "label": "File", "type": "file", "required": true, "placeholder": "C:\\Downloads\\setup.exe"},
-#     {"name": "algorithm", "label": "Algorithm", "type": "select", "choices": ["sha256", "sha1", "md5"], "default": "sha256"},
-#     {"name": "expected", "label": "Expected hash", "type": "text", "pattern": "[0-9a-fA-F]*", "help": "Optional"}
-#   ]
-# }
+# name: File checksum
+# description: "Print a file's hash, or check it against the expected one (fails when it differs)."
+# category: Files
+# parameters:
+#   - name: file
+#     label: File
+#     type: file
+#     required: true
+#     placeholder: C:\Downloads\setup.exe
+#   - name: algorithm
+#     label: Algorithm
+#     type: select
+#     choices: [sha256, sha1, md5]
+#     default: sha256
+#   - name: expected
+#     label: Expected hash
+#     type: text
+#     pattern: "[0-9a-fA-F]*"
+#     help: Optional
 # --- end scripthub ---
 """Hash a file in chunks; exit 1 when --expected is given and does not match."""
 import argparse

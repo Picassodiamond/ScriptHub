@@ -1,15 +1,29 @@
 # --- scripthub ---
-# {
-#   "name": "Summarise a CSV file",
-#   "description": "Group the rows of a CSV file by one column and add up another. Try it on sales.csv next to it.",
-#   "category": "Data",
-#   "parameters": [
-#     {"name": "file", "label": "CSV file", "type": "file", "default": "sales.csv", "required": true, "help": "Relative paths start in this script's folder"},
-#     {"name": "group_by", "label": "Group by column", "type": "text", "default": "region", "required": true},
-#     {"name": "value", "label": "Sum of column", "type": "text", "default": "amount", "required": true},
-#     {"name": "sort", "label": "Sort by", "type": "select", "choices": ["total", "name", "count"], "default": "total"}
-#   ]
-# }
+# name: Summarise a CSV file
+# description: Group the rows of a CSV file by one column and add up another. Try it on sales.csv next to it.
+# category: Data
+# parameters:
+#   - name: file
+#     label: CSV file
+#     type: file
+#     default: sales.csv
+#     required: true
+#     help: "Relative paths start in this script's folder"
+#   - name: group_by
+#     label: Group by column
+#     type: text
+#     default: region
+#     required: true
+#   - name: value
+#     label: Sum of column
+#     type: text
+#     default: amount
+#     required: true
+#   - name: sort
+#     label: Sort by
+#     type: select
+#     choices: [total, name, count]
+#     default: total
 # --- end scripthub ---
 """Print count, total and average of VALUE per GROUP_BY."""
 import argparse

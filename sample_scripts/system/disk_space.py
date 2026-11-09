@@ -1,13 +1,20 @@
 # --- scripthub ---
-# {
-#   "name": "Disk space check",
-#   "description": "Show free space on a drive or mount point and fail when it is fuller than the limit. Handy as the first step of a sequence.",
-#   "category": "System",
-#   "parameters": [
-#     {"name": "path", "label": "Drive or folder", "type": "directory", "default": ".", "required": true, "help": "Any folder on the drive, e.g. C:\\ or /var"},
-#     {"name": "max_used", "label": "Fail above (% used)", "type": "number", "default": 90, "min": 1, "max": 100}
-#   ]
-# }
+# name: Disk space check
+# description: Show free space on a drive or mount point and fail when it is fuller than the limit. Handy as the first step of a sequence.
+# category: System
+# parameters:
+#   - name: path
+#     label: Drive or folder
+#     type: directory
+#     default: .
+#     required: true
+#     help: Any folder on the drive, e.g. C:\ or /var
+#   - name: max_used
+#     label: "Fail above (% used)"
+#     type: number
+#     default: 90
+#     min: 1
+#     max: 100
 # --- end scripthub ---
 """Exit 1 when the file system holding PATH is more than MAX_USED percent full."""
 import argparse

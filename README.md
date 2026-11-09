@@ -313,16 +313,23 @@ it when you save the Overview or Parameters tab; you can also edit it in the cod
 
 ```python
 # --- scripthub ---
-# {
-#   "name": "Database Backup",
-#   "category": "Database",
-#   "parameters": [
-#     {"name": "database", "type": "text", "required": true},
-#     {"name": "backup_path", "type": "directory", "required": true},
-#     {"name": "compress", "type": "boolean", "default": true},
-#     {"name": "retention_days", "type": "number", "default": 30, "min": 1, "max": 365}
-#   ]
-# }
+# name: Database Backup
+# category: Database
+# parameters:
+#   - name: database
+#     type: text
+#     required: true
+#   - name: backup_path
+#     type: directory
+#     required: true
+#   - name: compress
+#     type: boolean
+#     default: true
+#   - name: retention_days
+#     type: number
+#     default: 30
+#     min: 1
+#     max: 365
 # --- end scripthub ---
 ```
 
@@ -378,16 +385,25 @@ backtick in any value, because `cmd.exe` would treat them as commands. Add a
 
 Metadata is optional. Without it a script is listed with a name made from its
 file name, the folder as its category, and no parameters. It lives **in the script
-itself**: a JSON object in a comment block between `# --- scripthub ---` and
+itself**: YAML in a comment block between `# --- scripthub ---` and
 `# --- end scripthub ---` (`:: --- scripthub ---` in `.bat` / `.cmd` files), at the
 top of the file, after a `#!` line, a Python encoding line or `@echo off`. One file
 to copy, move or commit. The Overview and Parameters tabs write the block for you;
-you can also edit it in the script. Scripts from older versions may still have a
+you can also edit it in the script.
+
+The YAML is a plain subset (ScriptHub reads it without extra packages): `key: value`
+lines, `- ` list items, nested keys indented with spaces, one-line lists and mappings
+(`choices: [full, incremental]`, `- {name: a, type: text}`), `# comments`, and quoted
+strings (`"…"` with JSON escapes such as `\n`, or `'…'`). Quote a value that contains
+`: ` or ` #`, or that would otherwise read as a number or `true`/`false`/`null`
+(`"007"`, `"yes"`). Anchors and multi-line `|` / `>` strings are not supported.
+Blocks written as JSON by older versions (`# {` … `# }`) are still read and are
+rewritten as YAML on the next save. Scripts from older versions may also have a
 `<stem>.json` next to them: it is read until the first save, which moves it into the
 script. If the script cannot be written, the metadata goes to
 `runtime/metadata_overrides/<path id>.json` instead.
 
-**Script id.** The first time ScriptHub writes the block it adds `"id"` (12 random hex
+**Script id.** The first time ScriptHub writes the block it adds `id` (12 random hex
 characters). That id stays with the file, so a script that is **moved or renamed keeps
 its saved values, backups and run history**. Scripts that never had their metadata
 saved are known by an id made from their path until then; when the stable id is
@@ -405,7 +421,7 @@ Don't edit the id by hand (remove it to get a new one).
 | `interpreter` | text | Overrides the interpreter (a command or full path) on every host. |
 | `host` | `local` or an SSH alias | Default host (can be changed on the run form). |
 | `working_directory` | path | Working directory for the run. Default: the script's folder (local) or the login directory (SSH). |
-| `environment` | object | Extra environment variables `{"NAME": "value"}`. |
+| `environment` | mapping | Extra environment variables (`NAME: value` lines indented under it). |
 | `platforms` | list | Any of `windows`, `linux`, `macos`; used by the Library's Platform filter. Defaults come from the file type (`.bat` → Windows, `.sh` → Linux/macOS, `.py` → all). |
 | `parameters` | list | See below. |
 
@@ -422,18 +438,18 @@ the script is kept as a backup (**Restore previous** in the editor).
 
 ## Defining parameters
 
-```json
-{
-  "name": "retention_days",
-  "label": "Retention Days",
-  "type": "number",
-  "default": 30,
-  "required": true,
-  "min": 1,
-  "max": 365,
-  "help": "Delete backups older than this",
-  "editable_at_runtime": true
-}
+One item of the `parameters` list:
+
+```yaml
+- name: retention_days
+  label: Retention Days
+  type: number
+  default: 30
+  required: true
+  min: 1
+  max: 365
+  help: Delete backups older than this
+  editable_at_runtime: true
 ```
 
 | Attribute | Meaning |
@@ -463,7 +479,7 @@ the script is kept as a backup (**Restore previous** in the editor).
 * Empty optional values are not passed at all.
 * `file` and `directory` are typed paths on the machine that runs the script
   (there is no file browser or upload).
-* A `password` is passed like any other value (use `"pass_as": "env"` to keep it
+* A `password` is passed like any other value (use `pass_as: env` to keep it
   off the process list), shown masked everywhere, **never stored in history or
   presets**.
 * Environment variables such as `PATH`, `LD_PRELOAD` and `PYTHONPATH` cannot be
@@ -841,7 +857,7 @@ How a remote run works:
 * The remote process id is captured so **Stop** and **timeouts** can end it.
 * Batch files cannot run remotely.
 * Passwords given as arguments are visible in the remote `ps` list; use
-  `"pass_as": "env"` where a script supports it.
+  `pass_as: env` where a script supports it.
 
 ---
 
@@ -1042,7 +1058,7 @@ ScriptHub's own data (settings, history, presets, sequences) is not in the code 
 | Symptom | Likely cause / fix |
 |---|---|
 | A script is missing from the library | Its extension is not under **Interpreters**, it is in an unconfigured folder, or press **Refresh**. |
-| *Fix metadata* instead of **Run** | The metadata block at the top of the script is not valid JSON; the error names the lines. Fix it in the editor. |
+| *Fix metadata* instead of **Run** | The metadata block at the top of the script is not valid (YAML, or JSON in an old block); the error names the lines. Fix it in the editor. |
 | Status **Failed**, error *SSH connection failed* | Run `ssh <host>` in a terminal: accept the host key, confirm key login works without a password. |
 | `Could not start the process` | The interpreter is not installed or not on `PATH`. Set the full path under **Settings → Interpreters**. |
 | `.sh` scripts fail on Windows locally | Local `.sh` needs Bash (Git Bash or WSL) on `PATH`; or run them on a Linux host over SSH. |

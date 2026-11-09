@@ -1,12 +1,12 @@
 # --- scripthub ---
-# {
-#   "name": "System information",
-#   "description": "Host name, operating system, Python, CPUs, uptime and the current user. Works locally and over SSH.",
-#   "category": "System",
-#   "parameters": [
-#     {"name": "json", "label": "As JSON", "type": "boolean", "default": false}
-#   ]
-# }
+# name: System information
+# description: Host name, operating system, Python, CPUs, uptime and the current user. Works locally and over SSH.
+# category: System
+# parameters:
+#   - name: json
+#     label: As JSON
+#     type: boolean
+#     default: false
 # --- end scripthub ---
 """Print basic facts about the machine the script runs on."""
 import argparse

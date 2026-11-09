@@ -1,16 +1,33 @@
 # --- scripthub ---
-# {
-#   "name": "Clean up old files",
-#   "description": "Find files older than N days that match a pattern, and delete them only when asked. A dry run is the default.",
-#   "category": "Files",
-#   "parameters": [
-#     {"name": "folder", "label": "Folder", "type": "directory", "required": true, "placeholder": "C:\\Temp\\logs"},
-#     {"name": "pattern", "label": "File pattern", "type": "text", "default": "*.log", "required": true},
-#     {"name": "days", "label": "Older than (days)", "type": "number", "default": 30, "min": 0, "max": 36500},
-#     {"name": "recursive", "label": "Include sub-folders", "type": "boolean", "default": false},
-#     {"name": "delete", "label": "Delete them", "type": "boolean", "default": false, "help": "Off = only list what would be deleted"}
-#   ]
-# }
+# name: Clean up old files
+# description: Find files older than N days that match a pattern, and delete them only when asked. A dry run is the default.
+# category: Files
+# parameters:
+#   - name: folder
+#     label: Folder
+#     type: directory
+#     required: true
+#     placeholder: C:\Temp\logs
+#   - name: pattern
+#     label: File pattern
+#     type: text
+#     default: "*.log"
+#     required: true
+#   - name: days
+#     label: Older than (days)
+#     type: number
+#     default: 30
+#     min: 0
+#     max: 36500
+#   - name: recursive
+#     label: Include sub-folders
+#     type: boolean
+#     default: false
+#   - name: delete
+#     label: Delete them
+#     type: boolean
+#     default: false
+#     help: Off = only list what would be deleted
 # --- end scripthub ---
 """Delete (or with a dry run, list) old files. Links are never followed or deleted."""
 import argparse

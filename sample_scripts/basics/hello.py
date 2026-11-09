@@ -1,15 +1,30 @@
 # --- scripthub ---
-# {
-#   "name": "Hello (Python)",
-#   "description": "The smallest useful script: a few parameters passed as --flags. Start here.",
-#   "category": "Basics",
-#   "parameters": [
-#     {"name": "name", "label": "Name", "type": "text", "default": "World", "required": true, "max_length": 60},
-#     {"name": "greeting", "label": "Greeting", "type": "select", "choices": ["Hello", "Hi", "Good morning", "Namaste"], "default": "Hello"},
-#     {"name": "times", "label": "Times", "type": "number", "default": 1, "min": 1, "max": 10},
-#     {"name": "shout", "label": "Shout", "type": "boolean", "default": false, "help": "Upper case"}
-#   ]
-# }
+# name: Hello (Python)
+# description: "The smallest useful script: a few parameters passed as --flags. Start here."
+# category: Basics
+# parameters:
+#   - name: name
+#     label: Name
+#     type: text
+#     default: World
+#     required: true
+#     max_length: 60
+#   - name: greeting
+#     label: Greeting
+#     type: select
+#     choices: [Hello, Hi, Good morning, Namaste]
+#     default: Hello
+#   - name: times
+#     label: Times
+#     type: number
+#     default: 1
+#     min: 1
+#     max: 10
+#   - name: shout
+#     label: Shout
+#     type: boolean
+#     default: false
+#     help: Upper case
 # --- end scripthub ---
 """Greet someone. ScriptHub calls it as: hello.py --name World --greeting Hello --times 1 [--shout]"""
 import argparse
