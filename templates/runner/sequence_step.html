@@ -1,6 +1,7 @@
 {% extends base %}
 {# A step's settings: as a page, or embedded (embed=1) in the right-hand column of the sequence page. #}
 {% block title %}Step {{ n }} · {{ seq.name }}{% endblock %}
+{% block side %}{% include "runner/_sequences_side.html" %}{% endblock %}
 {% block content %}
 <div class="{% if embed %}seq-embed{% else %}page page-narrow{% endif %}">
 {% if not embed %}<p class="small"><a href="{% url 'sequence_detail' seq.slug %}"><svg class="i i-sm"><use href="#i-back"/></svg> {{ seq.name }}</a></p>{% endif %}

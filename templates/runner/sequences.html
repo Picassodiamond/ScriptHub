@@ -1,52 +1,43 @@
 {% extends "base.html" %}
 {% block title %}Sequences{% endblock %}
+{% block side %}{% include "runner/_sequences_side.html" %}{% endblock %}
 {% block content %}
+{# Start page of Sequences: the list itself is in the side panel (favourites first). #}
 <div class="page page-narrow">
 
 <section class="panel">
-  <div class="panel-head"><h2>Sequences <span class="count-pill">{{ sequences|length }}</span></h2></div>
-  {% if sequences %}
-  <div class="table-wrap">
-  <table class="table">
-    <thead><tr><th>Name</th><th class="num">Steps</th><th class="hide-sm">Saved</th><th></th></tr></thead>
-    <tbody>
-      {% for s in sequences %}
-      <tr>
-        {% if s.error %}
-        <td><span class="strong mono">{{ s.slug }}</span><div class="field-error small">{{ s.error }}</div></td>
-        <td class="num">—</td><td class="hide-sm"></td>
-        {% else %}
-        <td class="strong"><a href="{% url 'sequence_detail' s.slug %}">{{ s.name }}</a></td>
-        <td class="num mono small">{{ s.steps }}</td>
-        <td class="small muted mono nowrap hide-sm">{{ s.saved_display }}</td>
-        {% endif %}
-        <td class="actions">
-          <div class="btn-row">
-            {% if not s.error %}<a class="btn btn-ghost btn-sm" href="{% url 'sequence_detail' s.slug %}"><svg class="i"><use href="#i-edit"/></svg> Open</a>{% endif %}
-            <form method="post" action="{% url 'sequence_delete' s.slug %}" data-confirm="Delete the sequence “{{ s.name }}”? Its past runs stay in History.">{% csrf_token %}
-              <button class="btn btn-ghost btn-icon btn-sm btn-del" type="submit" title="Delete sequence" aria-label="Delete sequence"><svg class="i"><use href="#i-trash"/></svg></button>
-            </form>
-          </div>
-        </td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-  </div>
-  {% else %}
-  <div class="panel-body muted small">A sequence runs existing scripts in the order you connect them with arrows (one after another, side by side, or only when a step failed), each with its own values and host. Create one below.</div>
-  {% endif %}
-  <div class="panel-foot">
+  <div class="panel-head"><h2><svg class="i faint"><use href="#i-sequence"/></svg> Sequences</h2></div>
+  <div class="panel-body">
+    <p class="muted small">A sequence runs existing scripts in the order you connect them with arrows: one after
+      another, side by side, or only when a step failed, each with its own values and host. Pick one on the left, or
+      create one and drag scripts from the Scripts section onto it.</p>
     <form method="post" class="inline-form grow">{% csrf_token %}
-      <input class="input input-sm" type="text" name="name" maxlength="60" placeholder="New sequence name, e.g. Nightly maintenance" required aria-label="New sequence name">
-      <button class="btn btn-primary btn-sm" type="submit"><svg class="i"><use href="#i-plus"/></svg> New sequence</button>
+      <input class="input" type="text" name="name" maxlength="60" placeholder="New sequence name, e.g. Nightly maintenance" required aria-label="New sequence name">
+      <button class="btn btn-primary" type="submit"><svg class="i"><use href="#i-plus"/></svg> New sequence</button>
     </form>
   </div>
 </section>
 
+{% if favorites %}
+<section class="panel">
+  <div class="panel-head"><h2><svg class="i i-sm fav-mark"><use href="#i-star"/></svg> Favourites</h2></div>
+  <div class="seq-cards">
+    {% for s in favorites %}
+    <a class="seq-card" href="{% url 'sequence_detail' s.slug %}">
+      <svg class="i"><use href="#i-sequence"/></svg>
+      <span class="seq-card-name">{{ s.name }}</span>
+      <span class="small muted">{{ s.steps }} step{{ s.steps|pluralize }}{% if s.saved_display %} · saved {{ s.saved_display }}{% endif %}</span>
+    </a>
+    {% endfor %}
+  </div>
+</section>
+{% elif sequences %}
+<p class="muted small">Tip: mark the sequences you use most with ★ in the list on the left; they come first and appear here.</p>
+{% endif %}
+
 {% if runs %}
 <section class="panel">
-  <div class="panel-head"><h2>Recent sequence runs</h2></div>
+  <div class="panel-head"><h2>Recent sequence runs</h2><span class="spacer"></span><a class="small" href="{% url 'history' %}?kind=sequences">All in History</a></div>
   {% include "runner/_sequence_runs.html" with show_name=True %}
 </section>
 {% endif %}

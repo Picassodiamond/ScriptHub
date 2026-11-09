@@ -1196,3 +1196,48 @@ a.doc-tab:hover { color: var(--text); text-decoration: none; background: var(--h
 .hist-step { font-weight: 400; margin-top: 2px; }
 .hist-step a { color: var(--muted); }
 .hist-step a:hover { color: var(--accent); }
+
+/* Sequences side panel: the sequences above the scripts (templates/runner/_sequences_side.html) */
+.side-split { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+.side-pane { display: flex; flex-direction: column; min-height: 0; }
+.side-pane-seq { flex: 0 0 var(--seq-pane-h, 38%); max-height: calc(100% - 120px); min-height: 38px; overflow: hidden; }
+.side-pane-seq.is-folded { flex: none; }
+.side-pane-seq.is-folded .side-pane-body { display: none; }
+.side-pane-body { flex: 1; min-height: 0; overflow: auto; padding-bottom: 6px; }
+.side-pane-scripts { flex: 1 1 0; }
+.side-pane-scripts > .side-body { flex: 1; min-height: 0; }
+.side-divider { flex: none; height: 6px; margin: 0; cursor: row-resize; border-top: 1px solid var(--line); background: transparent; }
+.side-divider:hover, .side-divider.is-dragging { background: var(--accent-soft); border-top-color: var(--accent); }
+.side-pane-seq.is-folded + .side-divider { cursor: default; pointer-events: none; }
+.side-fold { display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0; height: 100%; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.side-fold::before { content: ""; width: 0; height: 0; border-left: 4px solid var(--muted); border-top: 4px solid transparent; border-bottom: 4px solid transparent; transform: rotate(90deg); transition: transform .12s; }
+.is-folded .side-fold::before { transform: none; }
+.seq-new-form { padding: 0 10px 8px; }
+.seq-new-form .input, .seq-rename-form .input { width: 100%; }
+.seq-item { padding: 0 4px 0 10px; gap: 4px; }
+.seq-item .ti-link { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; height: 100%; color: inherit; text-decoration: none; }
+.seq-item .ti-link .i { color: var(--faint); flex: none; }
+.seq-item.is-active .ti-link .i { color: var(--accent); }
+.seq-item.has-error .ti-link { color: var(--bad); }
+.seq-item-actions { display: flex; align-items: center; gap: 1px; flex: none; }
+.seq-item-actions form { margin: 0; display: inline-flex; }
+.seq-act { visibility: hidden; display: inline-flex; padding: 3px; border: 0; border-radius: 4px; background: none; color: var(--faint); cursor: pointer; }
+.seq-act .i { width: 14px; height: 14px; }
+.seq-item:hover .seq-act, .seq-item:focus-within .seq-act, .seq-star.is-on { visibility: visible; }
+.seq-act:hover { color: var(--text); background: var(--hover); }
+.seq-star.is-on { color: var(--warn); }
+.seq-star.is-on .i { fill: currentColor; }
+.seq-del:hover { color: var(--bad); }
+.seq-rename-form { flex: 1; min-width: 0; }
+.seq-item.is-renaming > .ti-link, .seq-item.is-renaming > .seq-item-actions { display: none; }
+.link-btn { padding: 0; border: 0; background: none; color: var(--accent); font: inherit; cursor: pointer; }
+.link-btn:hover { text-decoration: underline; }
+.seq-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; text-transform: none; letter-spacing: 0; font-size: 13px; color: var(--text); }
+/* Sequences start page: favourites as cards */
+.seq-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; padding: 12px; }
+.seq-card { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 2px 10px; padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--panel-2); color: var(--text); text-decoration: none; }
+.seq-card:hover { border-color: var(--accent); text-decoration: none; }
+.seq-card > .i { grid-row: span 2; color: var(--accent); }
+.seq-card-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.panel-head .fav-mark { color: var(--warn); fill: currentColor; }
+.seq-side .table th:last-child, .seq-side .table td:last-child { display: none; }   /* duration: on the run page */

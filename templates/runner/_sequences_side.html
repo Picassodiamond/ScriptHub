@@ -1,0 +1,64 @@
+{# Side panel of the Sequences pages: the sequences (favourites first) above the scripts of the open folder, which are dragged onto a diagram. The Sequences section folds; the divider between the two resizes them (app.js, localStorage sr.seqPaneH / sr.seqFold). #}
+{% firstof seq.slug run.sequence "" as cur_seq %}
+{% with list=wb_sequence_list here=request.get_full_path %}
+<div class="side-split" id="seq-side">
+  <section class="side-pane side-pane-seq" data-pane="seq" aria-label="Sequences">
+    <div class="side-head">
+      <button type="button" class="side-fold" data-seq-fold aria-expanded="true" title="Show or hide the sequences">
+        <span class="side-title">Sequences</span><span class="tree-count">{{ list|length }}</span>
+      </button>
+      <div class="side-actions">
+        <button type="button" class="btn btn-ghost btn-icon btn-sm" data-seq-new title="New sequence" aria-label="New sequence"><svg class="i"><use href="#i-plus"/></svg></button>
+      </div>
+    </div>
+    <div class="side-pane-body">
+      <form method="post" action="{% url 'sequences' %}" class="seq-new-form" id="seq-new-form" hidden>{% csrf_token %}
+        <input class="input input-sm" name="name" maxlength="60" placeholder="Name, then Enter" required aria-label="New sequence name" autocomplete="off">
+      </form>
+      {% if list|length > 6 %}
+      <div class="tree-filter">
+        <label class="searchbox searchbox-sm">
+          <svg class="i i-sm"><use href="#i-search"/></svg>
+          <input type="search" id="seq-filter" placeholder="Filter sequences" autocomplete="off" aria-label="Filter sequences">
+        </label>
+      </div>
+      {% endif %}
+      <div class="tree seq-list" id="seq-list">
+        {% for s in list %}
+        <div class="tree-item seq-item{% if s.slug == cur_seq %} is-active{% endif %}{% if s.error %} has-error{% endif %}" data-search="{{ s.name|lower }} {{ s.slug }}">
+          {% if s.error %}
+          <span class="ti-link" title="{{ s.error }}"><svg class="i i-sm"><use href="#i-x"/></svg><span class="ti-name">{{ s.slug }}.yaml (cannot be read)</span></span>
+          {% else %}
+          <a class="ti-link" href="{% url 'sequence_detail' s.slug %}" title="{{ s.name }} · {{ s.steps }} step{{ s.steps|pluralize }}"><svg class="i i-sm"><use href="#i-sequence"/></svg><span class="ti-name">{{ s.name }}</span></a>
+          <form method="post" action="{% url 'sequence_rename' s.slug %}" class="seq-rename-form" hidden>{% csrf_token %}
+            <input type="hidden" name="next" value="{{ here }}">
+            <input class="input input-sm" name="name" value="{{ s.name }}" maxlength="60" required aria-label="New name of {{ s.name }}" autocomplete="off">
+          </form>
+          {% endif %}
+          <span class="seq-item-actions">
+            {% if not s.error %}
+            <form method="post" action="{% url 'sequence_favorite' s.slug %}">{% csrf_token %}
+              <input type="hidden" name="on" value="{% if s.favorite %}0{% else %}1{% endif %}"><input type="hidden" name="next" value="{{ here }}">
+              <button class="seq-act seq-star{% if s.favorite %} is-on{% endif %}" type="submit" title="{% if s.favorite %}Remove from favourites{% else %}Add to favourites{% endif %}" aria-label="{% if s.favorite %}Remove {{ s.name }} from favourites{% else %}Add {{ s.name }} to favourites{% endif %}" aria-pressed="{% if s.favorite %}true{% else %}false{% endif %}"><svg class="i"><use href="#i-star"/></svg></button>
+            </form>
+            <button type="button" class="seq-act" data-seq-rename title="Rename" aria-label="Rename {{ s.name }}"><svg class="i"><use href="#i-edit"/></svg></button>
+            {% endif %}
+            <form method="post" action="{% url 'sequence_delete' s.slug %}" data-confirm="Delete the sequence “{% if s.error %}{{ s.slug }}{% else %}{{ s.name }}{% endif %}”? Its past runs stay in History.">{% csrf_token %}
+              <input type="hidden" name="next" value="{{ here }}">
+              <button class="seq-act seq-del" type="submit" title="Delete" aria-label="Delete {{ s.name }}"><svg class="i"><use href="#i-trash"/></svg></button>
+            </form>
+          </span>
+        </div>
+        {% empty %}
+        <p class="tree-empty">No sequences yet: <button type="button" class="link-btn" data-seq-new>create one</button>, then drag scripts from below onto it.</p>
+        {% endfor %}
+        <p class="tree-empty" id="seq-none" hidden>No match.</p>
+      </div>
+    </div>
+  </section>
+  <div class="side-divider" id="seq-divider" role="separator" aria-orientation="horizontal" aria-label="Resize the sequences and scripts sections" title="Drag to resize"></div>
+  <section class="side-pane side-pane-scripts" data-pane="scripts" aria-label="Scripts">
+    {% include "runner/_explorer.html" %}
+  </section>
+</div>
+{% endwith %}

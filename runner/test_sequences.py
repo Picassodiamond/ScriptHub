@@ -493,6 +493,39 @@ class WebTests(SequenceCase):
         self.assertEqual(sequence_runner.list_runs(), [])
         self.assertEqual(list(config.EXECUTIONS_DIR.iterdir()), [])
 
+    def test_side_panel_lists_favourites_first(self):
+        from runner import workspace
+        a = self.sequence((self.first, self.values()), name="Alpha")
+        z = self.sequence((self.first, self.values()), name="Zulu")
+        page = self.client.get(f"/sequences/{a}/")
+        self.assertContains(page, 'id="seq-side"')
+        self.assertContains(page, 'id="tree"')                            # the scripts to drag, below
+        html = page.content.decode()
+        self.assertLess(html.index(">Alpha<"), html.index(">Zulu<"))      # by name
+
+        r = self.client.post(f"/sequences/{z}/favorite/", {"on": "1", "next": f"/sequences/{a}/"})
+        self.assertRedirects(r, f"/sequences/{a}/", fetch_redirect_response=False)
+        self.assertEqual(workspace.sequence_favorites(), [z])
+        html = self.client.get(f"/sequences/{a}/").content.decode()
+        self.assertLess(html.index(">Zulu<"), html.index(">Alpha<"))      # favourites first
+        self.assertContains(self.client.get("/sequences/"), "seq-card")    # and on the start page
+        self.assertNotIn("favorite", (config.SEQUENCES_DIR / f"{z}.yaml").read_text(encoding="utf-8"))
+        self.client.post(f"/sequences/{z}/favorite/", {"on": "0", "next": "https://evil.example/"})
+        self.assertEqual(workspace.sequence_favorites(), [])
+        self.assertEqual(self.client.post("/sequences/nope/favorite/", {"on": "1"}).status_code, 404)
+
+        r = self.client.post(f"/sequences/{a}/rename/", {"name": "Alpha two", "next": "/history/"})
+        self.assertRedirects(r, "/history/", fetch_redirect_response=False)
+        r = self.client.post(f"/sequences/{a}/rename/", {"name": "Alpha 3", "next": "//evil.example/"})
+        self.assertRedirects(r, f"/sequences/{a}/", fetch_redirect_response=False)    # not a local path
+
+        self.client.post(f"/sequences/{z}/favorite/", {"on": "1"})
+        r = self.client.post(f"/sequences/{z}/delete/", {"next": f"/sequences/{z}/"})     # its own page is gone
+        self.assertRedirects(r, "/sequences/", fetch_redirect_response=False)
+        self.assertEqual(workspace.sequence_favorites(), [])              # no favourite left behind
+        r = self.client.post(f"/sequences/{a}/delete/", {"next": "/history/"})
+        self.assertRedirects(r, "/history/", fetch_redirect_response=False)
+
     def test_delete(self):
         slug = self.sequence((self.first, self.values()), name="Gone soon")
         r = self.client.post(f"/sequences/{slug}/delete/")

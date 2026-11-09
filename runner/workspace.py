@@ -19,6 +19,7 @@ from .fsutil import atomic_write_json, read_json
 
 MAX_RECENT = 10
 MAX_FAVORITES = 50
+MAX_SEQ_FAVORITES = 100
 MAX_FILES = 30
 _lock = threading.RLock()
 
@@ -49,11 +50,20 @@ def _legacy() -> dict:
     dirs = [normalize(d) for d in config.load_config().get("script_directories", [])]
     existing = [d for d in dirs if Path(d).is_dir()]
     folder = existing[0] if existing else None
-    return {"folder": folder, "files": [], "recent": _dedupe(dirs, MAX_RECENT), "favorites": []}
+    return {"folder": folder, "files": [], "recent": _dedupe(dirs, MAX_RECENT), "favorites": [], "sequence_favorites": []}
+
+
+def _slugs(values, limit):
+    out = []
+    for v in values:
+        if isinstance(v, str) and v.strip() and v not in out:
+            out.append(v)
+    return out[:limit]
 
 
 def load() -> dict:
-    """{"folder": str|None, "files": [str], "recent": [str], "favorites": [str]}. Never raises."""
+    """{"folder": str|None, "files": [str], "recent": [str], "favorites": [str],
+    "sequence_favorites": [slug]}. Never raises."""
     with _lock:
         f = state_file()
         if not f.exists():
@@ -74,6 +84,7 @@ def load() -> dict:
             "files": files,
             "recent": _dedupe(data.get("recent") or [], MAX_RECENT),
             "favorites": _dedupe(data.get("favorites") or [], MAX_FAVORITES),
+            "sequence_favorites": _slugs(data.get("sequence_favorites") or [], MAX_SEQ_FAVORITES),
         }
 
 
@@ -182,6 +193,19 @@ def set_favorite(value: str, on: bool) -> str:
         state["favorites"] = _dedupe(rest + [path], MAX_FAVORITES) if on else rest
         _save(state)
     return path
+
+
+def sequence_favorites() -> list:
+    """Slugs of the favourite sequences (UI state of this machine, like folder favourites)."""
+    return load()["sequence_favorites"]
+
+
+def set_sequence_favorite(slug: str, on: bool) -> None:
+    with _lock:
+        state = load()
+        rest = [s for s in state["sequence_favorites"] if s != slug]
+        state["sequence_favorites"] = _slugs(rest + [slug], MAX_SEQ_FAVORITES) if on else rest
+        _save(state)
 
 
 def forget(value: str) -> None:

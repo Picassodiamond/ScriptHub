@@ -55,6 +55,14 @@ def _sequences():
     return [{"slug": x["slug"], "name": x["name"]} for x in sequences.list_sequences() if not x["error"]]
 
 
+def _sequence_list():
+    """The Sequences section of the side panel: favourites first, then by name; broken files too."""
+    from . import sequences, workspace
+    favs = workspace.sequence_favorites()
+    out = [dict(s, favorite=s["slug"] in favs) for s in sequences.list_sequences()]
+    return sorted(out, key=lambda s: (not s["favorite"], s["name"].lower()))
+
+
 def _folder():
     from . import workspace
     return workspace.overview()
@@ -97,4 +105,5 @@ def common(request):
         # A plain callable: templates call it, and json_script then gets a real list.
         "wb_palette": lambda: _palette(tree),
         "wb_sequences": _sequences,
+        "wb_sequence_list": _sequence_list,
     }

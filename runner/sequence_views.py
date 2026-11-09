@@ -11,7 +11,7 @@ from django.shortcuts import redirect, render
 from django.urls import reverse
 from django.views.decorators.http import require_POST
 
-from . import discovery, presets, sequences, ssh_hosts
+from . import discovery, presets, sequences, ssh_hosts, workspace
 from . import parameter_service as ps
 from .execution_views import client_address
 from .sequence_runner import live_view, password_params, prepare, read_run, sequencer, step_host, step_raw
@@ -30,6 +30,14 @@ def _load_or_404(slug):
 
 def _detail_url(slug):
     return reverse("sequence_detail", args=[slug])
+
+
+def _next(request, fallback):
+    """The page to go back to (a local path only), else ``fallback``."""
+    nxt = request.POST.get("next", "")
+    if nxt.startswith("/") and not nxt.startswith("//") and "\\" not in nxt and "\n" not in nxt:
+        return nxt
+    return fallback
 
 
 def _source_label(step, script):
@@ -54,10 +62,13 @@ def sequence_list(request):
         except OSError as exc:
             messages.error(request, f"Could not save the sequence: {exc}")
             return redirect("sequences")
-        messages.success(request, "Sequence created. Drag scripts from the left panel onto the page.")
+        messages.success(request, "Sequence created. Drag scripts from the Scripts section on the left onto the page.")
         return redirect("sequence_detail", slug=slug)
+    favs = workspace.sequence_favorites()
+    all_seqs = sequences.list_sequences()
     return render(request, "runner/sequences.html", {
-        "sequences": sequences.list_sequences(),
+        "sequences": all_seqs,
+        "favorites": [s for s in all_seqs if s["slug"] in favs and not s["error"]],
         "runs": [live_view(r) for r in list_sequence_runs(limit=15)],
     })
 
@@ -114,7 +125,16 @@ def sequence_rename(request, slug):
         messages.success(request, "Renamed.")
     except sequences.SequenceError as exc:
         messages.error(request, str(exc))
-    return redirect("sequence_detail", slug=slug)
+    return redirect(_next(request, _detail_url(slug)))
+
+
+@require_POST
+def sequence_favorite(request, slug):
+    """Mark or unmark a favourite (side panel ★): UI state of this machine, not in the file."""
+    if not sequences.valid_slug(slug) or not sequences.get(slug):
+        raise Http404("Unknown sequence")
+    workspace.set_sequence_favorite(slug, request.POST.get("on") == "1")
+    return redirect(_next(request, _detail_url(slug)))
 
 
 @require_POST
@@ -126,8 +146,12 @@ def sequence_delete(request, slug):
     if not sequences.delete(slug):
         raise Http404("Unknown sequence")
     name = data["name"] if data else slug
+    workspace.set_sequence_favorite(slug, False)
     messages.success(request, f"Sequence '{name}' deleted (its past runs stay in History).")
-    return redirect("sequences")
+    nxt = _next(request, reverse("sequences"))
+    if nxt.startswith(_detail_url(slug)):            # the page of the deleted sequence is gone
+        nxt = reverse("sequences")
+    return redirect(nxt)
 
 
 def _new_step_for(script, x, y) -> dict:

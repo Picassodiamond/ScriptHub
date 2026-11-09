@@ -150,6 +150,86 @@
     });
   }
 
+  // ----------------------------------------------- sequences side panel --
+  // Sequences pages: the sequences (new / rename inline, filter, ★) above the scripts.
+  // The Sequences section folds; the divider resizes the two (sr.seqFold, sr.seqPaneH).
+  var seqSide = document.getElementById('seq-side');
+  if (seqSide) {
+    var seqPane = seqSide.querySelector('.side-pane-seq'), newForm = document.getElementById('seq-new-form');
+    var paneH = parseInt(store('sr.seqPaneH'), 10);
+    if (paneH > 0) seqSide.style.setProperty('--seq-pane-h', paneH + 'px');
+    function fold(on) {
+      seqPane.classList.toggle('is-folded', on);
+      seqSide.querySelector('[data-seq-fold]').setAttribute('aria-expanded', on ? 'false' : 'true');
+    }
+    fold(store('sr.seqFold') === '1');
+    function showNew() {
+      fold(false); store('sr.seqFold', '0');
+      newForm.hidden = false;
+      var input = newForm.querySelector('input[name=name]'); input.value = ''; input.focus();
+    }
+    function cancelRename(item) {
+      item.classList.remove('is-renaming');
+      var f = item.querySelector('.seq-rename-form'); if (f) f.hidden = true;
+    }
+    seqSide.addEventListener('click', function (e) {
+      var t = e.target;
+      if (t.closest('[data-seq-fold]')) {
+        var on = !seqPane.classList.contains('is-folded'); fold(on); store('sr.seqFold', on ? '1' : '0');
+      } else if (t.closest('[data-seq-new]')) {
+        showNew();
+      } else if (t.closest('[data-seq-rename]')) {
+        var item = t.closest('.seq-item'), f = item.querySelector('.seq-rename-form');
+        [].forEach.call(seqSide.querySelectorAll('.seq-item.is-renaming'), cancelRename);
+        item.classList.add('is-renaming'); f.hidden = false;
+        var input = f.querySelector('input[name=name]'); input.focus(); input.select();
+      }
+    });
+    seqSide.addEventListener('keydown', function (e) {
+      if (e.key !== 'Escape') return;
+      var item = e.target.closest('.seq-item.is-renaming');
+      if (item) { e.preventDefault(); cancelRename(item); }
+      else if (e.target.closest('#seq-new-form')) { e.preventDefault(); newForm.hidden = true; }
+    });
+    seqSide.addEventListener('focusout', function (e) {   // leaving an inline field without Enter: no change
+      var f = e.target.closest('.seq-rename-form, #seq-new-form');
+      if (!f || f.contains(e.relatedTarget)) return;
+      setTimeout(function () {
+        if (f.contains(document.activeElement)) return;
+        if (f.id === 'seq-new-form') { if (!f.querySelector('input').value.trim()) f.hidden = true; }
+        else cancelRename(f.closest('.seq-item'));
+      }, 150);
+    });
+    var seqFilter = document.getElementById('seq-filter'), seqNone = document.getElementById('seq-none');
+    if (seqFilter) seqFilter.addEventListener('input', function () {
+      var q = seqFilter.value.trim().toLowerCase(), any = false;
+      [].forEach.call(seqSide.querySelectorAll('.seq-item'), function (it) {
+        var ok = !q || it.dataset.search.indexOf(q) !== -1; it.hidden = !ok; any = any || ok;
+      });
+      if (seqNone) seqNone.hidden = any;
+    });
+    var divider = document.getElementById('seq-divider');
+    if (divider) divider.addEventListener('pointerdown', function (e) {
+      if (e.button !== 0) return;
+      e.preventDefault();
+      fold(false); store('sr.seqFold', '0');
+      var top = seqSide.getBoundingClientRect().top, total = seqSide.getBoundingClientRect().height;
+      divider.setPointerCapture(e.pointerId); divider.classList.add('is-dragging');
+      function move(ev) {
+        var h = Math.max(70, Math.min(total - 120, ev.clientY - top));
+        seqSide.style.setProperty('--seq-pane-h', h + 'px');
+      }
+      function up(ev) {
+        divider.removeEventListener('pointermove', move); divider.removeEventListener('pointerup', up);
+        divider.classList.remove('is-dragging');
+        store('sr.seqPaneH', String(parseInt(getComputedStyle(seqPane).height, 10)));
+      }
+      divider.addEventListener('pointermove', move); divider.addEventListener('pointerup', up);
+    });
+    var activeSeq = seqSide.querySelector('.seq-item.is-active');
+    if (activeSeq && activeSeq.scrollIntoView) activeSeq.scrollIntoView({ block: 'nearest' });
+  }
+
   // ------------------------------------------------------------ hotkeys --
   // Elements declare their own shortcut: data-hotkey="r", "g l" (chord),
   // "Ctrl+Enter", "Shift+F5", "F10|n" (alternatives). Pressing it clicks the element.

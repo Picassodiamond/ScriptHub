@@ -2,6 +2,7 @@
 {% load static %}
 {% block title %}{{ seq.name }}{% endblock %}
 {% block body_mod %}fill{% endblock %}
+{% block side %}{% include "runner/_sequences_side.html" %}{% endblock %}
 {% block content %}
 {# The sequence as a diagram (static/js/sequence.js): scripts dragged in from the explorer, arrows between them. Right: the sequence, or the clicked step's settings (an embedded sequence_step page). #}
 <div class="seq-editor" id="seq-editor" data-slug="{{ seq.slug }}" data-graph-url="{% url 'sequence_graph' seq.slug %}"
@@ -23,22 +24,9 @@
 
   <aside class="seq-side" aria-label="Sequence">
     <div class="seq-side-main" id="seq-side-main">
-      <section class="panel">
-        <div class="panel-head">
-          <form method="post" action="{% url 'sequence_rename' seq.slug %}" class="inline-form grow">{% csrf_token %}
-            <svg class="i faint"><use href="#i-sequence"/></svg>
-            <input class="input input-sm seq-name" type="text" name="name" maxlength="60" value="{{ seq.name }}" required aria-label="Sequence name">
-            <button class="btn btn-ghost btn-sm" type="submit">Rename</button>
-          </form>
-          <form method="post" action="{% url 'sequence_delete' seq.slug %}" data-confirm="Delete the sequence “{{ seq.name }}”? Its past runs stay in History.">{% csrf_token %}
-            <button class="btn btn-ghost btn-icon btn-sm btn-del" type="submit" title="Delete sequence" aria-label="Delete sequence"><svg class="i"><use href="#i-trash"/></svg></button>
-          </form>
-        </div>
-      </section>
-
       <form method="post" action="{% url 'sequence_start' seq.slug %}" class="panel" id="seq-run-form" autocomplete="off">{% csrf_token %}
         <input type="hidden" name="submit_token" value="{{ token }}">
-        <div class="panel-head"><h2>Run</h2></div>
+        <div class="panel-head"><h2 class="seq-title" title="{{ seq.name }}"><svg class="i faint"><use href="#i-sequence"/></svg> {{ seq.name }}</h2></div>
         <div class="panel-body" id="seq-passwords" hidden></div>
         <div class="panel-foot">
           <button class="btn btn-primary play" type="submit" id="seq-run-btn" data-once data-hotkey="Ctrl+Enter" data-hint="Run sequence"{% if not graph.steps %} disabled{% endif %}><svg class="i"><use href="#i-play"/></svg> Run sequence <kbd>Ctrl</kbd><kbd>↵</kbd></button>

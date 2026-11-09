@@ -2,6 +2,7 @@
 {% load static %}
 {% block title %}{{ run.id }} · {{ run.name }}{% endblock %}
 {% block body_mod %}fill{% endblock %}
+{% block side %}{% include "runner/_sequences_side.html" %}{% endblock %}
 {% block content %}
 <section class="panel" style="flex:none">
   <div class="panel-head">

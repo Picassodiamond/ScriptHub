@@ -531,6 +531,11 @@ a small YAML subset (written by ScriptHub, fine to edit by hand).
 A **sequence** runs existing scripts in the order you draw. Open **Sequences** in the
 activity bar (or **g q**) and create one; its page is a diagram:
 
+* **The side panel** on the Sequences pages has two sections: **Sequences** on top (your favourites ★
+  first, then by name; **+** creates one, type a name and press Enter; on hover each has ★, rename and
+  delete) and **Scripts** below (the open folder, to drag from). Drag the line between them to resize;
+  click *Sequences* to fold that section. Favourites are kept per machine (`runtime/workspace.json`, like
+  folder favourites), not in the sequence file, and also appear on the Sequences start page.
 * **Add a step**: drag a script from the explorer on the left and drop it anywhere on the
   page. A script can be used more than once.
 * **Move** a box by dragging it (it snaps to the grid); **pan** by dragging the background

@@ -23,6 +23,7 @@ urlpatterns = [
     path("sequences/<str:slug>/", sequence_views.sequence_detail, name="sequence_detail"),
     path("sequences/<str:slug>/rename/", sequence_views.sequence_rename, name="sequence_rename"),
     path("sequences/<str:slug>/delete/", sequence_views.sequence_delete, name="sequence_delete"),
+    path("sequences/<str:slug>/favorite/", sequence_views.sequence_favorite, name="sequence_favorite"),
     path("sequences/<str:slug>/graph/", sequence_views.sequence_graph, name="sequence_graph"),
     path("sequences/<str:slug>/steps/<str:step_id>/", sequence_views.sequence_step, name="sequence_step"),
     path("sequences/<str:slug>/start/", sequence_views.sequence_start, name="sequence_start"),
