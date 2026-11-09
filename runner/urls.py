@@ -46,6 +46,7 @@ urlpatterns = [
     path("folder/", folder_views.folder_page, name="folder"),
     path("folder/open/", folder_views.folder_open, name="folder_open"),
     path("folder/close/", folder_views.folder_close, name="folder_close"),
+    path("folder/close-file/", folder_views.folder_close_file, name="folder_close_file"),
     path("folder/favorite/", folder_views.folder_favorite, name="folder_favorite"),
     path("folder/forget/", folder_views.folder_forget, name="folder_forget"),
     path("folder/scan/", folder_views.folder_scan, name="folder_scan"),

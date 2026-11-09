@@ -1,8 +1,9 @@
-"""The open script folder (or a single script file), plus recent and favourite
-folders and files (runtime/workspace.json).
+"""The open script folder and any individually opened script files, plus recent and
+favourite folders and files (runtime/workspace.json).
 
-Like an editor's "Open Folder" / "Open File": one folder (scanned for scripts) or
-one script file is open at a time; it is reopened on the next start. This is state the user changes from
+Like an editor's "Open Folder" / "Open File": at most one folder is open (scanned for
+scripts), and any number of script files can be opened on their own, with or without
+a folder; all of it is reopened on the next start. This is state the user changes from
 the UI (Open folder page, explorer header), not a setting.
 
 Installs from before this file existed used the ``script_directories`` setting;
@@ -18,6 +19,7 @@ from .fsutil import atomic_write_json, read_json
 
 MAX_RECENT = 10
 MAX_FAVORITES = 50
+MAX_FILES = 30
 _lock = threading.RLock()
 
 
@@ -47,11 +49,11 @@ def _legacy() -> dict:
     dirs = [normalize(d) for d in config.load_config().get("script_directories", [])]
     existing = [d for d in dirs if Path(d).is_dir()]
     folder = existing[0] if existing else None
-    return {"folder": folder, "recent": _dedupe(dirs, MAX_RECENT), "favorites": []}
+    return {"folder": folder, "files": [], "recent": _dedupe(dirs, MAX_RECENT), "favorites": []}
 
 
 def load() -> dict:
-    """{"folder": str|None, "recent": [str], "favorites": [str]}. Never raises."""
+    """{"folder": str|None, "files": [str], "recent": [str], "favorites": [str]}. Never raises."""
     with _lock:
         f = state_file()
         if not f.exists():
@@ -63,8 +65,13 @@ def load() -> dict:
         if not isinstance(data, dict):
             data = {}
         folder = data.get("folder")
+        folder = folder if isinstance(folder, str) and folder.strip() else None
+        files = _dedupe(data.get("files") or [], MAX_FILES)
+        if folder and Path(folder).is_file():          # a single file stored as "folder" (2.1 betas)
+            files, folder = _dedupe([folder] + files, MAX_FILES), None
         return {
-            "folder": folder if isinstance(folder, str) and folder.strip() else None,
+            "folder": folder,
+            "files": files,
             "recent": _dedupe(data.get("recent") or [], MAX_RECENT),
             "favorites": _dedupe(data.get("favorites") or [], MAX_FAVORITES),
         }
@@ -82,25 +89,46 @@ def script_extensions() -> set:
 
 
 def current() -> Path | None:
+    """The open folder (None when only files, or nothing, are open)."""
     folder = load()["folder"]
     return Path(folder) if folder else None
 
 
+def open_files() -> list[Path]:
+    return [Path(p) for p in load()["files"]]
+
+
 def current_is_file() -> bool:
-    """True when a single script file is open (not a folder)."""
-    path = current()
-    return bool(path) and path.is_file()
+    """True when script files are open but no folder (New script then has nowhere to go)."""
+    state = load()
+    return not state["folder"] and bool(state["files"])
 
 
 def roots() -> list[Path]:
-    """What to scan: the open folder or the open script file (missing ones are reported by discovery)."""
-    folder = current()
-    return [folder] if folder else []
+    """What to scan: the open folder, then each opened file not already inside it
+    (missing ones are reported by discovery)."""
+    state = load()
+    folder = Path(state["folder"]) if state["folder"] else None
+    out = [folder] if folder else []
+    for f in state["files"]:
+        p = Path(f)
+        if folder is None or not _inside(p, folder):
+            out.append(p)
+    return out
+
+
+def _inside(path: Path, folder: Path) -> bool:
+    try:
+        Path(os.path.normcase(str(path))).relative_to(os.path.normcase(str(folder)))
+        return True
+    except ValueError:
+        return False
 
 
 def open_folder(value: str) -> Path:
-    """Open ``value``, an existing folder or a script file (a configured extension), and put
-    it first in the recent list. Raises ValueError with a message for the user."""
+    """Open ``value``: an existing folder (replaces the open folder; opened files stay) or a
+    script file with a configured extension (added to the opened files). It goes first in
+    the recent list. Raises ValueError with a message for the user."""
     from .security import clean_directory_input
     path = normalize(clean_directory_input(value))
     p = Path(path)
@@ -111,7 +139,10 @@ def open_folder(value: str) -> Path:
         raise ValueError(f"Not an existing folder or script file: {path}")
     with _lock:
         state = load()
-        state["folder"] = path
+        if p.is_file():
+            state["files"] = _dedupe(state["files"] + [path], MAX_FILES)
+        else:
+            state["folder"] = path
         state["recent"] = _dedupe([path] + state["recent"], MAX_RECENT)
         _save(state)
     return Path(path)
@@ -121,6 +152,25 @@ def close_folder() -> None:
     with _lock:
         state = load()
         state["folder"] = None
+        _save(state)
+
+
+def close_file(value: str) -> bool:
+    """Close an opened script file (not one that is part of the open folder)."""
+    with _lock:
+        state = load()
+        rest = [p for p in state["files"] if not same(p, value)]
+        if len(rest) == len(state["files"]):
+            return False
+        state["files"] = rest
+        _save(state)
+        return True
+
+
+def close_all_files() -> None:
+    with _lock:
+        state = load()
+        state["files"] = []
         _save(state)
 
 
@@ -150,9 +200,10 @@ def overview() -> dict:
     def item(p):
         return {"path": p, "name": Path(p).name or p, "exists": Path(p).exists(), "is_file": Path(p).is_file(),
                 "favorite": any(same(p, f) for f in favs),
-                "is_open": bool(state["folder"]) and same(p, state["folder"])}
+                "is_open": (bool(state["folder"]) and same(p, state["folder"])) or any(same(p, f) for f in state["files"])}
     folder = item(state["folder"]) if state["folder"] else None
     return {"folder": folder,
+            "files": [item(p) for p in state["files"]],
             "favorites": [item(p) for p in favs],
             "recent": [item(p) for p in state["recent"] if not any(same(p, f) for f in favs)]}
 

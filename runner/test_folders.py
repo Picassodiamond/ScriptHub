@@ -89,9 +89,46 @@ class WorkspaceTests(FolderCase):
         self.assertTrue(workspace.same(str(script.root), str(self.b)))   # its folder is its root
         self.assertTrue(self.state()["recent"][0].endswith("two.py"))
         page = self.client.get("/")
-        self.assertContains(page, "Close file")                          # File menu
+        self.assertContains(page, "Close opened files")                  # File menu
+        self.assertContains(page, "Open files")                          # explorer title
         self.assertNotContains(page, "data-new-script")                  # no folder to create scripts in
         self.assertEqual(self.client.get("/scripts/new/")["Location"], "/folder/")
+        sid = discovery.scan()[0][0].id
+        self.assertContains(self.client.get(f"/scripts/{sid}/"), f"Close two.py")   # File > Close <this file>
+
+    def test_files_open_next_to_a_folder_and_close_on_their_own(self):
+        workspace.open_folder(str(self.a))
+        workspace.open_folder(str(self.b / "two.py"))
+        self.assertEqual(sorted(self.names()), ["one.py", "two.py"])     # the folder and the extra file
+        self.assertFalse(workspace.current_is_file())
+        workspace.open_folder(str(self.make_folder("gamma", "three.py")))    # another folder: files stay
+        self.assertEqual(sorted(self.names()), ["three.py", "two.py"])
+        self.assertTrue(workspace.close_file(str(self.b / "two.py")))
+        self.assertEqual(self.names(), ["three.py"])
+        self.assertFalse(workspace.close_file(str(self.b / "two.py")))
+        workspace.open_folder(str(self.b / "two.py"))
+        workspace.close_all_files()
+        self.assertEqual(self.state()["files"], [])
+
+    def test_several_files_open_at_once_and_show_the_first(self):
+        (self.b / "other.py").write_bytes(b"print(2)\n")
+        r = self.client.post("/folder/open/", {"path": [str(self.b / "two.py"), str(self.b / "other.py")]})
+        self.assertEqual(sorted(self.names()), ["other.py", "two.py"])
+        first = next(s for s in discovery.scan()[0] if s.path.name == "two.py")
+        self.assertEqual(r["Location"], f"/scripts/{first.id}/")          # opens as a tab
+        page = self.client.get(r["Location"])
+        self.assertContains(page, 'data-ws="files"')                      # the open-tabs list for "just files"
+        self.assertContains(page, f'data-script="{first.id}"')
+        self.client.post("/folder/close-file/", {"path": str(self.b / "two.py")})
+        self.assertEqual(self.names(), ["other.py"])
+        self.client.post("/folder/close-file/", {"all": "1"})
+        self.assertEqual(self.names(), [])
+
+    def test_a_file_stored_as_the_folder_is_read_as_an_opened_file(self):
+        workspace.state_file().write_text(json.dumps({"folder": str(self.b / "two.py"), "recent": []}))
+        st = workspace.load()
+        self.assertEqual((st["folder"], len(st["files"])), (None, 1))
+        self.assertEqual(self.names(), ["two.py"])
 
     def test_browse_lists_script_files_too(self):
         (self.a / "notes.txt").write_bytes(b"x")

@@ -137,6 +137,7 @@ dark theme* switches, remembered per browser):
 | **Home** (`/`, the app icon) | Counts of scripts, running, successful and failed executions; recent executions; **Quick run** and most-used scripts. |
 | **Script Library** (`/scripts/`) | Every script as a dense table (or cards). Search (`/` focuses it), filter by **category, platform and language**. |
 | **Open folder** (`/folder/`) | Fallback when the system folder dialog is not available (browser on another machine): type a path or click through the folder list; favourites (star) and recent folders. The explorer's folder name is a quick switcher with the same lists. |
+| **Script tabs** | Every script you open gets a tab in the centre bar, like an editor's open files (remembered per folder; × closes the tab, not the script). The selected tab is the script the right column (Overview / Parameters / Run) and the Saved values panel show; clicking another tab, or another script in the explorer, opens it on the same right-hand tab. Its run tabs follow it. |
 | **Script pages** | The centre is the same on Overview, Parameters and Run: the script (an editor with syntax colours, line numbers, auto-indent, or read-only when editing is off; its metadata block is at the top) with copy, download, **Restore previous** and a full-screen editor, a tab for each run started there, and under it the collapsible **Saved values** panel (**Ctrl+J**). The **Overview / Parameters / Run** tabs head the right column, so switching only changes that column. A script page has **one Save** (centre tab bar, **Ctrl+S** anywhere): it saves whatever changed — the script, the Overview settings, the parameter definitions (editing the metadata block in the script and a form together is refused, as they are the same settings); a dot marks unsaved changes. |
 | **Script › Overview** | The script's settings on the right: name, category, description, interpreter, default host, working directory, environment, platforms; below, recent runs. (The old `/configure/` URL opens this page.) |
 | **Script › Parameters** | The **parameter definitions** the run form is built from (click a row to edit; hover to see where the script uses it). |
@@ -221,9 +222,11 @@ The names used before the rename (`SCRIPT_RUNNER_DEBUG`, `SCRIPT_RUNNER_ALLOWED_
 
 ## Script folder
 
-ScriptHub works on **one folder at a time**, like an editor's *Open Folder*, or on a
-**single script** (*File → Open file…*: the explorer then shows just that script;
-New script needs a folder). It is not a setting: on first start the Overview asks you to open one (or the bundled
+ScriptHub works on **one folder at a time**, like an editor's *Open Folder*, plus any
+number of **script files** opened on their own (*File → Open file…*, several at once;
+with no folder open the explorer shows just those files; New script needs a folder).
+Each opened file can be closed again (*File → Close <file>* / *Close opened files*).
+It is not a setting: on first start the Overview asks you to open one (or the bundled
 `./scripts` examples), and the folder you open is reopened on the next start.
 
 * **Open folder…** / **Open file…** (File menu, Ctrl+K) show the system dialog
@@ -356,10 +359,20 @@ to copy, move or commit. The Overview and Parameters tabs write the block for yo
 you can also edit it in the script. Scripts from older versions may still have a
 `<stem>.json` next to them: it is read until the first save, which moves it into the
 script. If the script cannot be written, the metadata goes to
-`runtime/metadata_overrides/<script id>.json` instead.
+`runtime/metadata_overrides/<path id>.json` instead.
+
+**Script id.** The first time ScriptHub writes the block it adds `"id"` (12 random hex
+characters). That id stays with the file, so a script that is **moved or renamed keeps
+its saved values, backups and run history**. Scripts that never had their metadata
+saved are known by an id made from their path until then; when the stable id is
+written, the old one keeps working (links, earlier runs) and the script's saved values
+and backups move to the new id. A **copy** of a script carries the same id: the Library
+warns about it, the original keeps the id, and the copy gets a new one on its next save.
+Don't edit the id by hand (remove it to get a new one).
 
 | Field | Type | Meaning |
 |---|---|---|
+| `id` | 12 hex characters | Written by ScriptHub on the first save; keeps saved values, backups and history with a moved or renamed script. Do not edit. |
 | `name` | text | Display name. |
 | `description` | text | Shown on cards and details. |
 | `category` | text | Groups scripts; default is the first sub-folder name. |
@@ -377,7 +390,7 @@ the next time the metadata is saved.
 When you save on the Overview or Parameters tab the metadata is **validated
 first**; invalid data is never written and every problem is listed. Only the
 block is rewritten (line endings and a BOM are kept), and the previous version of
-the script is kept as `<name>.bak` (**Restore previous** in the editor).
+the script is kept as a backup (**Restore previous** in the editor).
 
 ---
 
@@ -488,9 +501,9 @@ values:
   compress: true
 ```
 
-The script id comes from the script's path, so moving or renaming a script starts
-it without saved values. The files use a small YAML subset (written by ScriptHub,
-fine to edit by hand).
+They belong to the script's id (see *Script id* under the metadata reference), so
+they follow a moved or renamed script once its metadata has been saved. The files use
+a small YAML subset (written by ScriptHub, fine to edit by hand).
 
 * **Recent runs** are remembered automatically: every started run stores the values it
   used (the last 10 distinct sets, newest first). The **Run** tab opens with the
@@ -588,8 +601,14 @@ and goes straight to the run form.
 
 Saving is designed not to lose work or break scripts:
 
-* **A backup is always kept** as `<file>.bak`. **Restore previous** swaps the file
-  with it (and restoring is itself undoable).
+* **A backup is always kept**, outside the script folder: every save (editor,
+  restore, Overview / Parameters) stores the version it replaces in
+  `runtime/backups/<script id>/` as a timestamped copy; the last 10 per script are
+  kept. **Restore previous** puts the newest one back; **Versions…** next to it lists
+  them all and restores the one you pick. What is there before a restore is backed up
+  too, so a restore can be undone. A `<file>.bak` left next to a script by an older
+  version is moved into the backups on the script's next save (it is only removed once
+  the copy is written).
 * **Conflicts are detected.** If the file changed on disk after you opened it, the
   save is refused and your text stays in the editor; you can reload, or choose
   *Overwrite the file with my version*.
@@ -807,7 +826,7 @@ ScriptHub starts operating-system processes and has **no authentication**.
   arguments, environment). Treat access to the page as access to this account.
 * **Creating and editing scripts lets anyone with access run any code.** It can be
   switched off in **Settings → Features**; see [Sharing with other people](#sharing-with-other-people).
-  Saves are atomic with a `.bak`, only catalogued files are writable, and
+  Saves are atomic and keep the previous version in `runtime/backups/`, only catalogued files are writable, and
   New script never overwrites or leaves the open folder.
 * Every run records the connecting client address (`X-Forwarded-For` is
   deliberately not trusted, because any client can forge it).

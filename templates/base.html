@@ -21,7 +21,7 @@
   </script>
   <link rel="stylesheet" href="{% static 'css/workbench.css' %}">
 </head>
-<body class="wb {% block body_class %}{% endblock %}" data-page="{{ nav_active }}"{% if desktop %} data-desktop="1"{% endif %}{% if folder_picker %} data-folder-picker="1" data-folder="{{ wb_folder.folder.path }}"{% endif %}{% if url_name == 'dashboard' or url_name == 'library' or url_name == 'folder' %} data-scan-reload{% endif %}{% block body_attrs %}{% endblock %}>
+<body class="wb {% block body_class %}{% endblock %}" data-page="{{ nav_active }}"{% if desktop %} data-desktop="1"{% endif %}{% if folder_picker %} data-folder-picker="1" data-folder="{% firstof wb_folder.folder.path wb_folder.files.0.path %}"{% endif %}{% if url_name == 'dashboard' or url_name == 'library' or url_name == 'folder' %} data-scan-reload{% endif %}{% block body_attrs %}{% endblock %}>
   {# Icon sprite: <svg class="i"><use href="#i-name"/></svg> #}
   {% include "_icons.html" %}
 

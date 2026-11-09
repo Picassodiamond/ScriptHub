@@ -3,9 +3,9 @@
    saved values in a collapsible bottom panel. Only the right column changes between pages.
    Needs doc_context() in the view.{% endcomment %}
 {% with ptab=request.GET.tab %}
-<section class="doc" aria-label="Script, saved values and runs" data-script="{{ script.id }}" data-doc-default="">
+<section class="doc" aria-label="Script, saved values and runs" data-script="{{ script.id }}" data-ws="{% firstof wb_folder.folder.path 'files' %}" data-doc-default="">
   <div class="doc-bar" role="tablist">
-    <button type="button" class="doc-tab is-active" data-doc-tab="doc-code-panel" role="tab" title="{{ script.path.name }}"><span class="lang lang-{{ script.extension|slice:'1:' }}">{{ script.extension|slice:'1:' }}</span>{{ script.path.name }}</button>
+    <button type="button" class="doc-tab is-active" data-doc-tab="doc-code-panel" role="tab" title="{{ script.path.name }}"><span class="lang lang-{{ script.extension|slice:'1:' }}">{{ script.extension|slice:'1:' }}</span><span class="tab-name">{{ script.path.name }}</span></button>
     <span class="spacer"></span>
     <span class="faint small mono hide-sm" id="doc-refs"></span>
     {% if ed %}

@@ -27,6 +27,7 @@ are skipped too. A file that cannot be read is never overwritten.
 import json
 import re
 import threading
+import time
 from pathlib import Path
 
 import config
@@ -203,8 +204,10 @@ def _load(script) -> dict:
                     except OSError:
                         r["_mtime"] = 0
                     recent.append(r)
-        # newest first: saved_at has seconds only, the file time breaks ties within a second
-        recent.sort(key=lambda r: (str(r.get("saved_at") or ""), r["_mtime"]), reverse=True)
+        # newest first: saved_at has seconds only; "order" (ns, written by record_run) and then
+        # the file time break ties within a second
+        recent.sort(key=lambda r: (str(r.get("saved_at") or ""), r.get("order") if isinstance(r.get("order"), int) else 0,
+                                   r["_mtime"]), reverse=True)
         return {"presets": presets, "recent": recent}
 
 
@@ -314,8 +317,8 @@ def record_run(script, params, raw: dict, host: str, run_id: str, initiator: str
             if _same(r, host, values):
                 r["_file"].unlink(missing_ok=True)
         _write_set(script, _recent_dir(script) / f"{name}{EXT}",
-                   {"host": host, "saved_at": history.now_iso(), "run_id": run_id, "initiator": initiator,
-                    "values": values}, "Values of a recent run")
+                   {"host": host, "saved_at": history.now_iso(), "order": time.time_ns(), "run_id": run_id,
+                    "initiator": initiator, "values": values}, "Values of a recent run")
         for r in _load(script)["recent"][RECENT_MAX:]:
             r["_file"].unlink(missing_ok=True)
 

@@ -38,6 +38,67 @@
     if (pick) activate(pick, false);
   }
 
+  // ------------------------------------------------------- script tabs --
+  // Every script opened here gets a tab in the centre bar, like an editor's open files
+  // (remembered per folder). The selected tab is this page's script, so the right column
+  // and the bottom panel show it; another tab opens that script on the same right-hand tab
+  // (Overview / Parameters / Run). × closes a tab (the script stays in the folder).
+  var codeTab = document.querySelector('.doc-tab[data-doc-tab="doc-code-panel"]');
+  var curId = docEl ? docEl.getAttribute('data-script') : '';
+  var OPEN_KEY = 'scripthub.openScripts.' + (docEl ? docEl.getAttribute('data-ws') || '' : '');
+  var known = {};
+  try { JSON.parse($('wb-palette').textContent).forEach(function (s) { known[s.id] = s; }); } catch (e) { /* no palette data */ }
+  function loadOpen() { try { return JSON.parse(localStorage.getItem(OPEN_KEY)) || []; } catch (e) { return []; } }
+  function keepOpen(list) { try { localStorage.setItem(OPEN_KEY, JSON.stringify(list.slice(-20))); } catch (e) { /* storage unavailable */ } }
+  function pageFor(id) {                                  // the same right-hand tab, for another script
+    var m = /^\/scripts\/[^/]+\/(parameters\/|run\/)?/.exec(location.pathname);
+    return '/scripts/' + encodeURIComponent(id) + '/' + (m && m[1] ? m[1] : '');
+  }
+  function baseName(p) { return String(p || '').split('/').pop(); }
+  function closeX() {
+    var x = document.createElement('span');
+    x.className = 'tab-x'; x.setAttribute('role', 'button'); x.title = 'Close the tab'; x.setAttribute('aria-label', 'Close'); x.textContent = '×';
+    return x;
+  }
+  if (codeTab && curId) {
+    var openList = loadOpen().filter(function (id) { return id === curId || !!known[id]; });
+    if (openList.indexOf(curId) < 0) openList.push(curId);
+    keepOpen(openList);
+    codeTab.classList.add('doc-script-tab');
+    codeTab.dataset.script = curId;
+    codeTab.appendChild(closeX());
+    var after = null;                                     // tabs before the current one go before it
+    openList.forEach(function (id) {
+      if (id === curId) { after = codeTab; return; }
+      var s = known[id];
+      var a = document.createElement('a');
+      a.className = 'doc-tab doc-script-tab'; a.href = pageFor(id); a.dataset.script = id; a.title = s.path;
+      var lang = document.createElement('span'); lang.className = 'lang lang-' + s.ext; lang.textContent = s.ext;
+      var nm = document.createElement('span'); nm.className = 'tab-name'; nm.textContent = baseName(s.path);
+      a.appendChild(lang); a.appendChild(nm); a.appendChild(closeX());
+      if (after) { after.parentNode.insertBefore(a, after.nextSibling); after = a; }
+      else codeTab.parentNode.insertBefore(a, codeTab);
+    });
+    codeTab.parentNode.addEventListener('click', function (e) {
+      var x = e.target.closest('.doc-script-tab .tab-x');
+      if (!x) return;
+      e.preventDefault(); e.stopPropagation();
+      var id = x.parentNode.dataset.script, list = loadOpen(), at = list.indexOf(id);
+      list = list.filter(function (v) { return v !== id; });
+      keepOpen(list);
+      if (id !== curId) { x.parentNode.remove(); return; }
+      var next = list[Math.min(at, list.length - 1)];    // closing the selected tab: its neighbour
+      location.href = next ? pageFor(next) : '/scripts/';
+    }, true);
+    // Explorer on a script page: open the other script on the same right-hand tab.
+    document.addEventListener('click', function (e) {
+      var item = e.target.closest('.tree-item');
+      if (!item || e.ctrlKey || e.metaKey || e.shiftKey || e.button !== 0) return;
+      var m = /^\/scripts\/([^/]+)\/$/.exec(item.getAttribute('href') || '');
+      if (m) { e.preventDefault(); location.href = pageFor(decodeURIComponent(m[1])); }
+    });
+  }
+
   // ---------------------------------------------------------- run tabs --
   // A run started from the script page opens as a centre tab next to the files: the whole
   // console (output, error, status, Stop, debugger) in a frame. The open run tabs of a

@@ -95,8 +95,8 @@ def ask_directory(initial: str = "", title: str = "Choose a folder") -> str:
             root.destroy()
 
 
-def ask_file(initial: str = "", title: str = "Open a script", extensions=()) -> str:
-    """Native open-file dialog (tkinter) for script files. Returns '' when cancelled."""
+def ask_file(initial: str = "", title: str = "Open scripts", extensions=()) -> list:
+    """Native open-file dialog (tkinter) for one or more script files. Returns [] when cancelled."""
     import tkinter
     from tkinter import filedialog
     with _dialog_lock:
@@ -107,8 +107,9 @@ def ask_file(initial: str = "", title: str = "Open a script", extensions=()) -> 
             start = initial if initial and Path(initial).is_dir() else (
                 str(Path(initial).parent) if initial and Path(initial).is_file() else str(Path.home()))
             pattern = " ".join(f"*{e}" for e in sorted(extensions)) or "*"
-            return filedialog.askopenfilename(parent=root, initialdir=start, title=title,
-                                              filetypes=[("Scripts", pattern), ("All files", "*")]) or ""
+            chosen = filedialog.askopenfilenames(parent=root, initialdir=start, title=title,
+                                                 filetypes=[("Scripts", pattern), ("All files", "*")])
+            return list(chosen or [])
         finally:
             root.destroy()
 
@@ -120,11 +121,14 @@ def pick_file(request):
         raise Http404("Only available on the machine running ScriptHub")
     from . import workspace
     try:
-        path = ask_file(request.POST.get("initial", ""), request.POST.get("title", "") or "Open a script",
-                        workspace.script_extensions())
+        chosen = ask_file(request.POST.get("initial", ""), request.POST.get("title", "") or "Open scripts",
+                          workspace.script_extensions())
     except Exception as exc:                 # no tkinter, no display, ...
         return JsonResponse({"ok": False, "error": f"The file dialog is not available: {exc}"}, status=501)
-    return JsonResponse({"ok": True, "path": os.path.normpath(path) if path else ""})
+    if isinstance(chosen, str):              # a single path (tests, older callers)
+        chosen = [chosen] if chosen else []
+    paths = [os.path.normpath(p) for p in chosen if p]
+    return JsonResponse({"ok": True, "paths": paths, "path": paths[0] if paths else ""})
 
 
 @require_POST
