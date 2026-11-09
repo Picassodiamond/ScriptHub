@@ -10,10 +10,17 @@
         <input type="search" name="q" value="{{ f.q }}" placeholder="id, script, parameters, errors…" autocomplete="off" aria-label="Search" data-page-search>
       </label>
     </div>
-    <div class="field"><label class="field-label" for="h-script">Script</label>
+    <div class="field"><label class="field-label" for="h-kind">Show</label>
+      <select class="input" name="kind" id="h-kind">
+        <option value="">Script and sequence runs</option>
+        <option value="scripts" {% if f.kind == 'scripts' %}selected{% endif %}>Script runs</option>
+        <option value="sequences" {% if f.kind == 'sequences' %}selected{% endif %}>Sequence runs</option>
+      </select></div>
+    <div class="field"><label class="field-label" for="h-script">Script or sequence</label>
       <select class="input" name="script" id="h-script">
-        <option value="">All scripts</option>
-        {% for sid, name in scripts %}<option value="{{ sid }}" {% if f.script == sid %}selected{% endif %}>{{ name }}</option>{% endfor %}
+        <option value="">All</option>
+        {% if scripts %}<optgroup label="Scripts">{% for sid, name in scripts %}<option value="{{ sid }}" {% if f.script == sid %}selected{% endif %}>{{ name }}</option>{% endfor %}</optgroup>{% endif %}
+        {% if sequence_choices %}<optgroup label="Sequences (with their step runs)">{% for sid, name in sequence_choices %}<option value="{{ sid }}" {% if f.script == sid %}selected{% endif %}>{{ name }}</option>{% endfor %}</optgroup>{% endif %}
       </select></div>
     <div class="field"><label class="field-label" for="h-status">Status</label>
       <select class="input" name="status" id="h-status">
@@ -49,12 +56,34 @@
   {% if runs %}
   <div class="table-wrap">
   <table class="table">
-    <thead><tr><th>Run</th><th>Script</th><th class="hide-sm">Host</th><th>Status</th><th class="num">Exit</th><th class="hide-sm">Started</th><th class="num">Duration</th><th></th></tr></thead>
+    <thead><tr><th>Run</th><th>Script or sequence</th><th class="hide-sm">Host</th><th>Status</th><th class="num">Exit</th><th class="hide-sm">Started</th><th class="num">Duration</th><th></th></tr></thead>
     <tbody>
       {% for r in runs %}
+      {% if r.kind == 'sequence' %}
+      <tr class="hist-seq">
+        <td class="mono small"><a href="{% url 'sequence_run' r.id %}">{{ r.id }}</a></td>
+        <td class="strong"><svg class="i i-sm hist-seq-icon" aria-label="Sequence"><use href="#i-sequence"/></svg> {{ r.name }}</td>
+        <td class="small muted hide-sm">{{ r.done }}/{{ r.steps|length }} steps</td>
+        <td><span class="st st-{{ r.status }}">{{ r.status_label }}</span></td>
+        <td class="num mono small">—</td>
+        <td class="small muted mono nowrap hide-sm">{{ r.started_display }}</td>
+        <td class="num mono small">{{ r.duration }}</td>
+        <td class="actions">
+          <div class="btn-row">
+            <a class="btn btn-ghost btn-icon btn-sm" href="{% url 'sequence_run' r.id %}" title="Open the sequence run (diagram and consoles)"><svg class="i"><use href="#i-sequence"/></svg></a>
+            {% if not r.active %}
+            <form method="post" action="{% url 'sequence_run_delete' r.id %}" data-confirm="Delete the record of {{ r.id }}? Its step runs stay in History.">{% csrf_token %}
+              <input type="hidden" name="return_query" value="{{ return_query }}">
+              <button class="btn btn-ghost btn-icon btn-sm" type="submit" title="Delete this sequence run (its step runs stay)"><svg class="i"><use href="#i-trash"/></svg></button>
+            </form>
+            {% endif %}
+          </div>
+        </td>
+      </tr>
+      {% else %}
       <tr>
         <td class="mono small"><a href="{% url 'execution_console' r.id %}">{{ r.id }}</a></td>
-        <td class="strong">{{ r.script_name }}</td>
+        <td class="strong">{{ r.script_name }}{% if r.seq %}<div class="small muted hist-step"><a href="{% url 'sequence_run' r.seq.run %}" title="This run is step {{ r.seq.step }} of the sequence run {{ r.seq.run }}">↳ {{ r.seq.name }} · step {{ r.seq.step }}</a></div>{% endif %}</td>
         <td class="small muted hide-sm">{{ r.host }}</td>
         <td><span class="st st-{{ r.status }}">{{ r.status_label }}</span></td>
         <td class="num mono small">{% if r.exit_code is None %}—{% else %}{{ r.exit_code }}{% endif %}</td>
@@ -74,6 +103,7 @@
           </div>
         </td>
       </tr>
+      {% endif %}
       {% endfor %}
     </tbody>
   </table>
@@ -92,7 +122,7 @@
   {% else %}
   <div class="empty">
     <svg class="i"><use href="#i-search"/></svg>
-    <h2>{% if filtered %}No executions match these filters.{% else %}No executions yet.{% endif %}</h2>
+    <h2>{% if filtered %}No runs match these filters.{% else %}No runs yet.{% endif %}</h2>
     <p>{% if filtered %}<a href="{% url 'history' %}">Clear the filters</a> to see everything.{% else %}Run a script from the <a href="{% url 'library' %}">Script Library</a>.{% endif %}</p>
   </div>
   {% endif %}

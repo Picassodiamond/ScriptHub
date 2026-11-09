@@ -76,6 +76,7 @@ def graph_payload(data, scripts=None) -> dict:
         path = str(script.path) if script else step["path"]
         steps.append({
             "id": step["id"], "n": n,
+            "script": script.id if script else step["script"],
             "name": script.name if script else (step["name"] or step["script"]),
             "ext": (script.path.suffix if script else Path(path).suffix).lstrip(".").lower(),
             "path": path,
@@ -312,7 +313,8 @@ def _run_or_404(run_id):
 def run_graph(data) -> dict:
     """A sequence run for the page's diagram: boxes with their live status, and the arrows."""
     return {
-        "steps": [{"id": s["id"], "n": s["index"], "name": s.get("script_name") or "", "ext": s.get("ext") or "",
+        "steps": [{"id": s["id"], "n": s["index"], "script": s.get("script_id") or "",
+                   "name": s.get("script_name") or "", "ext": s.get("ext") or "",
                    "path": s.get("script_path") or "", "host": s.get("host") or "", "x": s["x"], "y": s["y"],
                    "join": s.get("join", "all"), "status": s["status"], "status_label": s["status_label"],
                    "run_id": s.get("run_id"), "error": s.get("error")} for s in data["steps"]],
@@ -346,4 +348,6 @@ def sequence_run_stop(request, run_id):
         messages.success(request, "Stopping the sequence: the running steps are stopped, the rest are skipped.")
     else:
         messages.error(request, "This sequence is not running.")
+    if request.POST.get("from") == "history":
+        return redirect("history")
     return redirect("sequence_run", run_id=run_id)

@@ -49,6 +49,12 @@ def _palette(tree):
     ]
 
 
+def _sequences():
+    """Sequences for the centre tab bar (open sequences are tabs next to the scripts)."""
+    from . import sequences
+    return [{"slug": x["slug"], "name": x["name"]} for x in sequences.list_sequences() if not x["error"]]
+
+
 def _folder():
     from . import workspace
     return workspace.overview()
@@ -90,4 +96,5 @@ def common(request):
         "wb_scan": SimpleLazyObject(discovery.status),
         # A plain callable: templates call it, and json_script then gets a real list.
         "wb_palette": lambda: _palette(tree),
+        "wb_sequences": _sequences,
     }

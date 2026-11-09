@@ -23,10 +23,11 @@
 
 {# The diagram as it was when the run started, with each step's live status; a click shows that step's console. #}
 <div class="seq-run" id="seq-run" data-status-url="{% url 'sequence_run_status' run.id %}" data-console-url="{% url 'execution_console' 'XID' %}?embed=1"
-     data-interval="{{ polling_interval }}" data-active="{% if run.active %}1{% endif %}">
+     data-interval="{{ polling_interval }}" data-active="{% if run.active %}1{% endif %}"
+     data-ws="{% firstof wb_folder.folder.path 'files' %}">
   <section class="panel seq-board">
     <div class="seq-toolbar">
-      <span class="small muted seq-hint">Click a step to see its console</span>
+      <span class="small muted seq-hint">Click a step to see its console · double-click to open its script</span>
       <span class="spacer"></span>
       <button type="button" class="btn btn-ghost btn-icon btn-sm" data-seq="out" title="Zoom out  (Ctrl+wheel)" aria-label="Zoom out">−</button>
       <button type="button" class="btn btn-ghost btn-icon btn-sm" data-seq="in" title="Zoom in  (Ctrl+wheel)" aria-label="Zoom in">+</button>

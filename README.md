@@ -545,6 +545,11 @@ activity bar (or **g q**) and create one; its page is a diagram:
   Hover a label for its **×** to remove the arrow. Arrows that would make a loop are refused.
 * **Remove** a step with the **×** on its box, or select it and press **Delete**
   (its arrows go with it).
+* **Open a step's script**: double-click its box, or its file icon. The script opens on its usual page
+  (editor, Overview, Parameters, Run) as a tab of the centre bar, and the **sequence is a tab** in that same bar:
+  one click goes back to the diagram, with the same view and the step still selected. Several scripts and
+  sequences can be open as tabs; × closes one. Only scripts of the open folder have a page: for another one the
+  diagram says to open its folder. On a sequence run, double-click a box for its script too.
 * **Click a box** to set the step in the right-hand column: **Values** (*saved with this
   step*, edited with the script's own form, starting from the script's last run, or **a
   preset** of the script, which stays up to date), **Host** (the script's default, `local`
@@ -732,9 +737,12 @@ runtime/executions/RUN-20261107-001/
 ```
 
 * Files are written atomically; reading while a run is being written is safe.
-* **History** searches IDs, script names, parameter values and error messages,
-  filters by script, status and date, and lets you open, download or delete runs.
-* **Retention** (Settings): executions older than `history_retention_days` are
+* **History** lists script runs and **sequence runs** together, newest first. It searches IDs,
+  script and sequence names, parameter values and error messages, filters by kind (*Show*), by
+  script or sequence (a sequence shows its runs and their step runs), status and date, and lets
+  you open, download or delete runs. A step run links to its sequence run; deleting a sequence
+  run removes only its record (its step runs stay). Running sequences are in the Running panel.
+* **Retention** (Settings): executions and sequence runs older than `history_retention_days` are
   deleted; logs older than `log_retention_days` are removed but the record stays.
   It runs when the app starts and when History is opened, or press
   **Apply retention policy now**. Queued and running executions are never deleted.

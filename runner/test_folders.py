@@ -23,6 +23,8 @@ class FolderCase(SimpleTestCase):
         self.cfg_file.write_text(json.dumps({}))
         for p in (mock.patch.object(config, "CONFIG_FILE", self.cfg_file),
                   mock.patch.object(config, "BACKUPS_DIR", self.tmp / "backups"),
+                  mock.patch.object(config, "SEQUENCES_DIR", self.tmp / "sequences"),
+                  mock.patch.object(config, "SEQUENCE_RUNS_DIR", self.tmp / "sequence_runs"),
                   mock.patch.object(config, "PRESETS_DIR", self.tmp / "presets")):
             p.start()
             self.addCleanup(p.stop)

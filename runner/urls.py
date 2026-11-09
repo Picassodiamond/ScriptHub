@@ -29,6 +29,7 @@ urlpatterns = [
     path("sequence-runs/<str:run_id>/", sequence_views.sequence_run, name="sequence_run"),
     path("sequence-runs/<str:run_id>/status/", sequence_views.sequence_run_status, name="sequence_run_status"),
     path("sequence-runs/<str:run_id>/stop/", sequence_views.sequence_run_stop, name="sequence_run_stop"),
+    path("sequence-runs/<str:run_id>/delete/", history_views.history_delete_sequence, name="sequence_run_delete"),
     path("history/", history_views.history_list, name="history"),
     path("history/delete-old/", history_views.history_delete_old, name="history_delete_old"),
     path("history/retention/", history_views.history_apply_retention, name="history_apply_retention"),

@@ -152,6 +152,12 @@
       top.appendChild(el('span', 'seq-n', String(s.n)));
       if (s.ext) top.appendChild(el('span', 'lang lang-' + s.ext, s.ext));
       top.appendChild(el('span', 'seq-node-name', s.name));
+      if (o.onOpen) {
+        var op = el('button', 'seq-open');
+        op.type = 'button'; op.title = 'Open the script (double-click the step)'; op.setAttribute('aria-label', 'Open the script of step ' + s.n);
+        op.innerHTML = '<svg class="i"><use href="#i-file"/></svg>';
+        top.appendChild(op);
+      }
       if (o.editable) {
         var x = el('button', 'seq-x', '×');
         x.type = 'button'; x.title = 'Remove step'; x.setAttribute('aria-label', 'Remove step ' + s.n);
@@ -277,7 +283,7 @@
     canvas.addEventListener('pointerdown', function (e) {
       if (e.button !== 0 || drag) return;
       var t = e.target;
-      if (t.closest('.seq-x, .seq-label')) return;               // their own click handlers
+      if (t.closest('.seq-x, .seq-open, .seq-label')) return;    // their own click handlers
       var node = t.closest('.seq-node');
       if (o.editable && t.closest('.seq-port') && node) {
         drag = { type: 'link', from: node.getAttribute('data-id') };
@@ -341,6 +347,20 @@
     }
     canvas.addEventListener('pointerup', function (e) { end(e, false); });
     canvas.addEventListener('pointercancel', function (e) { end(e, true); });
+
+    /* open a step's script: its button, or a double-click on the box */
+    if (o.onOpen) {
+      canvas.addEventListener('click', function (e) {
+        var b = e.target.closest('.seq-open');
+        if (b) o.onOpen(b.closest('.seq-node').getAttribute('data-id'));
+      });
+      canvas.addEventListener('dblclick', function (e) {
+        /* the canvas holds the pointer while a box is pressed (dragging), so the event's target is
+           the canvas: find the box under the pointer instead */
+        var hit = document.elementFromPoint(e.clientX, e.clientY), n = self.nodeAt(e.clientX, e.clientY);
+        if (n && !(hit && hit.closest('.seq-x, .seq-port, .seq-open'))) o.onOpen(n.getAttribute('data-id'));
+      });
+    }
 
     if (!o.editable) return;
     canvas.addEventListener('click', function (e) {
@@ -454,6 +474,46 @@
     return g ? JSON.parse(g.textContent) : { steps: [], links: [] };
   }
 
+  /* Open a step's script on its usual script page, as a tab of the centre bar (sr.tabs, app.js).
+     Only scripts of the open folder have a script page. */
+  function openScript(diagram, ws, stepId, before) {
+    var s = diagram.byId[stepId], tabs = window.sr && window.sr.tabs;
+    if (!s || !tabs) return;
+    if (!s.script || !tabs.script(s.script)) {
+      flash('"' + s.name + '" is not in the open folder: open its folder to view it' + (s.path ? ' (' + s.path + ').' : '.'), 'error');
+      return;
+    }
+    if (before) before();
+    tabs.add(ws, s.script);
+    window.location.href = tabs.url(s.script);
+  }
+
+  /* The centre tab bar of the sequence page: the open scripts and sequences, this one selected. */
+  function tabBar(bar, ws, current) {
+    var tabs = window.sr && window.sr.tabs;
+    if (!bar || !tabs) return;
+    var list = tabs.load(ws).filter(function (id) { return id === current || tabs.known(id); });
+    if (list.indexOf(current) < 0) list.push(current);
+    tabs.save(ws, list);
+    list.forEach(function (id) {
+      var a = tabs.tab(id);
+      if (!a) return;
+      if (id === current) { a.classList.add('is-active'); a.setAttribute('aria-current', 'page'); }
+      bar.appendChild(a);
+    });
+    bar.addEventListener('click', function (e) {
+      var x = e.target.closest('.tab-x');
+      if (!x) { if (e.target.closest('.doc-tab.is-active')) e.preventDefault(); return; }
+      e.preventDefault(); e.stopPropagation();
+      var id = x.parentNode.dataset.script, now = tabs.load(ws), at = now.indexOf(id);
+      now = now.filter(function (v) { return v !== id; });
+      tabs.save(ws, now);
+      if (id !== current) { x.parentNode.remove(); return; }
+      var next = now[Math.min(at, now.length - 1)];          // closing this sequence: its neighbour
+      window.location.href = next ? tabs.url(next) : '/sequences/';
+    }, true);
+  }
+
   /* ------------------------------------------------------------ sequence page --- */
   function editor(root) {
     var slug = root.getAttribute('data-slug'), graphUrl = root.getAttribute('data-graph-url');
@@ -462,11 +522,15 @@
     var frame = document.getElementById('seq-step-frame'), title = document.getElementById('seq-step-title');
     var pwBox = document.getElementById('seq-passwords'), runBtn = document.getElementById('seq-run-btn');
     var summary = document.getElementById('seq-summary'), busy = 0, current = null;
+    var ws = root.getAttribute('data-ws') || '', SEL_KEY = 'sr.seqSel.' + slug;
 
     var diagram = new Diagram(document.getElementById('seq-canvas'), {
       editable: true,
       viewKey: 'sr.seqView.' + slug,
       onSelect: open,
+      onOpen: function (id) {
+        openScript(diagram, ws, id, function () { try { sessionStorage.setItem(SEL_KEY, id); } catch (e) { /* storage unavailable */ } });
+      },
       onMove: function (id, x, y) { var p = {}; p[id] = [x, y]; send({ op: 'move', positions: p }); },
       onLink: function (from, to, when) { send({ op: 'link', from: from, to: to, when: when }); },
       onUnlink: function (from, to) { send({ op: 'unlink', from: from, to: to }); },
@@ -584,8 +648,13 @@
     });
     window.addEventListener('beforeunload', function (e) { if (busy) { e.preventDefault(); e.returnValue = ''; } });
 
+    tabBar(document.getElementById('seq-tabs'), ws, 'seq:' + slug);
     update(readGraph());
     diagram.restoreView();
+    /* back from a script opened here: the same box is selected again */
+    var back = null;
+    try { back = sessionStorage.getItem(SEL_KEY); sessionStorage.removeItem(SEL_KEY); } catch (e) { /* storage unavailable */ }
+    if (back && diagram.byId[back]) diagram.select(back);
   }
 
   /* -------------------------------------------------------- sequence run page --- */
@@ -595,6 +664,7 @@
     var shown = null, pinned = false;
     var diagram = new Diagram(document.getElementById('seq-canvas'), {
       editable: false,
+      onOpen: function (id) { openScript(diagram, root.getAttribute('data-ws') || '', id); },
       onSelect: function (id) {
         var s = id && diagram.byId[id];
         if (!s || !s.run_id) return;

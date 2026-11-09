@@ -36,7 +36,9 @@ class Phase4Case(SimpleTestCase):
         for p in (mock.patch.object(config, "CONFIG_FILE", self.cfg_file),
                   mock.patch.object(config, "EXECUTIONS_DIR", self.tmp / "executions"),
                   mock.patch.object(config, "PRESETS_DIR", self.tmp / "presets"),
-                  mock.patch.object(config, "BACKUPS_DIR", self.tmp / "backups")):
+                  mock.patch.object(config, "BACKUPS_DIR", self.tmp / "backups"),
+                  mock.patch.object(config, "SEQUENCES_DIR", self.tmp / "sequences"),
+                  mock.patch.object(config, "SEQUENCE_RUNS_DIR", self.tmp / "sequence_runs")):
             p.start()
             self.addCleanup(p.stop)
         self.addCleanup(shutil.rmtree, self.tmp, True)
@@ -102,7 +104,7 @@ class HistoryQueryTests(Phase4Case):
         r = self.client.get("/history/?status=failed")
         self.assertContains(r, "RUN-20260101-002")
         self.assertNotContains(r, "RUN-20260101-001")
-        self.assertContains(self.client.get("/history/?q=zzz"), "No executions match these filters")
+        self.assertContains(self.client.get("/history/?q=zzz"), "No runs match these filters")
         self.assertContains(self.client.get("/history/?date_from=not-a-date"), "RUN-20260101-001")  # bad input ignored
         self.assertContains(self.client.get("/history/?page=99"), "RUN-20260101-0")
 
@@ -131,13 +133,13 @@ class DeleteAndRetentionTests(Phase4Case):
         self.make_run("RUN-20260101-002", age_days=10)    # beyond log retention (7): logs gone, record stays
         self.make_run("RUN-20260101-003", age_days=1)     # recent: untouched
         result = history_ops.apply_retention()
-        self.assertEqual(result, {"runs_removed": 1, "logs_removed": 1})
+        self.assertEqual(result, {"runs_removed": 1, "logs_removed": 1, "sequences_removed": 0})
         self.assertFalse(history.run_dir("RUN-20260101-001").exists())
         meta = history.read_meta("RUN-20260101-002")
         self.assertTrue(meta["logs_deleted"])
         self.assertFalse(history.log_path("RUN-20260101-002", "stdout").exists())
         self.assertTrue(history.log_path("RUN-20260101-003", "stdout").exists())
-        self.assertEqual(history_ops.apply_retention(), {"runs_removed": 0, "logs_removed": 0})   # idempotent
+        self.assertEqual(history_ops.apply_retention(), {"runs_removed": 0, "logs_removed": 0, "sequences_removed": 0})   # idempotent
 
     def test_delete_views(self):
         self.make_run("RUN-20260101-001", "success")

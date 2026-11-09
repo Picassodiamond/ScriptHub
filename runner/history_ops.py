@@ -150,9 +150,11 @@ def delete_logs_older_than(days: int, now=None) -> int:
 def apply_retention(cfg=None, now=None) -> dict:
     """Apply the configured retention. Whole runs go first; logs after that."""
     cfg = cfg or config.load_config()
+    from . import sequence_runner          # sequence-run records follow the same history retention
     runs = delete_older_than(cfg["history_retention_days"], now)
     logs = delete_logs_older_than(cfg["log_retention_days"], now)
-    return {"runs_removed": runs, "logs_removed": logs}
+    sequences = sequence_runner.delete_older_than(cfg["history_retention_days"], now)
+    return {"runs_removed": runs, "logs_removed": logs, "sequences_removed": sequences}
 
 
 def maybe_apply_retention() -> None:

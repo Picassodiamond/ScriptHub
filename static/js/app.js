@@ -591,6 +591,63 @@
     });
   }
 
+  // ------------------------------------------------------------ open tabs --
+  // The tabs of the centre bar: open scripts (their ids) and open sequences ("seq:<slug>"),
+  // remembered per open folder (``ws``: the folder path, or "files"). Script pages
+  // (designer.js) and the sequence page (sequence.js) both draw them with sr.tabs.tab().
+  sr.tabs = (function () {
+    var scripts = {}, seqs = {};
+    function data(id) { try { return JSON.parse(document.getElementById(id).textContent) || []; } catch (e) { return []; } }
+    data('wb-palette').forEach(function (s) { scripts[s.id] = s; });
+    data('wb-sequences').forEach(function (s) { seqs['seq:' + s.slug] = s; });
+    function key(ws) { return 'scripthub.openScripts.' + (ws || ''); }
+    function isSeq(id) { return String(id).indexOf('seq:') === 0; }
+    var api = {
+      isSeq: isSeq,
+      script: function (id) { return scripts[id] || null; },
+      known: function (id) { return !!(scripts[id] || seqs[id]); },
+      load: function (ws) { try { return JSON.parse(localStorage.getItem(key(ws))) || []; } catch (e) { return []; } },
+      save: function (ws, list) { try { localStorage.setItem(key(ws), JSON.stringify(list.slice(-20))); } catch (e) { /* storage unavailable */ } },
+      add: function (ws, id) { var list = api.load(ws); if (list.indexOf(id) < 0) { list.push(id); api.save(ws, list); } },
+      remove: function (ws, id) { api.save(ws, api.load(ws).filter(function (v) { return v !== id; })); },
+      /* where a tab leads; ``sub`` = the script page's right-hand tab ('', 'parameters/', 'run/') */
+      url: function (id, sub) {
+        return isSeq(id) ? '/sequences/' + encodeURIComponent(id.slice(4)) + '/'
+          : '/scripts/' + encodeURIComponent(id) + '/' + (sub || '');
+      },
+      closeX: function () {
+        var x = document.createElement('span');
+        x.className = 'tab-x'; x.setAttribute('role', 'button'); x.title = 'Close the tab'; x.setAttribute('aria-label', 'Close'); x.textContent = '×';
+        return x;
+      },
+      /* a tab (link) for a known script or sequence; null for an unknown one */
+      tab: function (id, sub) {
+        var a = document.createElement('a'), name = document.createElement('span');
+        a.className = 'doc-tab doc-script-tab'; a.href = api.url(id, sub); a.dataset.script = id;
+        name.className = 'tab-name';
+        if (isSeq(id)) {
+          if (!seqs[id]) return null;
+          a.classList.add('doc-seq-tab');
+          a.title = 'Sequence: ' + seqs[id].name;
+          a.innerHTML = '<svg class="i"><use href="#i-sequence"/></svg>';
+          name.textContent = seqs[id].name;
+        } else {
+          var s = scripts[id];
+          if (!s) return null;
+          a.title = s.path;
+          var lang = document.createElement('span');
+          lang.className = 'lang lang-' + s.ext; lang.textContent = s.ext;
+          a.appendChild(lang);
+          name.textContent = String(s.path || '').split('/').pop();
+        }
+        a.appendChild(name);
+        a.appendChild(api.closeX());
+        return a;
+      }
+    };
+    return api;
+  })();
+
   sr.palette = palette;
   sr.help = help;
   sr.closeOverlay = closeOverlay;

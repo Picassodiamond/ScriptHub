@@ -1,10 +1,28 @@
-{# Running and queued executions, on top of History; History polls executions/?partial=1 for it while something is active. Empty when nothing is. #}
-{% if active %}
-<section class="panel" data-active-count="{{ active|length }}">
-  <div class="panel-head"><h2>Running <span class="count-pill">{{ active|length }}</span></h2></div>
+{# Running and queued executions and sequences, on top of History; History polls executions/?partial=1 for it while something is active. Empty when nothing is. #}
+{% if active or active_seqs %}
+<section class="panel" data-active-count="{{ active|length|add:active_seqs|length }}">
+  <div class="panel-head"><h2>Running <span class="count-pill">{{ active|length|add:active_seqs|length }}</span></h2></div>
   <div class="table-wrap">
   <table class="table">
     <tbody>
+      {% for r in active_seqs %}
+      <tr class="hist-seq">
+        <td class="mono small"><a href="{% url 'sequence_run' r.id %}">{{ r.id }}</a></td>
+        <td class="strong"><svg class="i i-sm hist-seq-icon" aria-label="Sequence"><use href="#i-sequence"/></svg> {{ r.name }}</td>
+        <td class="small muted hide-sm">{{ r.done }}/{{ r.steps|length }} steps</td>
+        <td><span class="st st-{{ r.status }}">{{ r.status_label }}</span></td>
+        <td class="num mono small">{{ r.duration }}</td>
+        <td class="actions">
+          <div class="btn-row">
+            <a class="btn btn-ghost btn-icon btn-sm" href="{% url 'sequence_run' r.id %}" title="Diagram and consoles"><svg class="i"><use href="#i-sequence"/></svg></a>
+            <form method="post" action="{% url 'sequence_run_stop' r.id %}" data-confirm="Stop this sequence? The running steps are stopped and the rest are skipped.">{% csrf_token %}
+              <input type="hidden" name="from" value="history">
+              <button class="btn btn-danger btn-sm" type="submit"><svg class="i i-fill"><use href="#i-stop"/></svg> Stop</button>
+            </form>
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
       {% for r in active %}
       <tr>
         <td class="mono small"><a href="{% url 'execution_console' r.id %}">{{ r.id }}</a></td>

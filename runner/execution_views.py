@@ -429,5 +429,6 @@ def executions_list(request):
     """Jobs is part of History now (the Running panel on top); ?partial=1 is that panel,
     which History polls while something runs."""
     if request.GET.get("partial"):
-        return render(request, "runner/_active_runs.html", {"active": active_runs()})
+        from .sequence_runner import active_runs as active_sequences
+        return render(request, "runner/_active_runs.html", {"active": active_runs(), "active_seqs": active_sequences()})
     return redirect("history")

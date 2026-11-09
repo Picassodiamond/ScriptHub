@@ -5,10 +5,13 @@
 {% block content %}
 {# The sequence as a diagram (static/js/sequence.js): scripts dragged in from the explorer, arrows between them. Right: the sequence, or the clicked step's settings (an embedded sequence_step page). #}
 <div class="seq-editor" id="seq-editor" data-slug="{{ seq.slug }}" data-graph-url="{% url 'sequence_graph' seq.slug %}"
-     data-step-url="{% url 'sequence_step' seq.slug 'XID' %}" data-max="{{ max_steps }}">
+     data-step-url="{% url 'sequence_step' seq.slug 'XID' %}" data-max="{{ max_steps }}"
+     data-ws="{% firstof wb_folder.folder.path 'files' %}">
   <section class="panel seq-board">
+    {# the centre tab bar, as on script pages: open scripts and sequences (static/js/sequence.js draws it) #}
+    <div class="doc-bar seq-tabs" role="tablist" id="seq-tabs"></div>
     <div class="seq-toolbar">
-      <span class="small muted seq-hint">Drag scripts here from the left · drag the dot under a step onto another step to connect them · click an arrow's label to change when it applies</span>
+      <span class="small muted seq-hint">Drag scripts here from the left · drag the dot under a step onto another step to connect them · click an arrow's label to change when it applies · double-click a step to open its script</span>
       <span class="spacer"></span>
       <button type="button" class="btn btn-ghost btn-sm" data-seq="tidy" title="Lay the steps out in rows, following the arrows">Tidy up</button>
       <button type="button" class="btn btn-ghost btn-icon btn-sm" data-seq="out" title="Zoom out  (Ctrl+wheel)" aria-label="Zoom out">−</button>

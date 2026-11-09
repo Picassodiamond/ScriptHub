@@ -70,6 +70,7 @@
 
   {{ wb_palette|json_script:"wb-palette" }}
   {{ wb_folder_palette|json_script:"wb-folders" }}
+  {{ wb_sequences|json_script:"wb-sequences" }}
   <script type="application/json" id="wb-urls">{"script": "{% url 'script_detail' 'XID' %}", "run": "{% url 'script_run' 'XID' %}", "source": "{% url 'script_source' 'XID' %}", "configure": "{% url 'script_detail' 'XID' %}"{% if editing_enabled %}, "edit": "{% url 'script_edit' 'XID' %}"{% endif %}, "execution": "{% url 'execution_console' 'XID' %}"}</script>
   <script src="{% static 'js/app.js' %}"></script>
   {% block scripts %}{% endblock %}

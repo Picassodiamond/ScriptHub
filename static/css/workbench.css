@@ -1114,6 +1114,14 @@ button.doc-tab.is-active { background: var(--code-bg); color: var(--text); box-s
 .seq-node-sub { display: flex; align-items: center; gap: 6px; min-width: 0; font-size: 11.5px; color: var(--muted); overflow: hidden; white-space: nowrap; }
 .seq-node-sub > span:last-child { overflow: hidden; text-overflow: ellipsis; }
 .seq-node.has-problem .seq-node-sub { color: var(--bad); }
+.seq-open { visibility: hidden; display: inline-flex; border: 0; background: none; color: var(--faint); cursor: pointer; padding: 1px; border-radius: 4px; }
+.seq-open .i { width: 14px; height: 14px; }
+.seq-node:hover .seq-open, .seq-node.is-selected .seq-open { visibility: visible; }
+.seq-open:hover { color: var(--accent); background: var(--hover); }
+/* centre tab bar on the sequence page: open scripts and sequences, as on script pages */
+.seq-board > .seq-tabs { border-radius: var(--r-lg) var(--r-lg) 0 0; }
+a.doc-tab.is-active { color: var(--text); background: var(--code-bg); box-shadow: inset 0 2px 0 var(--accent); }
+.doc-seq-tab .i { width: 14px; height: 14px; flex: none; color: var(--accent); }
 .seq-x { visibility: hidden; border: 0; background: none; color: var(--faint); cursor: pointer; padding: 0 2px; font-size: 16px; line-height: 1; }
 .seq-node:hover .seq-x, .seq-node.is-selected .seq-x { visibility: visible; }
 .seq-x:hover { color: var(--bad); }
@@ -1182,3 +1190,9 @@ a.doc-tab:hover { color: var(--text); text-decoration: none; background: var(--h
 /* script tabs keep a readable name; long names end in an ellipsis */
 .doc-bar > .doc-script-tab { flex: 0 1 auto; min-width: 104px; max-width: 220px; }
 .doc-tab .tab-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* History: sequence runs next to script runs */
+.hist-seq-icon { color: var(--accent); vertical-align: -2px; }
+.hist-step { font-weight: 400; margin-top: 2px; }
+.hist-step a { color: var(--muted); }
+.hist-step a:hover { color: var(--accent); }

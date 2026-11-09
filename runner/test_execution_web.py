@@ -52,7 +52,9 @@ class ExecutionWebTests(SimpleTestCase):
         for p in (mock.patch.object(config, "CONFIG_FILE", cfg),
                   mock.patch.object(config, "EXECUTIONS_DIR", self.tmp / "executions"),
                   mock.patch.object(config, "PRESETS_DIR", self.tmp / "presets"),
-                  mock.patch.object(config, "BACKUPS_DIR", self.tmp / "backups")):
+                  mock.patch.object(config, "BACKUPS_DIR", self.tmp / "backups"),
+                  mock.patch.object(config, "SEQUENCES_DIR", self.tmp / "sequences"),
+                  mock.patch.object(config, "SEQUENCE_RUNS_DIR", self.tmp / "sequence_runs")):
             p.start()
             self.addCleanup(p.stop)
         discovery.scan(force=True)

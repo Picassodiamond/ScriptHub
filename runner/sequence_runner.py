@@ -21,6 +21,7 @@ runs, sequence runs are not resumed after a restart: they are marked Interrupted
 import datetime
 import os
 import re
+import shutil
 import threading
 import time
 from pathlib import Path
@@ -133,6 +134,43 @@ def _as_graph(data: dict) -> None:
             links.append({"from": prev["id"], "to": s["id"],
                           "when": "always" if prev.get("on_failure") == "continue" else "success"})
     data["links"] = links
+
+
+def reference_time(data: dict):
+    """When a sequence run happened (for History's dates, order and retention)."""
+    for key in ("finished_at", "started_at", "queued_at"):
+        t = history.parse_iso(data.get(key))
+        if t is not None:
+            return t
+    return None
+
+
+def delete_run(rid: str) -> bool:
+    """Delete one finished sequence run's record (its step runs stay in History). Active ones are refused."""
+    data = read_run(rid)
+    if data is None or data.get("status") in history.ACTIVE_STATUSES:
+        return False
+    shutil.rmtree(run_dir(rid), ignore_errors=True)
+    return True
+
+
+def delete_older_than(days: int, now=None) -> int:
+    """Delete finished sequence-run records older than ``days`` days. Returns how many."""
+    if days < 0:
+        return 0
+    cutoff = (now or datetime.datetime.now()) - datetime.timedelta(days=days)
+    removed = 0
+    for data in list_runs():
+        when = reference_time(data)
+        if data.get("status") not in history.ACTIVE_STATUSES and when is not None and when < cutoff:
+            if delete_run(data.get("id", "")):
+                removed += 1
+    return removed
+
+
+def active_runs() -> list:
+    """Sequence runs that are running now (for History's Running panel)."""
+    return [live_view(d) for d in list_runs() if d.get("status") in history.ACTIVE_STATUSES]
 
 
 def live_view(data: dict) -> dict:

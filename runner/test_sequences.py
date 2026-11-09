@@ -355,9 +355,16 @@ class WebTests(SequenceCase):
         page = self.client.get("/sequences/web-flow/")
         self.assertContains(page, f'data-id="{a.id}"')                 # the explorer offers scripts to drag
         self.assertContains(page, 'id="seq-graph"')
+        self.assertContains(page, 'id="seq-tabs"')                     # the centre tab bar
+        self.assertContains(page, f'data-ws="{self.root}"')            # open tabs are kept per open folder
+        # every page knows the sequences, so an open sequence is a tab next to the scripts
+        script_page = self.client.get(f"/scripts/{a.id}/")
+        self.assertContains(script_page, 'id="wb-sequences"')
+        self.assertContains(script_page, '"slug": "web-flow"')
 
         r, d = self.graph("web-flow", op="add", script=a.id, x=100, y=40)
         self.assertEqual((r.status_code, d["id"]), (200, "s1"))
+        self.assertEqual(d["graph"]["steps"][0]["script"], a.id)       # a double-click opens it
         r, d = self.graph("web-flow", op="add", script=b.id, x=100, y=200)
         self.assertEqual(d["id"], "s2")
         self.assertEqual([p["input"] for p in d["graph"]["passwords"]], ["pw_s1_password", "pw_s2_password"])
@@ -413,6 +420,48 @@ class WebTests(SequenceCase):
         self.assertEqual(d["graph"]["links"], [])
         r, d = self.graph("web-flow", op="remove", id="s1")
         self.assertEqual([s["id"] for s in d["graph"]["steps"]], ["s2"])
+
+    def test_history_lists_sequence_runs_with_their_steps(self):
+        slug = self.sequence((self.first, self.values(tag="a")), (self.second, self.values(tag="b")),
+                             links=[("s1", "s2", "success")], name="Hist flow")
+        run = self.run_sequence(slug)
+        rid, steps = run["id"], [s["run_id"] for s in run["steps"]]
+        page = self.client.get("/history/")
+        self.assertContains(page, f"/sequence-runs/{rid}/")
+        self.assertContains(page, "2/2 steps")
+        self.assertContains(page, "↳ Hist flow · step 1")                 # a step run links to its sequence run
+        for step_run in steps:
+            self.assertContains(page, step_run)
+        only = self.client.get("/history/?kind=sequences")
+        self.assertContains(only, rid)
+        self.assertNotContains(only, steps[0])
+        scripts_only = self.client.get("/history/?kind=scripts")
+        self.assertNotContains(scripts_only, 'class="hist-seq"')
+        self.assertContains(scripts_only, steps[0])
+        picked = self.client.get(f"/history/?script=seq:{slug}")         # a sequence: its runs and step runs
+        self.assertContains(picked, rid)
+        self.assertContains(picked, steps[1])
+        self.assertContains(self.client.get("/history/?q=hist+flow&kind=sequences"), rid)
+        self.assertNotContains(self.client.get("/history/?status=failed&kind=sequences"), f"/sequence-runs/{rid}/")
+
+        r = self.client.post(f"/sequence-runs/{rid}/delete/", follow=True)
+        self.assertContains(r, f"Deleted {rid}")
+        self.assertIsNone(sequence_runner.read_run(rid))
+        self.assertIsNotNone(history.read_meta(steps[0]))                # step runs stay
+        self.assertEqual(self.client.post(f"/sequence-runs/{rid}/delete/").status_code, 404)
+
+    def test_old_sequence_runs_follow_history_retention(self):
+        rid = sequence_runner._allocate()
+        sequence_runner._write_run(rid, {"id": rid, "sequence": "x", "name": "Old", "status": history.SUCCESS,
+                                         "started_at": "2020-01-01T10:00:00", "finished_at": "2020-01-01T10:01:00",
+                                         "steps": []})
+        active = sequence_runner._allocate()
+        sequence_runner._write_run(active, {"id": active, "sequence": "x", "name": "Busy", "status": history.RUNNING,
+                                            "started_at": "2020-01-01T10:00:00", "steps": []})
+        self.assertEqual(sequence_runner.delete_older_than(30), 1)
+        self.assertIsNone(sequence_runner.read_run(rid))
+        self.assertIsNotNone(sequence_runner.read_run(active))           # running: never removed
+        self.assertEqual([r["id"] for r in sequence_runner.active_runs()], [active])
 
     def test_join_choice_only_with_several_arrows_in(self):
         slug = self.sequence((self.first, self.values()), (self.second, self.values()), (self.third, self.values()),
