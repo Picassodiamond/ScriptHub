@@ -1,9 +1,9 @@
-{% comment %}Menu bar (VS Code style): File / View / Run / Help on the left, the open folder or file and the
+{% load static %}{% comment %}Menu bar (VS Code style): File / View / Run / Help on the left, the open folder or file and the
 page in the middle. Menus are <details data-menu> (app.js: click opens, hovering another while one is
 open switches, Esc / outside click closes). data-action items are handled in app.js.{% endcomment %}
 {% with f=wb_folder.folder %}
 <header class="menubar" role="menubar">
-  <span class="mb-logo" aria-hidden="true"><svg class="i"><use href="#i-play"/></svg></span>
+  <img class="mb-logo" src="{% static 'img/scripthub.png' %}" alt="" width="22" height="22">
 
   <details class="mb-menu" data-menu>
     <summary role="menuitem">File</summary>

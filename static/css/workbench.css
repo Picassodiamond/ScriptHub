@@ -1048,9 +1048,7 @@ button.doc-tab.is-active { background: var(--code-bg); color: var(--text); box-s
 }
 .menubar { grid-area: mb; position: relative; z-index: 30; display: flex; align-items: center; gap: 1px; padding: 0 6px;
   background: var(--bg-2); border-bottom: 1px solid var(--line); font-size: 12.5px; }
-.mb-logo { flex: none; display: grid; place-items: center; width: 20px; height: 20px; margin: 0 6px 0 2px; border-radius: 5px;
-  background: linear-gradient(135deg, var(--accent), #7a5cff); color: #fff; }
-.mb-logo .i { width: 10px; height: 10px; margin-left: 1px; fill: currentColor; stroke: none; }
+.mb-logo { flex: none; width: 22px; height: 22px; margin: 0 6px 0 2px; object-fit: contain; }
 .mb-menu { position: relative; }
 .mb-menu > summary { list-style: none; padding: 3px 8px; border-radius: 5px; color: var(--text-2); cursor: default; user-select: none; }
 .mb-menu > summary::-webkit-details-marker { display: none; }
