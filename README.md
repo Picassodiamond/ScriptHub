@@ -4,6 +4,11 @@ A small, standalone app for **discovering, configuring, running and monitoring
 Python, Bash and batch scripts**, on this computer or on Linux servers over SSH.
 Use it as a **desktop app** (its own window and tray icon) or as a web app in a browser.
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/sequence-run-dark.png">
+  <img alt="ScriptHub: a sequence of health checks after a run, each step's status on the diagram and the console of the selected step on the right" src="docs/screenshots/sequence-run-light.png">
+</picture>
+
 The scripts are the workers. Django is only the management and execution
 interface. There is **no database, no Redis, no Celery and no Node.js**:
 settings, script metadata, presets, sequences, history and logs are plain YAML, JSON
@@ -135,6 +140,11 @@ dark theme* switches, remembered per browser):
   script); script pages have the tabs **Overview · Parameters · Run** on top of a right
   column that **Ctrl+Alt+B** (or its ◧ button) hides and shows.
 * **Status bar**: version, running/queued count and the progress of a folder scan.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/script-dark.png">
+  <img alt="A script page: the explorer on the left, the script with its metadata block in the editor, and the Run form built from its parameters on the right" src="docs/screenshots/script-light.png">
+</picture>
 
 | Page | What it does |
 |---|---|
@@ -1057,6 +1067,7 @@ ScriptHub/
 ├── sample_scripts/           example scripts to open as a folder (basics, files, system, network, data)
 ├── sample_projects/          example project files (.scripthub), built by tools/build_sample_projects.py
 ├── templates/, static/       Django templates, custom CSS, vanilla JavaScript
+├── docs/screenshots/         the README's pictures (light and dark)
 └── tools/                    build_sample_projects.py, test_highlight.js
 ```
 
