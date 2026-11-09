@@ -100,7 +100,11 @@ class SaveAndOpenTests(ProjectCase):
             names = set(z.namelist())
             manifest = json.loads(z.read("manifest.json"))
             seq_text = z.read(f"sequences/{slug}.yaml").decode()
+            preset_text = z.read(manifest["presets"][0]["file"]).decode()
         self.assertIn("files/alpha.py", names)
+        self.assertTrue(preset_text.startswith("# Preset for alpha.py (ScriptHub)."))   # no local path in it
+        self.assertNotIn(str(self.src), preset_text)
+        self.assertIn("tag: night", preset_text)
         self.assertFalse(any(".env" in n or ".pem" in n or "__pycache__" in n for n in names))
         self.assertEqual(manifest["format"], "scripthub-project")
         self.assertIn("path: files/deploy/beta.sh", seq_text)                 # paths inside the project

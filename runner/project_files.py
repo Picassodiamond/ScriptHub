@@ -232,7 +232,11 @@ def build(root: Path, name: str, files: list, seq_slugs: list, with_presets: boo
                 if not pfolder.is_dir():
                     continue
                 for pf in sorted(pfolder.glob("*.yaml")):
-                    body = pf.read_bytes()
+                    try:                 # written anew: the header names the file here, not its full local path
+                        values = yamlish.load(pf.read_text(encoding="utf-8-sig"))
+                        body = yamlish.dump(values, header=presets.header_text(rel)).encode("utf-8")
+                    except (OSError, ValueError, UnicodeDecodeError):
+                        continue         # an unreadable preset stays behind
                     n += 1
                     arc = f"presets/{n}/{pf.name}"
                     z.writestr(arc, body)

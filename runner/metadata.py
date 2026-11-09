@@ -15,7 +15,7 @@
     # --- end scripthub ---
 
 The YAML is the subset of runner/yamlish.py (no third-party parser). Blocks written as
-JSON (before version 2.2: the body starts with ``{``) are still read and become YAML on
+JSON by older versions (the body starts with ``{``) are still read and become YAML on
 the next save. Batch files use ``::`` instead of ``#``. The block goes after a ``#!`` line, a Python
 encoding line or ``@echo off``. Saving rewrites only the block (atomically, keeping the
 line endings and a BOM; the previous version goes to runtime/backups/<id>/).
@@ -83,7 +83,7 @@ def parse_block(text: str):
         return None, None
     body = "\n".join(_PREFIX.sub("", line, count=1) for line in lines[span[0] + 1:span[1]])
     where = f"lines {span[0] + 1}-{span[1] + 1}"
-    if body.lstrip().startswith("{"):                 # written as JSON (before 2.2)
+    if body.lstrip().startswith("{"):                 # written as JSON by an older version
         try:
             data = json.loads(body)
         except ValueError as exc:

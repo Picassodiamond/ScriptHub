@@ -24,7 +24,10 @@ Never expose it to an untrusted network without authentication in front of it.
 * On SSH hosts the remote command is built with `shlex.quote`; the script is streamed
   over stdin, nothing is installed on the host.
 * The browser never sends file paths: scripts are referred to by id; files are only read
-  inside the configured script directories (symbolic links that leave them are skipped).
+  inside the open folder and the files you opened (symbolic links that leave them are skipped).
+* Project files (`.scripthub`) you open are untrusted: they are checked (no paths leaving the
+  folder, no links, size limits, SHA-256 of every file) and unpacked only into a new or empty
+  folder; opening one runs nothing.
 * Passwords entered as parameters are masked in the UI and history and are **never
   stored** in saved parameters.
 * CSRF protection on every form; the desktop token cookie is `HttpOnly` and `SameSite=Strict`.
@@ -37,7 +40,8 @@ Never expose it to an untrusted network without authentication in front of it.
   where the data folder is and how to clear it: README, *Where ScriptHub keeps its data*), and may
   contain host names, paths or other values you consider internal. A script's metadata
   block (its parameter definitions and defaults) is part of the script file: review it
-  before you commit or share a script folder.
+  before you commit or share a script folder. A project file you save contains the
+  folder's files, its sequences and presets (never passwords): review it before you share it.
 * Run logs (`runtime/executions/`) contain whatever your scripts print.
 
 ## Reporting a vulnerability

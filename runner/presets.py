@@ -88,8 +88,13 @@ def _recent_dir(script) -> Path:
     return folder(script) / "recent"
 
 
+def header_text(name, what: str = "Preset") -> str:
+    """The comment at the top of a saved set; project files use the script's relative path."""
+    return f"{what} for {name} (ScriptHub). Passwords are never stored."
+
+
 def _header(script, what) -> str:
-    return f"{what} for {script.path} (ScriptHub). Passwords are never stored."
+    return header_text(script.path, what)
 
 
 def _read_set(path: Path, strict: bool = False):

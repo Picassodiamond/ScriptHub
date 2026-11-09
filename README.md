@@ -6,10 +6,11 @@ Use it as a **desktop app** (its own window and tray icon) or as a web app in a 
 
 The scripts are the workers. Django is only the management and execution
 interface. There is **no database, no Redis, no Celery and no Node.js**:
-configuration, presets, history and logs are plain JSON and text files.
+settings, script metadata, presets, sequences, history and logs are plain YAML, JSON
+and text files.
 
 > **Built for one trusted user.** There is no login. Anyone who can open the web
-> page can run every enabled script. Use the desktop app, keep the web server on
+> page can run every script in the open folder. Use the desktop app, keep the web server on
 > `127.0.0.1` (the default), or put your own authentication in front of it.
 > See [Security](#security) and [SECURITY.md](SECURITY.md).
 
@@ -117,15 +118,15 @@ dark theme* switches, remembered per browser):
   in the middle. Click a menu (then hover to move between menus, Esc closes):
   * **File**: New script (`g n`), **Open file…**, **Open folder…** (`g f`), *Open
     recent* (favourites and recent folders/files), add to / remove from favourites,
-    Close folder, Settings.
-  * **View**: Command palette (Ctrl+K), Home / Library / Runs, Side panel (Ctrl+B),
+    Close folder, **Open project…**, **Save project as…**, Close project, Settings.
+  * **View**: Command palette (Ctrl+K), Home / Library / Sequences / Runs, Side panel (Ctrl+B),
     Right panel (Ctrl+Alt+B) and Saved values panel (Ctrl+J) on script pages,
     Collapse explorer, Light / dark theme.
   * **Run**: Run the script (Ctrl+Enter), Run with Trace, Run with Debug, Rescan
     folder, Runs.
   * **Help**: Keyboard shortcuts (`?`), version.
-* **Activity bar** (far left): Home, Library, **Runs** (what is running now, with a
-  live count, and the history); Settings at the bottom.
+* **Activity bar** (far left): Home, Library, **Sequences**, **Runs** (what is running
+  now, with a live count, and the history); Settings at the bottom.
 * **Side panel**: the **Explorer** (the open folder's name with New script, Rescan
   and Collapse all; every script grouped by category, with a dot for its last
   result and a filter box) on most pages; the list of executions in the
@@ -137,7 +138,7 @@ dark theme* switches, remembered per browser):
 
 | Page | What it does |
 |---|---|
-| **Home** (`/`, the app icon) | Counts of scripts, running, successful and failed executions; recent executions; **Quick run** and most-used scripts. |
+| **Home** (`/`, the app icon) | Counts of scripts, running, successful and failed executions; recent executions; **Quick run** and most-used scripts; **Samples** (the sample scripts folder and the sample projects). |
 | **Script Library** (`/scripts/`) | Every script as a dense table (or cards). Search (`/` focuses it), filter by **category, platform and language**. |
 | **Open folder** (`/folder/`) | Fallback when the system folder dialog is not available (browser on another machine): type a path or click through the folder list; favourites (star) and recent folders. The explorer's folder name is a quick switcher with the same lists. |
 | **Script tabs** | Every script you open gets a tab in the centre bar, like an editor's open files (remembered per folder; × closes the tab, not the script). The selected tab is the script the right column (Overview / Parameters / Run) and the Saved values panel show; clicking another tab, or another script in the explorer, opens it on the same right-hand tab. Its run tabs follow it. |
@@ -146,9 +147,9 @@ dark theme* switches, remembered per browser):
 | **Script › Parameters** | The **parameter definitions** the run form is built from (click a row to edit; hover to see where the script uses it). |
 | **Script › Run** | On the right: where the values come from (defaults, a recent run or a preset), the host and the parameters (focusing one marks the lines that use it), and *+ Save current values as preset…* at the end of the values list. **Run** (Ctrl+Enter) in the bottom bar, with the mode **Normal · Trace · Debug** next to it, starts the script straight away (unsaved script edits are saved first) and opens the run as a tab next to the script; **Reset** loads the defaults. |
 | **New script** (`/scripts/new/`, *File → New script*, **+** in the explorer header) | Name, language, optional sub-folder and category; creates the file (with a short starter) and its metadata in the open folder, then opens it in the editor. |
-| **Console** (`/executions/RUN-…/`) | Step 3. Live status, duration, exit code, stdout and stderr (side by side, stacked or stdout only), auto-scroll, copy, download, stop; the running line (trace) or the **debugger** (debug). |
-| **Runs** (`/history/`; `/executions/` redirects here) | What is running or queued on top (refreshes by itself while something runs), then every execution with search, filters, paging, delete and retention. |
-| **History** | Search and filter every past execution, open or download logs, delete runs, apply retention. |
+| **Sequences** (`/sequences/`) | Scripts connected by arrows on a diagram, run in place; see [Sequences](#sequences-scripts-connected-by-arrows). |
+| **Console** (`/executions/RUN-…/`) | Live status, duration, exit code, stdout and stderr (side by side, stacked or stdout only), auto-scroll, copy, download, stop; the running line (trace) or the **debugger** (debug). |
+| **Runs** (`/history/`; `/executions/` redirects here) | What is running or queued on top (refreshes by itself while something runs), then the history: every script run and sequence run with search, filters, paging, open or download logs, delete and retention. |
 | **Settings** | Features, concurrency limits, timeouts, polling, retention, interpreters (local and SSH), SSH command, environment variables, SSH host test. |
 
 ### Keyboard and command palette
@@ -162,12 +163,14 @@ Ctrl+Enter runs it), type `run ` to list run actions only, paste a run id such a
 | `Ctrl+K` | Command palette |
 | `Ctrl+B` | Toggle the side panel |
 | `/` | Focus the page search (or the explorer filter) |
-| `g o` `g l` `g h` `g s` | Go to Home, Library, Runs, Settings |
-| `g n` `g f` | New script, Open folder |
-| `g n` | New script (in the open folder) |
-| `i` (or `c`) `r` | On a script: Overview (configuration), Run (run / view / edit) |
-| `Ctrl+Enter` | Run (Run tab), Create (New script) |
+| `g o` `g l` `g q` `g h` `g s` | Go to Home, Library, Sequences, Runs, Settings |
+| `g n` `g f` | New script (in the open folder), Open folder |
+| `i` (or `c`) `p` `r` (or `s`) | On a script: Overview, Parameters, Run |
+| `Ctrl+S` | Save (script pages, editor) |
+| `Ctrl+Enter` | Run (Run tab, sequence), Create (New script) |
 | `Ctrl+Alt+B` `Ctrl+J` | Hide/show the right panel, the saved-values panel (script pages) |
+| `r` | On a console: run this script again |
+| `[` `]` | Runs: previous / next page |
 | `F5` `F10`/`n` `F6` `Shift+F5` | Debugger: continue, step, pause, stop |
 
 
@@ -252,7 +255,7 @@ ScriptHub works on **one folder at a time**, like an editor's *Open Folder*, plu
 number of **script files** opened on their own (*File → Open file…*, several at once;
 with no folder open the explorer shows just those files; New script needs a folder).
 Each opened file can be closed again (*File → Close <file>* / *Close opened files*).
-It is not a setting: on first start the Overview asks you to open one (or the
+It is not a setting: on first start Home asks you to open one (or the
 `sample_scripts` folder), and the folder you open is reopened on the next start.
 
 * **Open folder…** / **Open file…** (File menu, Ctrl+K) show the system dialog
@@ -261,8 +264,8 @@ It is not a setting: on first start the Overview asks you to open one (or the
   same machine. From another machine, the `/folder/` page is used instead: type a
   path (folder or script) or click through the drives, sub-folders and scripts.
 * A large folder (a whole drive, say) is scanned in the background: the app stays
-  usable, the status bar shows the folders and scripts counted so far, and the
-  Overview / Library reload when the scan is done.
+  usable, the status bar shows the folders and scripts counted so far, and
+  Home / Library reload when the scan is done.
 * **Recent** keeps the last 10 folders and files; **favourites** (star) stay until
   you unstar them. Both are in *File → Open recent* and the command palette
   (Ctrl+K), so switching is one click.
@@ -271,7 +274,7 @@ It is not a setting: on first start the Overview asks you to open one (or the
   all of them become recent).
 
 The folder is scanned **recursively, up to 3 sub-folder levels deep** (deeper folders are skipped, with a warning in the Library), and new files appear without a restart
-(press **Refresh** to rescan immediately). Switching folders does not stop runs
+(press **Rescan** in the explorer header or *Run → Rescan folder* to rescan immediately). Switching folders does not stop runs
 that are in progress, and history keeps runs of scripts from other folders.
 
 Rules that keep this safe:
@@ -460,7 +463,7 @@ One item of the `parameters` list:
 | `default` | Initial value (must itself be valid). |
 | `required` | Must be filled in. |
 | `help` / `placeholder` | Hint texts. |
-| `choices` | For `select` and `multiselect`: `["a", "b"]` or `[{"value": "a", "label": "Option A"}]`. |
+| `choices` | For `select` and `multiselect`: `[a, b]`, or items with a label: `- {value: a, label: Option A}` (one per line under `choices:`). |
 | `min` / `max` | Limits for `number` and `decimal`. |
 | `min_length` / `max_length` | Limits for text-like types. |
 | `pattern` | A regular expression the **whole** value must match. |
@@ -489,7 +492,40 @@ New types can be added in `runner/parameter_service.py` (`register_type`).
 
 ---
 
-### Step debugging
+## Running a script, hosts and presets
+
+1. The **Run** tab shows the script with a form on the right, built from the metadata (it opens with the last run's values).
+2. Choose the **Host**: `local` or any SSH host.
+3. Optionally load a **preset** or an earlier run from the list above the form.
+4. Pick the **run mode** next to the Run button: **Normal**, **Trace** or **Debug** (the
+   last two for Python and Bash, see below).
+5. **Run** (Ctrl+Enter) validates every value and starts the script; the run opens as a
+   tab next to the script in the centre (the exact command is under *Parameters & command*).
+
+Values are validated for type, range, choices and pattern, on the server.
+
+### Trace: seeing which line is running
+
+Choose the run mode **Trace** next to the **Run** button for
+a Python or Bash script. The console then shows the script's source next to the
+output with the current line highlighted and scrolled into view. The source shown is a
+copy taken when the run started, so later edits do not shift the highlight.
+
+* **How:** Python runs through a small launcher that reports line numbers
+  (`sys.monitoring` on Python 3.12+, `sys.settrace` before that). Bash gets a `DEBUG`
+  trap. Your script file is not modified. The markers travel on stderr and are removed
+  again, so `stderr.log` stays clean.
+* **Speed:** tracing slows the script (Python much more in tight loops). Press
+  **Stop tracing** on the console to end it for the rest of the run.
+  It cannot be switched back on.
+* **Accuracy:** the page polls, so a fast script jumps ahead; the highlight shows roughly
+  where it is. Only the script's own lines count (not imported modules or `source`d
+  files). `.bat` files and `sh` (not bash) are not supported.
+* **SSH hosts:** Python needs nothing on the host; Bash receives one extra first line, so
+  line numbers are corrected by one. **Stop tracing** sends `SIGUSR1` to the script
+  (it is ignored for Python before 3.12 on Windows, which has no such signal).
+
+### Debug: step through a script
 
 Choose the run mode **Debug** next to the **Run** button for a Python or
 Bash script, on this computer or an SSH host. The run pauses
@@ -510,18 +546,6 @@ on the script's first line and the console turns into a debugger:
   the trace markers and are removed from `stderr.log`.
 * **Limits:** time spent paused counts toward the timeout. Bash pauses on simple
   commands (not inside `$(...)`). Only the script's own lines are stepped through.
-
-## Running a script, hosts and presets
-
-1. The **Run** tab shows the script with a form on the right, built from the metadata (it opens with the last run's values).
-2. Choose the **Host**: `local` or any SSH host.
-3. Optionally load a **preset** or an earlier run from the list above the form.
-4. **Run** (Ctrl+Enter) validates every value and starts the script; it opens as a tab
-   next to the script in the centre (the exact command is under *Parameters & command*).
-5. Pick the **run mode** (Normal, Trace lines or Debug — the last two for Python and Bash)
-   and press **Run**; the run opens as a tab next to the script.
-
-Values are validated for type, range, choices and pattern, on the server.
 
 ### Saved parameters (presets and recent runs)
 
@@ -719,8 +743,8 @@ the form starts in that script's folder, language and category.
 
 **Edit** (on a library card, the script's page or the source viewer) opens the
 script in a code editor with syntax colours, line numbers, auto-indent, **Tab** /
-**Shift+Tab** to indent and dedent, and **Ctrl+S** to save. **Save & run** saves
-and goes straight to the run form.
+**Shift+Tab** to indent and dedent, and **Ctrl+S** to save. On a script page the
+editor is in the centre; the full-screen editor is one click away.
 
 Saving is designed not to lose work or break scripts:
 
@@ -759,27 +783,6 @@ accounts' on remote hosts). The application has no login, so:
 
 ---
 
-### Seeing which line is running
-
-Choose the run mode **Trace** next to the **Run** button for
-a Python or Bash script. The console then shows the script's source next to the
-output with the current line highlighted and scrolled into view. The source shown is a
-copy taken when the run started, so later edits do not shift the highlight.
-
-* **How:** Python runs through a small launcher that reports line numbers
-  (`sys.monitoring` on Python 3.12+, `sys.settrace` before that). Bash gets a `DEBUG`
-  trap. Your script file is not modified. The markers travel on stderr and are removed
-  again, so `stderr.log` stays clean.
-* **Speed:** tracing slows the script (Python much more in tight loops). Press
-  **Stop tracing** on the console to end it for the rest of the run.
-  It cannot be switched back on.
-* **Accuracy:** the page polls, so a fast script jumps ahead; the highlight shows roughly
-  where it is. Only the script's own lines count (not imported modules or `source`d
-  files). `.bat` files and `sh` (not bash) are not supported.
-* **SSH hosts:** Python needs nothing on the host; Bash receives one extra first line, so
-  line numbers are corrected by one. **Stop tracing** sends `SIGUSR1` to the script
-  (it is ignored for Python before 3.12 on Windows, which has no such signal).
-
 ## Execution lifecycle
 
 Every run gets an ID like `RUN-20261107-001` and moves through:
@@ -802,7 +805,7 @@ How it works:
   script never holds up unrelated ones.
 * **Stop** and **timeout** kill the whole process tree. For SSH runs the remote
   process is stopped through a second SSH call.
-* Submitting the confirm form twice (double click, reload) starts **one** run.
+* Submitting the run form twice (double click, reload) starts **one** run.
 * At startup, runs left *queued/running* by an application that is no longer alive
   are marked **Interrupted** (runs belonging to another live instance are left alone).
 
@@ -1025,27 +1028,36 @@ A separate Node script checks the syntax highlighter:
 ```
 ScriptHub/
 ├── manage.py
-├── config.py                 filesystem-backed configuration
+├── desktop.pyw               starts the desktop app (double-click)
+├── config.py                 data folder and filesystem-backed settings
 ├── requirements.txt          Django only
+├── scripthub_project/        Django settings, URLs, WSGI
 ├── runner/
 │   ├── views.py, script_views.py, execution_views.py, history_views.py,
-│   │   preset_views.py, edit_views.py, new_views.py,
-│   │   folder_views.py, sequence_views.py                 thin HTTP layer
-│   ├── workspace.py          open folder, recent and favourite folders
-│   ├── script_editor.py      safe saving of script files (backup, conflicts, line endings)
-│   ├── discovery.py          approved-script catalogue
-│   ├── metadata.py           the metadata block in the script: read/write, backups
+│   │   preset_views.py, edit_views.py, new_views.py, folder_views.py,
+│   │   sequence_views.py, project_views.py                thin HTTP layer
+│   ├── workspace.py          open folder and files, recent and favourite folders
+│   ├── discovery.py          the catalogue of scripts in the open folder (background scan)
+│   ├── metadata.py, ids.py   the YAML metadata block in the script; stable script ids
+│   ├── yamlish.py            the small YAML subset (metadata, presets, sequences)
 │   ├── parameter_service.py  types, validation, argument building
 │   ├── executor.py           builds and supervises one process (local / SSH)
 │   ├── process_manager.py    queue, limits, threads, cancel, recovery
+│   ├── tracing.py            Trace and Debug launchers
 │   ├── history.py, history_ops.py   run records, search, retention
 │   ├── sequences.py, sequence_runner.py   sequences: storage (steps + arrows), running them
-│   ├── presets.py (saved parameters), ssh_hosts.py, security.py, validators.py, fsutil.py
+│   ├── project_files.py      .scripthub project files: save, check, open
+│   ├── script_editor.py, backups.py   safe saving of script files; version backups
+│   ├── presets.py            saved parameters
+│   ├── runtime_data.py       Settings → Data (sizes, clearing)
+│   ├── desktop*.py           desktop app: server, window, tray, native dialogs
+│   ├── ssh_hosts.py, security.py, validators.py, fsutil.py
+│   ├── management/commands/  desktop, clear_runtime
 │   └── test*.py
 ├── sample_scripts/           example scripts to open as a folder (basics, files, system, network, data)
 ├── sample_projects/          example project files (.scripthub), built by tools/build_sample_projects.py
 ├── templates/, static/       Django templates, custom CSS, vanilla JavaScript
-└── tools/test_highlight.js
+└── tools/                    build_sample_projects.py, test_highlight.js
 ```
 
 ScriptHub's own data (settings, history, presets, sequences) is not in the code folder: see
@@ -1057,13 +1069,13 @@ ScriptHub's own data (settings, history, presets, sequences) is not in the code 
 
 | Symptom | Likely cause / fix |
 |---|---|
-| A script is missing from the library | Its extension is not under **Interpreters**, it is in an unconfigured folder, or press **Refresh**. |
+| A script is missing from the library | Its extension is not under **Interpreters**, it is outside the open folder or more than 3 sub-folders deep, or press **Rescan**. |
 | *Fix metadata* instead of **Run** | The metadata block at the top of the script is not valid (YAML, or JSON in an old block); the error names the lines. Fix it in the editor. |
 | Status **Failed**, error *SSH connection failed* | Run `ssh <host>` in a terminal: accept the host key, confirm key login works without a password. |
 | `Could not start the process` | The interpreter is not installed or not on `PATH`. Set the full path under **Settings → Interpreters**. |
 | `.sh` scripts fail on Windows locally | Local `.sh` needs Bash (Git Bash or WSL) on `PATH`; or run them on a Linux host over SSH. |
 | Console shows output only at the end | The script buffers output; flush it (`python -u`, `print(flush=True)`, `stdbuf`). |
-| Stuck at **Queued** | A concurrency limit is reached, or a non-concurrent script is already running; check **Executions**. |
+| Stuck at **Queued** | A concurrency limit is reached, or the same script is already running (one run per script at a time); check **Runs**. |
 | **Interrupted** after a restart | The app stopped while the run was active (see [Limitations](#limitations-of-long-lived-subprocesses)). |
 | Pages have no styling in production | With `SCRIPTHUB_DEBUG=0`, serve `/static/` from your web server or use `--insecure`. |
 | `DisallowedHost` error | Set `SCRIPTHUB_ALLOWED_HOSTS` to the host name you browse to. |
