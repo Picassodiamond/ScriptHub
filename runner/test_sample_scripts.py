@@ -271,6 +271,7 @@ class SampleProjectTests(TempCase):
         suggested = Path(page.context["destination"])
         self.assertFalse(project_files._inside(suggested, config.BASE_DIR))   # never inside the code folder
         self.assertEqual(suggested.parent, Path.home() / "ScriptHub projects")
+        self.assertContains(page, 'data-pick-into="Getting started"')       # Browse… picks where it goes
         token = page.context["token"]
         dest = self.tmp / "Getting started"
         r = self.client.post("/project/open/install/", {"token": token, "destination": str(dest)})

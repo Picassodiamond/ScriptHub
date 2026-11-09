@@ -62,6 +62,7 @@ def _preview(request, token, file_name):
     return render(request, "runner/project_open.html", {
         "token": token, "preview": preview, "file_name": file_name, "ext": EXT,
         "destination": project_files.default_destination(preview["name"]),
+        "folder_name": project_files.slug_name(preview["name"]),
     })
 
 
@@ -97,6 +98,7 @@ def project_install(request):
         return render(request, "runner/project_open.html", {
             "token": token, "preview": preview, "ext": EXT,
             "destination": request.POST.get("destination", ""),
+            "folder_name": project_files.slug_name(preview["name"]),
         }, status=400)
     except OSError as exc:
         messages.error(request, f"The project could not be unpacked: {exc}")

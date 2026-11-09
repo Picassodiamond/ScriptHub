@@ -42,9 +42,10 @@
       <label class="field-label" for="p-dest">Unpack into this new folder</label>
       <div class="inline-form">
         <input class="input mono" id="p-dest" name="destination" value="{{ destination }}" required>
-        {% if folder_picker %}<button type="button" class="btn" data-pick-folder="#p-dest" data-title="Folder for the project">Browse…</button>{% endif %}
+        {% if folder_picker %}<button type="button" class="btn" data-pick-folder="#p-dest" data-pick-into="{{ folder_name }}"
+          data-title="Where to put the project (a “{{ folder_name }}” folder is made in it)">Browse…</button>{% endif %}
       </div>
-      <div class="help">It must be new or empty: nothing is overwritten. It becomes the open folder.</div>
+      <div class="help">{% if folder_picker %}Browse… picks where it goes; a “{{ folder_name }}” folder is made there. {% endif %}It must be new or empty: nothing is overwritten. It becomes the open folder.</div>
     </div>
     <p class="small muted">Opening runs nothing. The project's scripts will run with your rights when you run them:
       open projects only from people you trust.</p>

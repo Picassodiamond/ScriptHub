@@ -637,11 +637,16 @@
     if (pick) {                                     // "Browse…" next to a path field
       e.preventDefault();
       var input = document.querySelector(pick.getAttribute('data-pick-folder'));
+      var into = pick.getAttribute('data-pick-into');   // pick where it goes: <picked>\<this name>
+      var start = input ? input.value : '';
+      if (into && start) start = start.replace(/[\\/][^\\/]*[\\/]?$/, '');
       pick.disabled = true;
-      pickFolder(input ? input.value : '', pick.getAttribute('data-title'))
+      pickFolder(start, pick.getAttribute('data-title'))
         .then(function (j) {
           if (!j.path || !input) return;
-          input.value = j.path; input.dispatchEvent(new Event('input', { bubbles: true })); input.focus();
+          var sep = j.path.indexOf('\\') >= 0 ? '\\' : '/';
+          input.value = into ? j.path.replace(/[\\/]+$/, '') + sep + into : j.path;
+          input.dispatchEvent(new Event('input', { bubbles: true })); input.focus();
           if (pick.hasAttribute('data-pick-submit') && input.form) {   // e.g. Open folder: picking = opening
             if (input.form.requestSubmit) input.form.requestSubmit(); else input.form.submit();
           }
