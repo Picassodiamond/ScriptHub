@@ -94,19 +94,72 @@ def _tkinter():
 
 # Windows dialogs through PowerShell (Windows Forms) when there is no tkinter. Inputs travel in
 # environment variables, never inside the command text; the result comes back on stdout (UTF-8).
-_PS_FOLDER = r"""
+_PS_OWNER = r"""
 [Console]::OutputEncoding = [Text.Encoding]::UTF8
 Add-Type -AssemblyName System.Windows.Forms
-$owner = New-Object System.Windows.Forms.Form -Property @{TopMost = $true; ShowInTaskbar = $false}
-$d = New-Object System.Windows.Forms.FolderBrowserDialog
-$d.Description = $env:SH_TITLE
-$d.SelectedPath = $env:SH_START
-if ($d.ShowDialog($owner) -eq [System.Windows.Forms.DialogResult]::OK) { [Console]::Out.Write($d.SelectedPath) }
+# A real (invisible, top-most) owner window, shown and activated, so the dialog opens in front.
+$owner = New-Object System.Windows.Forms.Form -Property @{TopMost = $true; ShowInTaskbar = $false;
+    FormBorderStyle = 'None'; StartPosition = 'CenterScreen'; Opacity = 0; Width = 1; Height = 1}
+$owner.Show(); $owner.Activate()
 """
-_PS_FILES = r"""
-[Console]::OutputEncoding = [Text.Encoding]::UTF8
-Add-Type -AssemblyName System.Windows.Forms
-$owner = New-Object System.Windows.Forms.Form -Property @{TopMost = $true; ShowInTaskbar = $false}
+# The large, modern folder dialog (the Explorer one) = IFileOpenDialog with FOS_PICKFOLDERS.
+_PS_FOLDER = _PS_OWNER + r"""
+Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+public static class ShFolderPicker {
+    [ComImport, Guid("DC1C5A9C-E88A-4dde-A5A1-60F82A20AEF7")] class FileOpenDialogCom { }
+    [ComImport, Guid("43826d1e-e718-42ee-bc55-a1e261c37bfe"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    interface IShellItem {
+        void BindToHandler(IntPtr pbc, ref Guid bhid, ref Guid riid, out IntPtr ppv);
+        void GetParent(out IShellItem ppsi);
+        void GetDisplayName(uint sigdnName, [MarshalAs(UnmanagedType.LPWStr)] out string name);
+        void GetAttributes(uint mask, out uint attrs);
+        void Compare(IShellItem psi, uint hint, out int order);
+    }
+    [ComImport, Guid("d57c7288-d4ad-4768-be02-9d969532d960"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    interface IFileOpenDialog {
+        [PreserveSig] int Show(IntPtr parent);
+        void SetFileTypes(uint c, IntPtr t);
+        void SetFileTypeIndex(uint i);
+        void GetFileTypeIndex(out uint i);
+        void Advise(IntPtr p, out uint cookie);
+        void Unadvise(uint cookie);
+        void SetOptions(uint o);
+        void GetOptions(out uint o);
+        void SetDefaultFolder(IShellItem s);
+        void SetFolder(IShellItem s);
+        void GetFolder(out IShellItem s);
+        void GetCurrentSelection(out IShellItem s);
+        void SetFileName([MarshalAs(UnmanagedType.LPWStr)] string n);
+        void GetFileName([MarshalAs(UnmanagedType.LPWStr)] out string n);
+        void SetTitle([MarshalAs(UnmanagedType.LPWStr)] string t);
+        void SetOkButtonLabel([MarshalAs(UnmanagedType.LPWStr)] string t);
+        void SetFileNameLabel([MarshalAs(UnmanagedType.LPWStr)] string t);
+        void GetResult(out IShellItem s);
+    }
+    [DllImport("shell32.dll", CharSet = CharSet.Unicode, PreserveSig = false)]
+    static extern void SHCreateItemFromParsingName(string path, IntPtr pbc, ref Guid riid, out IShellItem item);
+    public static string Pick(IntPtr owner, string title, string start) {
+        var dlg = (IFileOpenDialog)new FileOpenDialogCom();
+        uint opts; dlg.GetOptions(out opts);
+        dlg.SetOptions(opts | 0x20 | 0x40 | 0x800);          // PICKFOLDERS | FORCEFILESYSTEM | PATHMUSTEXIST
+        if (!string.IsNullOrEmpty(title)) dlg.SetTitle(title);
+        if (!string.IsNullOrEmpty(start) && System.IO.Directory.Exists(start)) {
+            Guid iid = new Guid("43826d1e-e718-42ee-bc55-a1e261c37bfe");
+            IShellItem item; SHCreateItemFromParsingName(start, IntPtr.Zero, ref iid, out item);
+            dlg.SetFolder(item);
+        }
+        if (dlg.Show(owner) != 0) return "";                 // cancelled
+        IShellItem res; dlg.GetResult(out res);
+        string path; res.GetDisplayName(0x80058000, out path); // SIGDN_FILESYSPATH
+        return path;
+    }
+}
+'@
+[Console]::Out.Write([ShFolderPicker]::Pick($owner.Handle, $env:SH_TITLE, $env:SH_START))
+"""
+_PS_FILES = _PS_OWNER + r"""
 $d = New-Object System.Windows.Forms.OpenFileDialog
 $d.Title = $env:SH_TITLE
 $d.InitialDirectory = $env:SH_START
