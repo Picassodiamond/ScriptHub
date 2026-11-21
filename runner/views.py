@@ -15,13 +15,10 @@ def dashboard(request):
     from .process_manager import manager
 
     scripts, _problems = discovery.scan()
-    by_id = {s.id: s for s in scripts}
     runs = history.list_runs(limit=500)
     counts = Counter(r.get("status") for r in runs)
     live = manager.counts()
 
-    usage = Counter(r.get("script_id") for r in runs if r.get("script_id") in by_id)
-    frequent = [{"script": by_id[sid], "runs": n} for sid, n in usage.most_common(5)]
     # Quick run: recently used first, then the rest alphabetically (valid metadata only).
     recent_order = {}
     for r in runs:
@@ -37,9 +34,7 @@ def dashboard(request):
         "success": counts.get(history.SUCCESS, 0),
         "failed": counts.get(history.FAILED, 0) + counts.get(history.TIMED_OUT, 0),
         "recent": [_decorate(m) for m in runs[:8]],
-        "frequent": frequent,
         "quick": runnable[:6],
-        "has_runs": bool(runs),
         "samples_dir": str(config.BASE_DIR / "sample_scripts"),
         "sample_projects": project_files.sample_projects(),
     })

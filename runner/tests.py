@@ -230,6 +230,14 @@ class PageTests(SimpleTestCase):
         self.assertContains(r, 'value="30"')
         self.assertContains(r, "Fixed")
 
+    def test_dashboard_avoids_repeated_actions_and_script_lists(self):
+        response = self.client.get("/")
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Quick run")
+        self.assertNotContains(response, "Most used")
+        self.assertNotContains(response, "All runs")
+        self.assertNotContains(response, '<a class="stat')
+
     def test_run_validation_errors(self):
         r = self.client.post(self.url("run"), {"p_db": "", "p_days": "999"})
         self.assertEqual(r.status_code, 400)
