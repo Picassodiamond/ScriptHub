@@ -26,10 +26,6 @@ def languages(cfg):
     return [(e, discovery.language_of(e)[1]) for e in exts]
 
 
-def _blocked(request, reason):
-    return render(request, "runner/new_script.html", {"blocked": reason}, status=403)
-
-
 def _suggestions(scripts):
     """Existing sub-folders and categories of the open folder (for the datalists)."""
     folders = sorted({Path(s.relative).parent.as_posix() for s in scripts} - {"."}, key=str.lower)
@@ -93,8 +89,6 @@ def create(root: Path, ext: str, filename: str, subfolder: str, name: str = "", 
 
 def script_new(request):
     cfg = config.load_config()
-    if not cfg["enable_script_editing"]:
-        return _blocked(request, "Creating and editing scripts from the browser is turned off in Settings.")
     root = workspace.current()
     if root is None or not root.is_dir():
         messages.info(request, "Only script files are open; open a folder to create new scripts in it."

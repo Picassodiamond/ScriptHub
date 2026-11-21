@@ -16,19 +16,6 @@
 {% endif %}
 
 <form method="post" action="{% url 'settings_save' %}" id="settings-form" novalidate>{% csrf_token %}
-  <section class="panel" id="features">
-    <div class="panel-head"><h2>Script access</h2></div>
-    <div class="panel-body">
-      <p class="help settings-warning">This app has no sign-in. Anyone with access can use browser script editing when enabled.</p>
-      <table class="table table-dense settings-table"><tbody>
-        <tr>
-          <th class="th-row"><label for="s_edit">Create and edit scripts</label><div class="help">Allow script files to be changed in the browser.</div></th>
-          <td><label class="check"><input id="s_edit" type="checkbox" name="enable_script_editing" {% if form.enable_script_editing %}checked{% endif %}><span>Allow browser editing</span></label></td>
-        </tr>
-      </tbody></table>
-    </div>
-  </section>
-
   <section class="panel" id="execution">
     <div class="panel-head"><h2>Runs and history</h2></div>
     <div class="panel-body">

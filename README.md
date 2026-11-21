@@ -231,7 +231,6 @@ restart.
   "ssh_executable": "ssh",
   "ssh_connect_timeout": 10,
   "environment": {},
-  "enable_script_editing": true,
   "max_concurrent_executions": 3,
   "max_concurrent_per_host": 3,
   "default_timeout": 3600,
@@ -248,7 +247,6 @@ restart.
 | `ssh_executable` | The SSH command (a path or command line). Uses your own `~/.ssh/config`. |
 | `ssh_connect_timeout` | Seconds before an SSH connection attempt gives up. |
 | `environment` | Extra environment variables for every run (a script's own settings and parameters override them). |
-| `enable_script_editing` | Allow creating and editing script files from the browser (`false` blocks New script, editing and restoring). |
 | `max_concurrent_executions` | Runs beyond this wait in the queue. |
 | `max_concurrent_per_host` | Same limit, applied to this computer and to each SSH host separately. |
 | `default_timeout` | Seconds before any run is stopped (status *Timed out*). |
@@ -815,8 +813,6 @@ accounts' on remote hosts). The application has no login, so:
 
 * put your own authentication in front of it (reverse proxy, VPN, SSO) and run it
   under a dedicated, least-privilege account;
-* in **Settings → Features**, switch off **Create and edit scripts in the browser**
-  if people should only run the catalogue (`enable_script_editing` in `config.json`);
 * every execution records the **client address** it came from (shown on the
   console and searchable in History). This is the connecting address; it is only
   as meaningful as your network setup: behind a reverse proxy it is the proxy's.

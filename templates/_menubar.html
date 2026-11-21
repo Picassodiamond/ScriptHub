@@ -8,8 +8,8 @@
     <summary role="menuitem">Workspace</summary>
     <div class="menu" role="menu">
       <div class="menu-label">Create and open</div>
-      {% if editing_enabled and f %}<a class="menu-item" href="{% url 'script_new' %}{% if script.id %}?from={{ script.id }}{% endif %}" role="menuitem"><svg class="i i-sm"><use href="#i-plus"/></svg><span>New script</span><kbd>g n</kbd></a>
-      {% else %}<span class="menu-item is-disabled" title="{% if not editing_enabled %}Script editing is off in Settings{% else %}Open a folder to create scripts in it{% endif %}"><svg class="i i-sm"><use href="#i-plus"/></svg><span>New script</span><kbd>g n</kbd></span>{% endif %}
+      {% if f %}<a class="menu-item" href="{% url 'script_new' %}{% if script.id %}?from={{ script.id }}{% endif %}" role="menuitem"><svg class="i i-sm"><use href="#i-plus"/></svg><span>New script</span><kbd>g n</kbd></a>
+      {% else %}<span class="menu-item is-disabled" title="Open a folder to create scripts in it"><svg class="i i-sm"><use href="#i-plus"/></svg><span>New script</span><kbd>g n</kbd></span>{% endif %}
       <a class="menu-item" href="{% url 'folder' %}" role="menuitem" data-open-file title="Open a single script without opening its whole folder"><svg class="i i-sm"><use href="#i-file"/></svg><span>Open a script file…</span></a>
       <a class="menu-item" href="{% url 'folder' %}" role="menuitem" data-open-folder data-hotkey="g f" data-hint="Open folder" title="Choose a folder and browse its scripts"><svg class="i i-sm"><use href="#i-folder-open"/></svg><span>Open a folder…</span><kbd>g f</kbd></a>
       {% if wb_folder.favorites or wb_folder.recent %}

@@ -93,8 +93,7 @@ def validate_config(data: dict) -> dict:
         clean["environment"] = env_out
 
     clean.pop("enable_adhoc", None)          # the Ad-hoc screen was removed
-    if not isinstance(data.get("enable_script_editing"), bool):
-        errors.append("enable_script_editing must be true or false.")
+    clean.pop("enable_script_editing", None)  # script editing is always available
 
     for key, lo, hi, label in (
         ("max_concurrent_executions", 1, 64, "Max concurrent executions"),

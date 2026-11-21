@@ -18,7 +18,7 @@
   <button type="button" class="btn btn-ghost btn-icon btn-sm" id="wrap-source" aria-pressed="false" data-hotkey="w" data-hint="Toggle line wrap" title="Wrap lines (W)"><svg class="i"><use href="#i-wrap"/></svg></button>
   <button type="button" class="btn btn-ghost btn-icon btn-sm" id="copy-source" title="Copy"><svg class="i"><use href="#i-copy"/></svg><span hidden>Copy</span></button>
   <a class="btn btn-ghost btn-icon btn-sm" href="{% url 'script_source' script.id %}?download=1" title="Download"><svg class="i"><use href="#i-download"/></svg></a>
-  {% if editing_enabled %}<a class="btn btn-sm" href="{% url 'script_edit' script.id %}"><svg class="i"><use href="#i-edit"/></svg> Edit</a>{% endif %}
+  <a class="btn btn-sm" href="{% url 'script_edit' script.id %}"><svg class="i"><use href="#i-edit"/></svg> Edit</a>
 </div>
 
 <div id="tab-script" class="tab-panel source-full" style="display:flex;flex-direction:column">

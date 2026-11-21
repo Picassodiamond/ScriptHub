@@ -66,7 +66,6 @@ DEFAULTS = {
     "ssh_executable": "ssh",
     "ssh_connect_timeout": 10,
     "environment": {},  # extra environment variables for every run
-    "enable_script_editing": True,   # editing script files from the browser
     "max_concurrent_executions": 3,
     "max_concurrent_per_host": 3,
     "default_timeout": 3600,

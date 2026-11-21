@@ -8,7 +8,7 @@
     </div>
   </div>
   <div class="side-actions">
-    {% if editing_enabled and f %}<a class="btn btn-ghost btn-sm" href="{% url 'script_new' %}{% if script.id %}?from={{ script.id }}{% endif %}" data-new-script data-hotkey="g n" data-hint="New script" title="Create a script in this folder"><svg class="i"><use href="#i-plus"/></svg> New script</a>{% endif %}
+    {% if f %}<a class="btn btn-ghost btn-sm" href="{% url 'script_new' %}{% if script.id %}?from={{ script.id }}{% endif %}" data-new-script data-hotkey="g n" data-hint="New script" title="Create a script in this folder"><svg class="i"><use href="#i-plus"/></svg> New script</a>{% endif %}
     {% if f or wb_folder.files %}<form method="post" action="{% url 'library_refresh' %}">{% csrf_token %}
       <button class="btn btn-ghost btn-sm" type="submit" title="Look for added, removed, or changed scripts"><svg class="i"><use href="#i-refresh"/></svg> Rescan</button>
     </form>{% endif %}

@@ -17,14 +17,6 @@ def _get_script_or_404(script_id):
     return script
 
 
-def _disabled(request, script):
-    if config.load_config()["enable_script_editing"]:
-        return None
-    return render(request, "runner/edit.html", {
-        "script": script,
-        "blocked": "Editing scripts from the browser is turned off in Settings."}, status=403)
-
-
 def _context(script, info, **extra):
     ctx = {
         "script": script,
@@ -42,9 +34,7 @@ def _context(script, info, **extra):
 
 def editor_context(script) -> dict:
     """Editor data for the merged Script page (run form + editable script).
-    Empty when editing is off or the file cannot be edited (the page then shows it read-only)."""
-    if not config.load_config()["enable_script_editing"]:
-        return {}
+    Empty when the file cannot be edited (the page then shows it read-only)."""
     try:
         info = script_editor.read_for_edit(script.path, script.root)
     except EditError as exc:
@@ -63,9 +53,6 @@ def _back_to_script(script):
 
 def script_edit(request, script_id):
     script = _get_script_or_404(script_id)
-    blocked = _disabled(request, script)
-    if blocked:
-        return blocked
     try:
         info = script_editor.read_for_edit(script.path, script.root)
     except EditError as exc:
@@ -119,9 +106,6 @@ def _renew_copied_id(script):
 @require_POST
 def script_restore(request, script_id):
     script = _get_script_or_404(script_id)
-    blocked = _disabled(request, script)
-    if blocked:
-        return blocked
     version = "" if request.POST.get("previous") else request.POST.get("version", "")
     try:
         script_editor.restore_backup(script.path, script.root, sid=script.id, version=version)

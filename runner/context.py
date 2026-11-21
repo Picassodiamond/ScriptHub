@@ -89,7 +89,6 @@ def common(request):
         "app_version": APP_VERSION,
         "desktop": desktop.enabled(),
         "folder_picker": desktop.can_pick_folder(request),   # "Open folder…" = system dialog
-        "editing_enabled": cfg["enable_script_editing"],
         "nav_active": (match.url_name or "").split("_")[0] if match else "",
         "url_name": (match.url_name or "") if match else "",
         "polling_interval": cfg["polling_interval"],
