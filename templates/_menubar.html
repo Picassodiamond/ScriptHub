@@ -1,33 +1,26 @@
-{% load static %}{% comment %}Menu bar (VS Code style): File / View / Run / Help on the left, the open folder or file and the
-page in the middle. Menus are <details data-menu> (app.js: click opens, hovering another while one is
-open switches, Esc / outside click closes). data-action items are handled in app.js.{% endcomment %}
+{% load static %}{% comment %}Menus are <details data-menu>; app.js handles keyboard and click behavior. data-action items are handled there too.{% endcomment %}
 {% with f=wb_folder.folder %}
 <header class="menubar" role="menubar">
   <img class="mb-logo" src="{% static 'img/scripthub.png' %}" alt="" width="22" height="22">
+  <button type="button" class="mb-browse" data-action="side" aria-label="Open the browse panel"><svg class="i"><use href="#i-panel"/></svg><span>Browse</span></button>
 
   <details class="mb-menu" data-menu>
-    <summary role="menuitem">File</summary>
+    <summary role="menuitem">Workspace</summary>
     <div class="menu" role="menu">
+      <div class="menu-label">Create and open</div>
       {% if editing_enabled and f %}<a class="menu-item" href="{% url 'script_new' %}{% if script.id %}?from={{ script.id }}{% endif %}" role="menuitem"><svg class="i i-sm"><use href="#i-plus"/></svg><span>New script</span><kbd>g n</kbd></a>
       {% else %}<span class="menu-item is-disabled" title="{% if not editing_enabled %}Script editing is off in Settings{% else %}Open a folder to create scripts in it{% endif %}"><svg class="i i-sm"><use href="#i-plus"/></svg><span>New script</span><kbd>g n</kbd></span>{% endif %}
-      <div class="menu-sep"></div>
-      <a class="menu-item" href="{% url 'folder' %}" role="menuitem" data-open-file><svg class="i i-sm"><use href="#i-file"/></svg><span>Open file…</span></a>
-      <a class="menu-item" href="{% url 'folder' %}" role="menuitem" data-open-folder data-hotkey="g f" data-hint="Open folder"><svg class="i i-sm"><use href="#i-folder-open"/></svg><span>Open folder…</span><kbd>g f</kbd></a>
+      <a class="menu-item" href="{% url 'folder' %}" role="menuitem" data-open-file title="Open a single script without opening its whole folder"><svg class="i i-sm"><use href="#i-file"/></svg><span>Open a script file…</span></a>
+      <a class="menu-item" href="{% url 'folder' %}" role="menuitem" data-open-folder data-hotkey="g f" data-hint="Open folder" title="Choose a folder and browse its scripts"><svg class="i i-sm"><use href="#i-folder-open"/></svg><span>Open a folder…</span><kbd>g f</kbd></a>
       {% if wb_folder.favorites or wb_folder.recent %}
-      <div class="menu-sub">
-        <span class="menu-item" role="menuitem" aria-haspopup="true"><svg class="i i-sm"><use href="#i-clock"/></svg><span>Open recent</span><span class="sub-caret" aria-hidden="true"></span></span>
-        <div class="menu submenu" role="menu">
-          {% if wb_folder.favorites %}<div class="menu-label">Favourites</div>
-          {% for x in wb_folder.favorites %}{% include "runner/_folder_menu_item.html" %}{% endfor %}{% endif %}
-          {% if wb_folder.recent %}<div class="menu-label">Recent</div>
-          {% for x in wb_folder.recent %}{% include "runner/_folder_menu_item.html" %}{% endfor %}{% endif %}
-          <div class="menu-sep"></div>
-          <a class="menu-item" href="{% url 'folder' %}" role="menuitem"><svg class="i i-sm"><use href="#i-list"/></svg><span>Manage folders…</span></a>
-        </div>
-      </div>
+      {% if wb_folder.favorites %}<div class="menu-label">Favourite folders</div>
+      {% for x in wb_folder.favorites %}{% include "runner/_folder_menu_item.html" %}{% endfor %}{% endif %}
+      {% if wb_folder.recent %}<div class="menu-label">Recently opened</div>
+      {% for x in wb_folder.recent %}{% include "runner/_folder_menu_item.html" %}{% endfor %}{% endif %}
+      <a class="menu-item" href="{% url 'folder' %}" role="menuitem"><svg class="i i-sm"><use href="#i-list"/></svg><span>Browse and manage folders</span></a>
       {% endif %}
       {% if f %}
-      <div class="menu-sep"></div>
+      <div class="menu-label">Current folder</div>
       <form method="post" action="{% url 'folder_favorite' %}">{% csrf_token %}
         <input type="hidden" name="path" value="{{ f.path }}"><input type="hidden" name="on" value="{% if f.favorite %}0{% else %}1{% endif %}"><input type="hidden" name="next" value="{{ request.get_full_path }}">
         <button class="menu-item" type="submit" role="menuitem"><svg class="i i-sm"><use href="#i-star"/></svg><span>{% if f.favorite %}Remove from favourites{% else %}Add to favourites{% endif %}</span></button>
@@ -47,67 +40,61 @@ open switches, Esc / outside click closes). data-action items are handled in app
         <button class="menu-item" type="submit" role="menuitem"><svg class="i i-sm"><use href="#i-x"/></svg><span>Close opened files</span><span class="count-pill">{{ wb_folder.files|length }}</span></button>
       </form>
       {% endif %}
-      <div class="menu-sep"></div>
-      <a class="menu-item" href="{% url 'project_open' %}" role="menuitem" title="Open a ScriptHub project file (.scripthub): its scripts, sequences and presets"><svg class="i i-sm"><use href="#i-download"/></svg><span>Open project…</span></a>
-      {% if f %}<a class="menu-item" href="{% url 'project_save' %}" role="menuitem" data-save-project="{{ f.name }}" title="Save this folder with its sequences and presets as one project file (.scripthub)"><svg class="i i-sm"><use href="#i-save"/></svg><span>Save project as…</span></a>
+      <div class="menu-label">Projects</div>
+      <a class="menu-item" href="{% url 'project_open' %}" role="menuitem" title="Open a ScriptHub project file (.scripthub), including its scripts and saved settings"><svg class="i i-sm"><use href="#i-download"/></svg><span>Open a project…</span></a>
+      {% if f %}<a class="menu-item" href="{% url 'project_save' %}" role="menuitem" data-save-project="{{ f.name }}" title="Package this folder, sequences, and presets into a .scripthub file"><svg class="i i-sm"><use href="#i-save"/></svg><span>Save project as…</span></a>
       {% else %}<span class="menu-item is-disabled" title="Open a folder first"><svg class="i i-sm"><use href="#i-save"/></svg><span>Save project as…</span></span>{% endif %}
       {% if f or wb_folder.files %}<form method="post" action="{% url 'project_close' %}">{% csrf_token %}
         <button class="menu-item" type="submit" role="menuitem" title="Close the folder and every opened file"><svg class="i i-sm"><use href="#i-x"/></svg><span>Close project</span></button>
       </form>
       {% else %}<span class="menu-item is-disabled" title="Nothing is open"><svg class="i i-sm"><use href="#i-x"/></svg><span>Close project</span></span>{% endif %}
-      <div class="menu-sep"></div>
-      <a class="menu-item" href="{% url 'settings' %}" role="menuitem"><svg class="i i-sm"><use href="#i-gear"/></svg><span>Settings</span><kbd>g s</kbd></a>
+      <div class="menu-label">Tools</div>
+      {% if f %}<form method="post" action="{% url 'library_refresh' %}">{% csrf_token %}
+        <button class="menu-item" type="submit" role="menuitem" title="Look for added, removed, or changed scripts"><svg class="i i-sm"><use href="#i-refresh"/></svg><span>Rescan this folder</span></button>
+      </form>{% endif %}
     </div>
   </details>
 
-  <details class="mb-menu" data-menu>
-    <summary role="menuitem">View</summary>
-    <div class="menu" role="menu">
-      <button type="button" class="menu-item" data-action="palette" role="menuitem"><svg class="i i-sm"><use href="#i-command"/></svg><span>Command palette</span><kbd>Ctrl K</kbd></button>
-      <div class="menu-sep"></div>
-      <a class="menu-item" href="{% url 'dashboard' %}" role="menuitem"><svg class="i i-sm"><use href="#i-home"/></svg><span>Home</span><kbd>g o</kbd></a>
-      <a class="menu-item" href="{% url 'library' %}" role="menuitem"><svg class="i i-sm"><use href="#i-files"/></svg><span>Library</span><kbd>g l</kbd></a>
-      <a class="menu-item" href="{% url 'sequences' %}" role="menuitem"><svg class="i i-sm"><use href="#i-sequence"/></svg><span>Sequences</span><kbd>g q</kbd></a>
-      <a class="menu-item" href="{% url 'history' %}" role="menuitem"><svg class="i i-sm"><use href="#i-pulse"/></svg><span>Runs</span><kbd>g h</kbd></a>
-      <div class="menu-sep"></div>
-      <button type="button" class="menu-item" data-action="side" role="menuitem"><svg class="i i-sm"><use href="#i-panel"/></svg><span>Side panel</span><kbd>Ctrl B</kbd></button>
-      {% if script.id %}
-      <button type="button" class="menu-item" data-action="side2" role="menuitem"><svg class="i i-sm i-flip"><use href="#i-panel"/></svg><span>Right panel</span><kbd>Ctrl Alt B</kbd></button>
-      <button type="button" class="menu-item" data-action="bottom" role="menuitem"><svg class="i i-sm"><use href="#i-layout-rows"/></svg><span>Saved values panel</span><kbd>Ctrl J</kbd></button>
-      {% endif %}
-      <button type="button" class="menu-item" data-tree-collapse role="menuitem"><svg class="i i-sm"><use href="#i-collapse"/></svg><span>Collapse explorer</span></button>
-      <div class="menu-sep"></div>
-      <button type="button" class="menu-item" data-action="theme" role="menuitem"><svg class="i i-sm theme-ic-dark"><use href="#i-moon"/></svg><svg class="i i-sm theme-ic-light"><use href="#i-sun"/></svg><span>Light / dark theme</span></button>
-    </div>
-  </details>
+  <nav class="mb-nav" aria-label="Main navigation">
+    <a class="mb-link{% if nav_active == 'dashboard' %} is-active{% endif %}" href="{% url 'dashboard' %}" data-hotkey="g o" data-hint="Home" title="Overview and recent activity"{% if nav_active == 'dashboard' %} aria-current="page"{% endif %}>Home</a>
+    <a class="mb-link{% if nav_active == 'library' or nav_active == 'script' %} is-active{% endif %}" href="{% url 'library' %}" data-hotkey="g l" data-hint="Browse scripts" title="Browse, search, and run scripts"{% if nav_active == 'library' or nav_active == 'script' %} aria-current="page"{% endif %}>Scripts</a>
+    <a class="mb-link{% if nav_active == 'sequences' or nav_active == 'sequence' %} is-active{% endif %}" href="{% url 'sequences' %}" data-hotkey="g q" data-hint="Build multi-step workflows" title="Connect scripts into multi-step workflows"{% if nav_active == 'sequences' or nav_active == 'sequence' %} aria-current="page"{% endif %}>Sequences</a>
+    <a class="mb-link{% if nav_active == 'history' or nav_active == 'executions' or nav_active == 'execution' %} is-active{% endif %}" href="{% url 'history' %}" data-hotkey="g h|g j" data-hint="View active and past runs" title="See active executions and past results"{% if nav_active == 'history' or nav_active == 'executions' or nav_active == 'execution' %} aria-current="page"{% endif %}>Runs{% if active_runs %}<span class="count-pill">{{ active_runs }}</span>{% endif %}</a>
+  </nav>
+  <label class="mb-search" title="Search scripts, pages, and commands (Ctrl+K)">
+    <svg class="i i-sm"><use href="#i-search"/></svg>
+    <input type="search" readonly placeholder="Search scripts and commands…" aria-label="Search scripts, pages, and commands" data-action="palette" data-command-search>
+    <kbd>Ctrl K</kbd>
+  </label>
 
-  <details class="mb-menu" data-menu>
-    <summary role="menuitem">Run</summary>
-    <div class="menu" role="menu">
-      {% if script.id and script.meta_valid %}
-      <a class="menu-item" href="{% url 'script_run' script.id %}" data-action="run" data-mode="normal" role="menuitem"><svg class="i i-sm"><use href="#i-play"/></svg><span>Run {{ script.name }}</span><kbd>Ctrl ↵</kbd></a>
-      <a class="menu-item" href="{% url 'script_run' script.id %}" data-action="run" data-mode="trace" role="menuitem"><svg class="i i-sm"><use href="#i-eye"/></svg><span>Run with Trace</span></a>
-      <a class="menu-item" href="{% url 'script_run' script.id %}" data-action="run" data-mode="debug" role="menuitem"><svg class="i i-sm"><use href="#i-bug"/></svg><span>Run with Debug</span></a>
-      {% else %}
-      <span class="menu-item is-disabled" title="Open a script first"><svg class="i i-sm"><use href="#i-play"/></svg><span>Run script</span><kbd>Ctrl ↵</kbd></span>
-      {% endif %}
-      <div class="menu-sep"></div>
-      <form method="post" action="{% url 'library_refresh' %}">{% csrf_token %}
-        <button class="menu-item" type="submit" role="menuitem"{% if not f %} disabled{% endif %}><svg class="i i-sm"><use href="#i-refresh"/></svg><span>Rescan folder</span></button>
-      </form>
-      <a class="menu-item" href="{% url 'history' %}" role="menuitem"><svg class="i i-sm"><use href="#i-pulse"/></svg><span>Runs</span>{% if active_runs %}<span class="count-pill">{{ active_runs }}</span>{% endif %}<kbd>g h</kbd></a>
-    </div>
-  </details>
-
-  <details class="mb-menu" data-menu>
-    <summary role="menuitem">Help</summary>
-    <div class="menu" role="menu">
-      <button type="button" class="menu-item" data-action="help" role="menuitem"><svg class="i i-sm"><use href="#i-keyboard"/></svg><span>Keyboard shortcuts</span><kbd>?</kbd></button>
-      <div class="menu-sep"></div>
-      <span class="menu-item is-disabled"><svg class="i i-sm"><use href="#i-play"/></svg><span>ScriptHub {{ app_version }}{% if desktop %} · desktop{% endif %}</span></span>
-    </div>
-  </details>
-
-  <span class="mb-title" title="{{ f.path|default:'' }}">{% if script.name %}{{ script.name }} — {% endif %}{% if f %}{{ f.name }}{% if wb_folder.files %} + {{ wb_folder.files|length }} file{{ wb_folder.files|length|pluralize }}{% endif %}{% elif wb_folder.files %}{{ wb_folder.files|length }} open file{{ wb_folder.files|length|pluralize }}{% else %}No folder open{% endif %}</span>
+  <div class="mb-context" title="{% firstof f.path wb_folder.files.0.path 'No folder open' %}" aria-label="Current working folder or file: {% firstof f.path wb_folder.files.0.path 'No folder open' %}" tabindex="0">
+    <svg class="i i-sm"><use href="#i-folder"/></svg>
+    <span class="mb-title" title="{% firstof f.path wb_folder.files.0.path 'No folder open' %}">{% if f %}{{ f.name }}{% elif wb_folder.files %}{{ wb_folder.files.0.name }}{% else %}No folder open{% endif %}</span>
+    {% if f or wb_folder.files %}<form method="post" action="{% url 'library_refresh' %}">{% csrf_token %}
+      <button type="submit" class="mb-icon" title="Rescan the current folder and update its script list" aria-label="Rescan current folder"><svg class="i"><use href="#i-refresh"/></svg></button>
+    </form>{% endif %}
+  </div>
+  <div class="mb-tools">
+    <details class="mb-menu mb-menu-right" data-menu>
+      <summary aria-label="Panels and appearance" title="Panels and appearance"><svg class="i"><use href="#i-panel"/></svg><span class="sr-only">Panels and appearance</span></summary>
+      <div class="menu" role="menu">
+        <div class="menu-label">Panels and appearance</div>
+        <button type="button" class="menu-item" data-action="side" role="menuitem" title="Show or hide the contextual right panel"><svg class="i i-sm"><use href="#i-panel"/></svg><span>Show or hide right panel</span><kbd>Ctrl B</kbd></button>
+        {% if script.id %}
+        <button type="button" class="menu-item" data-action="side2" role="menuitem" title="Show or hide this script's settings and parameters"><svg class="i i-sm i-flip"><use href="#i-panel"/></svg><span>Script details panel</span><kbd>Ctrl Alt B</kbd></button>
+        <button type="button" class="menu-item" data-action="bottom" role="menuitem" title="Show or hide saved parameter values"><svg class="i i-sm"><use href="#i-layout-rows"/></svg><span>Saved values panel</span><kbd>Ctrl J</kbd></button>
+        {% endif %}
+        {% if wb_folder.folder or wb_folder.files %}<button type="button" class="menu-item" data-tree-collapse role="menuitem" title="Close all expanded script groups in the right panel"><svg class="i i-sm"><use href="#i-collapse"/></svg><span>Collapse script groups</span></button>{% endif %}
+        <button type="button" class="menu-item" data-action="theme" role="menuitem"><svg class="i i-sm theme-ic-dark"><use href="#i-moon"/></svg><svg class="i i-sm theme-ic-light"><use href="#i-sun"/></svg><span>Switch light or dark theme</span></button>
+      </div>
+    </details>
+    {% if script.id and script.meta_valid %}
+    <a class="mb-icon" href="{% url 'script_run' script.id %}"{% if url_name == 'script_run' %} data-action="run" data-mode="normal"{% endif %} title="{% if url_name == 'script_run' %}Run with the selected mode (Ctrl+Enter){% else %}Open run options for {{ script.name }}{% endif %}" aria-label="{% if url_name == 'script_run' %}Run script{% else %}Run {{ script.name }}{% endif %}"><svg class="i"><use href="#i-play"/></svg></a>
+    {% else %}
+    <span class="mb-icon is-disabled" title="Open a valid script to run it" aria-label="Run unavailable"><svg class="i"><use href="#i-play"/></svg></span>
+    {% endif %}
+    <a class="mb-icon{% if nav_active == 'settings' %} is-active{% endif %}" href="{% url 'settings' %}" data-hotkey="g s" data-hint="Settings" title="Settings (g s)" aria-label="Settings"{% if nav_active == 'settings' %} aria-current="page"{% endif %}><svg class="i"><use href="#i-gear"/></svg></a>
+    <button type="button" class="mb-icon" data-action="help" title="Keyboard shortcuts (?)" aria-label="Keyboard shortcuts"><svg class="i"><use href="#i-keyboard"/></svg></button>
+  </div>
 </header>
 {% endwith %}

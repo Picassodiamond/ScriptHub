@@ -5,13 +5,14 @@
   <section class="side-pane side-pane-seq" data-pane="seq" aria-label="Sequences">
     <div class="side-head">
       <button type="button" class="side-fold" data-seq-fold aria-expanded="true" title="Show or hide the sequences">
-        <span class="side-title">Sequences</span><span class="tree-count">{{ list|length }}</span>
+        <span class="side-title">Your sequences</span><span class="tree-count">{{ list|length }}</span>
       </button>
       <div class="side-actions">
-        <button type="button" class="btn btn-ghost btn-icon btn-sm" data-seq-new title="New sequence" aria-label="New sequence"><svg class="i"><use href="#i-plus"/></svg></button>
+        <button type="button" class="btn btn-ghost btn-sm" data-seq-new title="Create a workflow that runs scripts in order"><svg class="i"><use href="#i-plus"/></svg> New</button>
       </div>
     </div>
     <div class="side-pane-body">
+      <p class="side-note">A sequence runs scripts together as a workflow.</p>
       <form method="post" action="{% url 'sequences' %}" class="seq-new-form" id="seq-new-form" hidden>{% csrf_token %}
         <input class="input input-sm" name="name" maxlength="60" placeholder="Name, then Enter" required aria-label="New sequence name" autocomplete="off">
       </form>
@@ -56,9 +57,17 @@
       </div>
     </div>
   </section>
+  {% if wb_folder.folder or wb_folder.files %}
   <div class="side-divider" id="seq-divider" role="separator" aria-orientation="horizontal" aria-label="Resize the sequences and scripts sections" title="Drag to resize"></div>
   <section class="side-pane side-pane-scripts" data-pane="scripts" aria-label="Scripts">
+    <p class="side-note">Drag a script onto the canvas to add a step.</p>
     {% include "runner/_explorer.html" %}
   </section>
+  {% else %}
+  <section class="seq-no-scripts">
+    <p class="side-note">Open a folder to choose scripts for your workflow.</p>
+    <a class="btn btn-ghost btn-sm" href="{% url 'folder' %}" data-open-folder><svg class="i"><use href="#i-folder"/></svg> Open a folder</a>
+  </section>
+  {% endif %}
 </div>
 {% endwith %}

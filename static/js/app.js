@@ -109,6 +109,12 @@
     else if (act === 'palette') palette.open();
     else if (act === 'help') help.open();
   });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' && e.target.closest && e.target.closest('[data-command-search]')) {
+      e.preventDefault();
+      palette.open();
+    }
+  });
 
   // --------------------------------------------------------------- tree --
   var tree = document.getElementById('tree');
@@ -260,7 +266,7 @@
     return list;
   }
   // Menu bar items keep their shortcuts while their menu is closed.
-  function usable(el) { return !el.disabled && !el.classList.contains('btn-disabled') && (visible(el) || el.closest('.activity') || el.closest('.menubar')); }
+  function usable(el) { return !el.disabled && !el.classList.contains('btn-disabled') && (visible(el) || el.closest('.menubar')); }
   var pending = null, pendingTimer = null;
 
   document.addEventListener('keydown', function (e) {
@@ -396,7 +402,7 @@
         href: url('script', s.id), alt: s.run ? url('run', s.id) : null, key: s.name + ' ' + s.path + ' ' + s.cat });
       if (s.run) items.push({ group: 'Run', text: 'Run ' + s.name, hint: s.path, icon: ICON('play'), href: url('run', s.id), runOnly: true, key: 'run ' + s.name + ' ' + s.path });
     });
-    [].forEach.call(document.querySelectorAll('.activity a[data-hint]'), function (a) {
+    [].forEach.call(document.querySelectorAll('.menubar a[data-hotkey][data-hint]'), function (a) {
       items.push({ group: 'Go to', text: a.getAttribute('data-hint').replace(/^Go to /, ''), hint: a.getAttribute('data-hotkey'), icon: a.querySelector('svg').outerHTML, href: a.href, key: a.getAttribute('data-hint') });
     });
     var seen = {};

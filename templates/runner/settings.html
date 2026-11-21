@@ -1,102 +1,96 @@
 {% extends "base.html" %}
 {% block title %}Settings{% endblock %}
-{% block side %}
-<div class="side-head"><span class="side-title">Settings</span></div>
-<div class="side-body">
-  <nav class="side-nav" aria-label="Settings sections">
-    <a href="#features"><svg class="i"><use href="#i-zap"/></svg> Features</a>
-    <a href="#execution"><svg class="i"><use href="#i-play"/></svg> Execution</a>
-    <a href="#retention"><svg class="i"><use href="#i-clock"/></svg> Retention</a>
-    <a href="#interpreters"><svg class="i"><use href="#i-code"/></svg> Interpreters</a>
-    <a href="#ssh"><svg class="i"><use href="#i-terminal"/></svg> SSH &amp; environment</a>
-    <a href="#hosts"><svg class="i"><use href="#i-server"/></svg> SSH hosts</a>
-    <a href="#data"><svg class="i"><use href="#i-files"/></svg> Data</a>
-  </nav>
-  <div class="side-section"><p class="help">Changes apply to the next execution; no restart needed.</p></div>
-</div>
-{% endblock %}
 {% block content %}
 <div class="page page-narrow">
+<section class="panel settings-summary">
+  <div class="panel-head"><h2>Settings</h2><span class="spacer"></span>
+    <button class="btn btn-sm" type="button" data-action="theme" title="Switch between dark and light appearance">
+      <svg class="i theme-ic-dark"><use href="#i-moon"/></svg><svg class="i theme-ic-light"><use href="#i-sun"/></svg>
+      Switch theme
+    </button>
+  </div>
+  <div class="panel-body"><p class="muted small">Run defaults and app behavior. Most changes apply to the next run; script files are not changed.</p></div>
+</section>
 {% if errors %}
 <div class="flash flash-error"><div><strong>Not saved.</strong><ul class="err-list">{% for e in errors %}<li>{{ e }}</li>{% endfor %}</ul></div></div>
 {% endif %}
 
 <form method="post" action="{% url 'settings_save' %}" id="settings-form" novalidate>{% csrf_token %}
   <section class="panel" id="features">
-    <div class="panel-head"><h2>Features</h2></div>
+    <div class="panel-head"><h2>Script access</h2></div>
     <div class="panel-body">
-      <div class="flash flash-warning" style="margin-bottom:14px"><span>This application has no login. Anyone who can open it can use every feature that is switched on here.</span></div>
-      <div class="check-row">
-        <label class="check"><input type="checkbox" name="enable_script_editing" {% if form.enable_script_editing %}checked{% endif %}><span>Create and edit scripts in the browser</span></label>
-      </div>
+      <p class="help settings-warning">This app has no sign-in. Anyone with access can use browser script editing when enabled.</p>
+      <table class="table table-dense settings-table"><tbody>
+        <tr>
+          <th class="th-row"><label for="s_edit">Create and edit scripts</label><div class="help">Allow script files to be changed in the browser.</div></th>
+          <td><label class="check"><input id="s_edit" type="checkbox" name="enable_script_editing" {% if form.enable_script_editing %}checked{% endif %}><span>Allow browser editing</span></label></td>
+        </tr>
+      </tbody></table>
     </div>
   </section>
 
   <section class="panel" id="execution">
-    <div class="panel-head"><h2>Execution</h2></div>
+    <div class="panel-head"><h2>Runs and history</h2></div>
     <div class="panel-body">
-    <div class="form-grid form-grid-3">
-      <div class="field"><label class="field-label" for="s_max">Max concurrent executions</label>
-        <input class="input" id="s_max" name="max_concurrent_executions" type="number" min="1" max="64" value="{{ form.max_concurrent_executions }}">
-        <div class="help">More than this are queued.</div></div>
-      <div class="field"><label class="field-label" for="s_host">Max per host</label>
-        <input class="input" id="s_host" name="max_concurrent_per_host" type="number" min="1" max="64" value="{{ form.max_concurrent_per_host }}">
-        <div class="help">Applies to “local” and to each SSH host.</div></div>
-      <div class="field"><label class="field-label" for="s_timeout">Default timeout (seconds)</label>
-        <input class="input" id="s_timeout" name="default_timeout" type="number" min="1" max="604800" value="{{ form.default_timeout }}">
-        <div class="help">Used when a script sets none.</div></div>
-      <div class="field"><label class="field-label" for="s_poll">Console polling (ms)</label>
-        <input class="input" id="s_poll" name="polling_interval" type="number" min="500" max="60000" step="100" value="{{ form.polling_interval }}">
-        <div class="help">How often the live console asks for new output.</div></div>
-    </div>
+      <p class="muted small">Queued and running executions are never removed by retention cleanup.</p>
+      <table class="table table-dense settings-table"><tbody>
+        <tr>
+          <th class="th-row"><label for="s_max">Maximum concurrent runs</label><div class="help">Additional runs wait in the queue.</div></th>
+          <td><input class="input settings-control" id="s_max" name="max_concurrent_executions" type="number" min="1" max="64" value="{{ form.max_concurrent_executions }}"></td>
+        </tr>
+        <tr>
+          <th class="th-row"><label for="s_timeout">Default timeout (seconds)</label><div class="help">Used when a script does not set its own timeout.</div></th>
+          <td><input class="input settings-control" id="s_timeout" name="default_timeout" type="number" min="1" max="604800" value="{{ form.default_timeout }}"></td>
+        </tr>
+        <tr>
+          <th class="th-row"><label for="s_hist">Keep executions (days)</label><div class="help">Older runs and sequence runs are deleted.</div></th>
+          <td><input class="input settings-control" id="s_hist" name="history_retention_days" type="number" min="1" max="36500" value="{{ form.history_retention_days }}"></td>
+        </tr>
+        <tr>
+          <th class="th-row"><label for="s_log">Keep logs (days)</label><div class="help">Older records stay, but their output logs are removed.</div></th>
+          <td><input class="input settings-control" id="s_log" name="log_retention_days" type="number" min="1" max="36500" value="{{ form.log_retention_days }}"></td>
+        </tr>
+      </tbody></table>
     </div>
   </section>
 
-  <section class="panel" id="retention">
-    <div class="panel-head"><h2>Retention</h2></div>
+  <details class="panel settings-advanced" id="advanced">
+    <summary class="panel-head"><h2>Advanced settings</h2><span class="spacer"></span><span class="muted small">Host limits, interpreters, SSH and environment</span></summary>
     <div class="panel-body">
-    <p class="muted small">Cleanup runs when the app starts and when the History page is opened. Queued and running executions are never removed.</p>
-    <div class="form-grid">
-      <div class="field"><label class="field-label" for="s_hist">Keep executions for (days)</label>
-        <input class="input" id="s_hist" name="history_retention_days" type="number" min="1" max="36500" value="{{ form.history_retention_days }}">
-        <div class="help">Older executions are deleted completely.</div></div>
-      <div class="field"><label class="field-label" for="s_log">Keep logs for (days)</label>
-        <input class="input" id="s_log" name="log_retention_days" type="number" min="1" max="36500" value="{{ form.log_retention_days }}">
-        <div class="help">After this, only the record stays (no stdout/stderr).</div></div>
+      <table class="table table-dense settings-table"><tbody>
+        <tr>
+          <th class="th-row"><label for="s_host">Maximum runs per host</label><div class="help">Separate limit for this computer and each SSH host.</div></th>
+          <td><input class="input settings-control" id="s_host" name="max_concurrent_per_host" type="number" min="1" max="64" value="{{ form.max_concurrent_per_host }}"></td>
+        </tr>
+        <tr>
+          <th class="th-row"><label for="s_poll">Console polling (ms)</label><div class="help">How often the live console checks for output.</div></th>
+          <td><input class="input settings-control" id="s_poll" name="polling_interval" type="number" min="500" max="60000" step="100" value="{{ form.polling_interval }}"></td>
+        </tr>
+        <tr>
+          <th class="th-row"><label for="s_ssh">SSH command</label><div class="help">Uses your existing <span class="mono">~/.ssh/config</span> and passwordless login.</div></th>
+          <td><input class="input mono" id="s_ssh" name="ssh_executable" value="{{ form.ssh_executable }}"></td>
+        </tr>
+        <tr>
+          <th class="th-row"><label for="s_sct">SSH connect timeout (seconds)</label></th>
+          <td><input class="input settings-control" id="s_sct" name="ssh_connect_timeout" type="number" min="1" max="300" value="{{ form.ssh_connect_timeout }}"></td>
+        </tr>
+        <tr>
+          <th class="th-row"><label for="s_env">Environment for every run</label><div class="help">One NAME=value per line. Script and parameter values take precedence.</div></th>
+          <td><textarea class="input mono" id="s_env" name="environment" rows="3" spellcheck="false" placeholder="NAME=value">{{ form.environment }}</textarea></td>
+        </tr>
+      </tbody></table>
+      <div class="settings-subsection">
+        <h3>Interpreter commands</h3>
+        <p class="muted small">One extension=command per line. These determine which file types ScriptHub can run.</p>
+        <div class="form-grid">
+          <div class="field"><label class="field-label" for="s_int">On this computer</label>
+            <textarea class="input mono" id="s_int" name="interpreters" rows="3" spellcheck="false">{{ form.interpreters }}</textarea></div>
+          <div class="field"><label class="field-label" for="s_rint">On SSH hosts (Linux)</label>
+            <textarea class="input mono" id="s_rint" name="remote_interpreters" rows="3" spellcheck="false">{{ form.remote_interpreters }}</textarea></div>
+        </div>
+      </div>
     </div>
-    </div>
-  </section>
-
-  <section class="panel" id="interpreters">
-    <div class="panel-head"><h2>Interpreters</h2></div>
-    <div class="panel-body">
-    <p class="muted small">One per line as <span class="mono">extension=command</span>. Only these extensions are treated as scripts.</p>
-    <div class="form-grid">
-      <div class="field"><label class="field-label" for="s_int">On this computer</label>
-        <textarea class="input mono" id="s_int" name="interpreters" rows="5" spellcheck="false">{{ form.interpreters }}</textarea>
-        <div class="help">e.g. <span class="mono">.py=python</span>, <span class="mono">.bat=cmd</span>, <span class="mono">.ps1=powershell</span></div></div>
-      <div class="field"><label class="field-label" for="s_rint">On SSH hosts (Linux)</label>
-        <textarea class="input mono" id="s_rint" name="remote_interpreters" rows="5" spellcheck="false">{{ form.remote_interpreters }}</textarea>
-        <div class="help">e.g. <span class="mono">.py=python3</span>, <span class="mono">.sh=bash</span></div></div>
-    </div>
-    </div>
-  </section>
-
-  <section class="panel" id="ssh">
-    <div class="panel-head"><h2>SSH &amp; environment</h2></div>
-    <div class="panel-body">
-    <div class="form-grid">
-      <div class="field"><label class="field-label" for="s_ssh">SSH command</label>
-        <input class="input mono" id="s_ssh" name="ssh_executable" value="{{ form.ssh_executable }}">
-        <div class="help">Uses your existing <span class="mono">~/.ssh/config</span>. It must log in without a password.</div></div>
-      <div class="field"><label class="field-label" for="s_sct">SSH connect timeout (seconds)</label>
-        <input class="input" id="s_sct" name="ssh_connect_timeout" type="number" min="1" max="300" value="{{ form.ssh_connect_timeout }}"></div>
-      <div class="field field-wide"><label class="field-label" for="s_env">Environment variables for every run</label>
-        <textarea class="input mono" id="s_env" name="environment" rows="3" spellcheck="false" placeholder="NAME=value  (one per line)">{{ form.environment }}</textarea>
-        <div class="help">A script's own environment settings and parameters override these.</div></div>
-    </div>
-    </div>
-  </section>
+  </details>
 
   <div class="form-actions sticky-actions">
     <button class="btn btn-primary" type="submit"><svg class="i"><use href="#i-save"/></svg> Save settings</button>
@@ -104,8 +98,8 @@
   </div>
 </form>
 
-<section class="panel" id="hosts" style="margin-top:16px">
-  <div class="panel-head"><h2>SSH hosts</h2><span class="spacer"></span><span class="count-pill">{{ ssh_hosts|length }}</span></div>
+<details class="panel settings-advanced" id="hosts">
+  <summary class="panel-head"><h2>SSH hosts</h2><span class="spacer"></span><span class="count-pill">{{ ssh_hosts|length }}</span></summary>
   <div class="panel-body"><p class="muted small">Remote Linux hosts come from <span class="mono">Host</span> entries (without wildcards) in your <span class="mono">~/.ssh/config</span>. Scripts are streamed to the remote interpreter, so nothing is installed on the host.</p></div>
   {% if ssh_hosts %}
   <div class="table-wrap">
@@ -128,10 +122,13 @@
   {% else %}
   <div class="panel-body muted" style="padding-top:0">No hosts found. Add a <span class="mono">Host</span> entry to <span class="mono">~/.ssh/config</span> and reload this page.</div>
   {% endif %}
-</section>
+</details>
 
-<section class="panel" id="data" style="margin-top:16px">
-  <div class="panel-head"><h2>Data</h2><span class="spacer"></span>
+<details class="panel settings-advanced" id="data">
+  <summary class="panel-head"><h2>Stored data</h2><span class="spacer"></span>
+    <span class="muted small">Advanced</span>
+  </summary>
+  <div class="panel-head settings-data-actions">
     <form method="post" action="{% url 'settings_data_clear' %}" data-confirm="Clear all of ScriptHub's data: run history, saved values, sequences, backups, recent folders and settings? Your script files are not touched.">{% csrf_token %}
       <input type="hidden" name="kind" value="all"><button class="btn btn-sm btn-danger" type="submit">Clear all</button>
     </form>
@@ -155,6 +152,6 @@
     </tbody>
   </table>
   </div>
-</section>
+</details>
 </div>
 {% endblock %}

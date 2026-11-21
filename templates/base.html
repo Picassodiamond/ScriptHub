@@ -21,22 +21,11 @@
   </script>
   <link rel="stylesheet" href="{% static 'css/workbench.css' %}">
 </head>
-<body class="wb {% block body_class %}{% endblock %}" data-page="{{ nav_active }}"{% if desktop %} data-desktop="1"{% endif %}{% if folder_picker %} data-folder-picker="1" data-folder="{% firstof wb_folder.folder.path wb_folder.files.0.path %}"{% endif %}{% if url_name == 'dashboard' or url_name == 'library' or url_name == 'folder' %} data-scan-reload{% endif %}{% block body_attrs %}{% endblock %}>
+<body class="wb {% block body_class %}{% endblock %}" data-page="{{ nav_active }}" data-url-name="{{ url_name }}"{% if wb_folder.folder or wb_folder.files %} data-workspace-open{% endif %}{% if desktop %} data-desktop="1"{% endif %}{% if folder_picker %} data-folder-picker="1" data-folder="{% firstof wb_folder.folder.path wb_folder.files.0.path %}"{% endif %}{% if url_name == 'dashboard' or url_name == 'library' or url_name == 'folder' %} data-scan-reload{% endif %}{% block body_attrs %}{% endblock %}>
   {# Icon sprite: <svg class="i"><use href="#i-name"/></svg> #}
   {% include "_icons.html" %}
 
   {% include "_menubar.html" %}
-
-  {% with na=nav_active %}
-  <nav class="activity" aria-label="Main">
-    <a class="act {% if na == 'dashboard' %}is-active{% endif %}" href="{% url 'dashboard' %}" data-hotkey="g o" data-hint="Go to Home" title="Home  (g o)"><svg class="i"><use href="#i-home"/></svg><span class="act-label">Home</span></a>
-    <a class="act {% if na == 'library' or na == 'script' %}is-active{% endif %}" href="{% url 'library' %}" data-hotkey="g l" data-hint="Go to Script Library" title="Script Library  (g l)"><svg class="i"><use href="#i-files"/></svg><span class="act-label">Library</span></a>
-    <a class="act {% if na == 'sequences' or na == 'sequence' %}is-active{% endif %}" href="{% url 'sequences' %}" data-hotkey="g q" data-hint="Go to Sequences" title="Sequences — scripts connected by arrows  (g q)"><svg class="i"><use href="#i-sequence"/></svg><span class="act-label">Sequences</span></a>
-    <a class="act {% if na == 'history' or na == 'executions' or na == 'execution' %}is-active{% endif %}" href="{% url 'history' %}" data-hotkey="g h|g j" data-hint="Go to Runs" title="Runs — running now and history  (g h)"><svg class="i"><use href="#i-pulse"/></svg><span class="act-label">Runs</span>{% if active_runs %}<span class="act-badge" title="Running or queued">{{ active_runs }}</span>{% endif %}</a>
-    <span class="act-spacer"></span>
-    <a class="act {% if na == 'settings' %}is-active{% endif %}" href="{% url 'settings' %}" data-hotkey="g s" data-hint="Go to Settings" title="Settings  (g s)"><svg class="i"><use href="#i-gear"/></svg><span class="act-label">Settings</span></a>
-  </nav>
-  {% endwith %}
 
   <aside class="side" id="side" aria-label="Side panel">
     {% block side %}{% include "runner/_explorer.html" %}{% endblock %}

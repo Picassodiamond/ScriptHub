@@ -1,11 +1,15 @@
 {# Side panel: recent executions (on the console page). #}
-<div class="side-head">
-  <span class="side-title">Executions</span>
+<div class="side-head runs-side-head">
+  <div class="side-title-block">
+    <span class="side-kicker">Run details</span>
+    <span class="side-title">Recent runs</span>
+  </div>
   <div class="side-actions">
-    <a class="btn btn-ghost btn-icon btn-sm" href="{% url 'history' %}" title="Full history"><svg class="i"><use href="#i-clock"/></svg></a>
+    <a class="btn btn-ghost btn-sm" href="{% url 'history' %}" title="Browse, filter, and manage past runs"><svg class="i"><use href="#i-clock"/></svg> View all</a>
   </div>
 </div>
 <div class="side-body">
+  <p class="side-note">Select a run to view its console and output.</p>
   <div class="runlist">
     {% for r in wb_runs %}
     <a class="run-item{% if r.id == run.id %} is-active{% endif %}" href="{% url 'execution_console' r.id %}">

@@ -238,6 +238,31 @@ class PageTests(SimpleTestCase):
         self.assertNotContains(response, "All runs")
         self.assertNotContains(response, '<a class="stat')
 
+    def test_primary_navigation_explains_sections_and_keeps_workspace_actions(self):
+        response = self.client.get("/")
+        html = response.content.decode()
+        for label in ("Workspace", "Scripts", "Sequences", "Runs", "Settings", "Panels and appearance"):
+            self.assertIn(label, html)
+        for action in ('data-open-folder', 'data-open-file', 'data-action="side"',
+                       'data-tree-collapse', 'data-command-search', '/scripts/refresh/', '/project/open/'):
+            self.assertIn(action, html)
+        self.assertIn('aria-current="page"', html)
+        self.assertIn('aria-label="Main navigation"', html)
+        self.assertNotIn('class="activity"', html)
+        self.assertNotIn('<summary role="menuitem">Navigate</summary>', html)
+        self.assertNotIn('<summary role="menuitem">Run</summary>', html)
+        self.assertNotIn('<summary role="menuitem">Help</summary>', html)
+
+    def test_settings_are_compact_without_tabs_or_a_sidebar(self):
+        response = self.client.get("/settings/")
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, 'class="settings-tabs"')
+        self.assertContains(response, "settings-table")
+        self.assertContains(response, "Advanced settings")
+        self.assertContains(response, 'data-action="theme"')
+        self.assertContains(response, "Save settings")
+        self.assertNotContains(response, 'class="side-nav"')
+
     def test_run_validation_errors(self):
         r = self.client.post(self.url("run"), {"p_db": "", "p_days": "999"})
         self.assertEqual(r.status_code, 400)

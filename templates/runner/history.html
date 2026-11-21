@@ -1,8 +1,11 @@
 {% extends "base.html" %}
 {% block title %}History{% endblock %}
 {% block side %}
-<div class="side-head"><span class="side-title">Filter history</span></div>
+<div class="side-head history-side-head">
+  <div><span class="side-kicker">Runs</span><span class="side-title">Find a run</span></div>
+</div>
 <div class="side-body">
+  <p class="side-note">Narrow the list by script, status, or date.</p>
   <form method="get" class="side-section side-form" id="history-filters">
     <div class="field">
       <label class="searchbox">
@@ -36,7 +39,8 @@
   </form>
 
   <div class="side-section side-form">
-    <div class="side-label">Clean up</div>
+    <div class="side-label">Delete old runs</div>
+    <p class="help">This removes finished run records and logs; active runs are kept.</p>
     <form method="post" action="{% url 'history_delete_old' %}" data-confirm="Delete all finished executions older than the number of days you entered?">{% csrf_token %}
       <div class="field"><label class="field-label" for="old-days">Delete executions older than (days)</label>
         <div class="inline-form"><input class="input" id="old-days" type="number" name="days" min="0" max="36500" value="{{ history_days }}" style="min-width:0;width:90px;flex:none">
