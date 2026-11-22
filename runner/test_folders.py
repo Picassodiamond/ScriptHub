@@ -108,6 +108,17 @@ class WorkspaceTests(FolderCase):
             workspace.open_folder(str(self.make_folder(f"f{i}", "s.py")))
         self.assertEqual(len(self.state()["recent"]), workspace.MAX_RECENT)
 
+    def test_recent_folders_are_nested_in_a_file_menu_submenu(self):
+        workspace.open_folder(str(self.a))
+        workspace.open_folder(str(self.b))
+        html = self.client.get("/").content.decode()
+        start = html.index('<details class="menu-sub" data-recent-menu>')
+        recent = html[start:html.index("</details>", start)]
+        self.assertIn("Recently opened", recent)
+        self.assertIn('class="menu-sub-items"', recent)
+        self.assertIn(f'value="{self.a}"', recent)
+        self.assertIn(f'value="{self.b}"', recent)
+
     def test_open_rejects_missing_paths_and_non_scripts(self):
         workspace.open_folder(str(self.a))
         (self.a / "notes.txt").write_bytes(b"x")

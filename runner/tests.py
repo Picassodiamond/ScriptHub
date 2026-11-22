@@ -251,8 +251,8 @@ class PageTests(SimpleTestCase):
         self.assertNotIn(">Sequences<", main_nav)
         self.assertNotIn(">Scripts</a>", main_nav)
         self.assertNotIn(">Workspace</a>", main_nav)
-        if "Recently opened</div>" in html:
-            self.assertLess(html.index("Projects</div>"), html.index("Recently opened</div>"))
+        if 'data-recent-menu' in html:
+            self.assertLess(html.index("Projects</div>"), html.index('data-recent-menu'))
         self.assertIn("Rescan this folder", html)
         self.assertNotIn("Rescan current folder", html)
         for action in ('data-open-folder', 'data-open-file',

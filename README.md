@@ -152,7 +152,7 @@ switch in Settings is remembered per browser):
 * **Menu bar** (top), as in VS Code; the open folder or file and the script are shown
   in the middle. Click a menu (then hover to move between menus, Esc closes):
   * **File**: New script (`g n`), **Open file…**, **Open folder…** (`g f`), *Open
-    recent* (favourites and recent folders/files), add to / remove from favourites,
+    *Recently opened* submenu, favourite folders, add to / remove from favourites,
     Close folder, **Open project…**, **Save project as…**, Close project, Settings.
     Click the current folder name in the menu bar to open it in File Explorer on this machine.
   * Home / History navigation and the command palette (Ctrl+K).

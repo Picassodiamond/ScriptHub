@@ -26,8 +26,14 @@
       {% if wb_folder.favorites or wb_folder.recent %}
       {% if wb_folder.favorites %}<div class="menu-label">Favourite folders</div>
       {% for x in wb_folder.favorites %}{% include "runner/_folder_menu_item.html" %}{% endfor %}{% endif %}
-      {% if wb_folder.recent %}<div class="menu-label">Recently opened</div>
-      {% for x in wb_folder.recent %}{% include "runner/_folder_menu_item.html" %}{% endfor %}{% endif %}
+      {% if wb_folder.recent %}
+      <details class="menu-sub" data-recent-menu>
+        <summary class="menu-item" role="menuitem"><svg class="i i-sm"><use href="#i-clock"/></svg><span>Recently opened</span><svg class="i i-sm menu-sub-caret"><use href="#i-down"/></svg></summary>
+        <div class="menu-sub-items" role="group" aria-label="Recently opened folders and files">
+          {% for x in wb_folder.recent %}{% include "runner/_folder_menu_item.html" %}{% endfor %}
+        </div>
+      </details>
+      {% endif %}
       <a class="menu-item" href="{% url 'folder' %}" role="menuitem"><svg class="i i-sm"><use href="#i-list"/></svg><span>Browse and manage folders</span></a>
       {% endif %}
       {% if f %}
