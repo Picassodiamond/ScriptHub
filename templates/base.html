@@ -23,8 +23,8 @@
 
   {% include "_menubar.html" %}
 
-  <aside class="side" id="side" aria-label="Side panel">
-    {% block side %}{% include "runner/_explorer.html" %}{% endblock %}
+  <aside class="left-side" id="left-side" aria-label="Browse scripts and sequences">
+    {% include "runner/_sequences_side.html" %}
   </aside>
 
   <main class="main" id="main">
@@ -43,6 +43,10 @@
       {% block content %}{% endblock %}
     </div>
   </main>
+
+  <aside class="side" id="side" aria-label="View panel">
+    {% block side %}{% endblock %}
+  </aside>
 
   <footer class="statusbar">
     <span class="sb-item sb-brand">ScriptHub {{ app_version }}</span>{% if desktop %}<span class="sb-item" title="Running as a desktop app: only this window can use it">desktop</span>{% endif %}

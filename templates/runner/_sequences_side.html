@@ -1,4 +1,4 @@
-{# Side panel of the Sequences pages: the sequences (favourites first) above the scripts of the open folder, which are dragged onto a diagram. The Sequences section folds; the divider between the two resizes them (app.js, localStorage sr.seqPaneH / sr.seqFold). #}
+{# Shared left panel: sequences (favourites first) above scripts from the open folder, which can be dragged onto a diagram. The Sequences section folds; the divider between the two resizes them (app.js, localStorage sr.seqPaneH / sr.seqFold). #}
 {% firstof seq.slug run.sequence "" as cur_seq %}
 {% with list=wb_sequence_list here=request.get_full_path %}
 <div class="side-split" id="seq-side">

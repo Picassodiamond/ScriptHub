@@ -229,6 +229,7 @@ class PageTests(SimpleTestCase):
         self.assertContains(r, 'value="mydb"')
         self.assertContains(r, 'value="30"')
         self.assertContains(r, "Fixed")
+        self.assertNotContains(r, 'data-mode="normal"')
 
     def test_dashboard_avoids_repeated_actions_and_script_lists(self):
         response = self.client.get("/")
@@ -246,12 +247,17 @@ class PageTests(SimpleTestCase):
         self.assertNotIn(">Workspace<", html)
         if "Recently opened</div>" in html:
             self.assertLess(html.index("Projects</div>"), html.index("Recently opened</div>"))
+        self.assertIn("Rescan this folder", html)
+        self.assertNotIn("Rescan current folder", html)
         for action in ('data-open-folder', 'data-open-file',
                        'data-tree-collapse', 'data-command-search', '/scripts/refresh/', '/project/open/'):
             self.assertIn(action, html)
         self.assertNotIn('data-action="side"', html)
         self.assertNotIn('data-action="theme"', html)
-        self.assertLess(html.index('<aside class="side"'), html.index('<main class="main"'))
+        self.assertLess(html.index('<aside class="left-side"'), html.index('<main class="main"'))
+        self.assertLess(html.index('<main class="main"'), html.index('<aside class="side"'))
+        self.assertIn('id="seq-side"', html)
+        self.assertIn('id="tree"', html)
         self.assertIn('aria-current="page"', html)
         self.assertIn('aria-label="Main navigation"', html)
         self.assertNotIn('class="activity"', html)
@@ -259,18 +265,44 @@ class PageTests(SimpleTestCase):
         self.assertNotIn('<summary role="menuitem">Run</summary>', html)
         self.assertNotIn('<summary role="menuitem">Help</summary>', html)
 
-    def test_settings_are_compact_without_tabs_or_a_sidebar(self):
+    def test_settings_have_general_and_stored_data_tabs(self):
         response = self.client.get("/settings/")
         self.assertEqual(response.status_code, 200)
-        self.assertNotContains(response, 'class="settings-tabs"')
-        self.assertContains(response, "settings-table")
+        html = response.content.decode()
+        self.assertIn('class="wb-tabs settings-tabs"', html)
+        self.assertIn('href="/settings/?tab=data"', html)
+        self.assertIn('class="settings-toolbar"', html)
+        self.assertIn('form="settings-form"', html)
+        self.assertIn('<th scope="col">Setting</th>', html)
+        self.assertIn('<th scope="col">Description</th>', html)
+        self.assertIn('<th scope="col">Value</th>', html)
+        self.assertLess(html.index("Save settings"), html.index("Maximum concurrent runs"))
         self.assertContains(response, "Advanced settings")
         self.assertContains(response, 'id="hosts"')
-        self.assertContains(response, 'id="data"')
+        self.assertNotContains(response, 'id="data"')
         self.assertNotContains(response, '<details class="panel settings-advanced"')
         self.assertContains(response, 'data-action="theme"')
         self.assertContains(response, "Save settings")
+        self.assertNotContains(response, "Discard")
         self.assertNotContains(response, 'class="side-nav"')
+
+    def test_settings_stored_data_tab_hides_general_form(self):
+        response = self.client.get("/settings/?tab=data")
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'href="/settings/?tab=data"')
+        self.assertContains(response, 'aria-current="page">Stored data</a>')
+        self.assertContains(response, 'id="data"')
+        self.assertContains(response, "Run history and logs")
+        self.assertNotContains(response, 'id="settings-form"')
+        self.assertNotContains(response, "Save settings")
+        self.assertNotContains(response, "Maximum concurrent runs")
+
+    @mock.patch("runner.views.runtime_data.clear", return_value="Cleared")
+    def test_clearing_stored_data_returns_to_data_tab(self, clear):
+        response = self.client.post("/settings/data/clear/", {"kind": "presets"})
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response["Location"], "/settings/?tab=data#data")
+        clear.assert_called_once_with("presets")
 
     def test_run_validation_errors(self):
         r = self.client.post(self.url("run"), {"p_db": "", "p_days": "999"})

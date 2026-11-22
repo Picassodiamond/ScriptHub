@@ -113,11 +113,11 @@ class ClearTests(DataCase):
 
 class WebTests(DataCase):
     def test_settings_shows_the_location_and_clears_one_kind_or_all(self):
-        page = self.client.get("/settings/")
+        page = self.client.get("/settings/?tab=data")
         self.assertContains(page, str(self.rt))
         self.assertContains(page, 'name="kind" value="presets"')
         r = self.client.post("/settings/data/clear/", {"kind": "presets"})
-        self.assertEqual(r["Location"], "/settings/#data")
+        self.assertEqual(r["Location"], "/settings/?tab=data#data")
         self.assertEqual(self.row("presets")["files"], 0)
         self.assertEqual(self.row("backups")["files"], 1)
         self.client.post("/settings/data/clear/", {"kind": "all"})

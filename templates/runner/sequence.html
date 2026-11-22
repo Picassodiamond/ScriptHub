@@ -2,7 +2,7 @@
 {% load static %}
 {% block title %}{{ seq.name }}{% endblock %}
 {% block body_mod %}fill{% endblock %}
-{% block side %}{% include "runner/_sequences_side.html" %}{% endblock %}
+
 {% block content %}
 {# The sequence as a diagram (static/js/sequence.js): scripts dragged in from the explorer, arrows between them. Right: the sequence, or the clicked step's settings (an embedded sequence_step page). #}
 <div class="seq-editor" id="seq-editor" data-slug="{{ seq.slug }}" data-graph-url="{% url 'sequence_graph' seq.slug %}"

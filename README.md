@@ -155,13 +155,11 @@ switch in Settings is remembered per browser):
     recent* (favourites and recent folders/files), add to / remove from favourites,
     Close folder, **Open project…**, **Save project as…**, Close project, Settings.
   * Home / Scripts / Sequences / History navigation and the command palette (Ctrl+K).
-  * **Run**: Run the script (Ctrl+Enter), Run with Trace, Run with Debug, Rescan
-    folder, Runs.
-  * **Help**: Keyboard shortcuts (`?`), version.
-* **Side panel** (left): the **Explorer** (the open folder's name with New script, Rescan
-  and Collapse all; every script grouped by category, with a dot for its last
-  result and a filter box) on most pages; the list of executions in the
-  console; the filters on History. It stays visible on views that use it.
+  * Settings and keyboard shortcuts (`?`).
+* **Left panel**: **Sequences** (favourites first) and the **Scripts** Explorer
+  (the open folder, scripts grouped by category, last-result dots and a filter box)
+  are together and stay visible throughout the app. **History** filters and the
+  console's recent executions appear in a right panel on their respective pages.
 * **Main area**: no page header (the menu bar shows the section, the explorer the
   script); script pages have the tabs **Overview · Parameters · Run** on top of a
   right column that stays visible.
@@ -182,11 +180,11 @@ switch in Settings is remembered per browser):
 | **Script › Overview** | The script's settings on the right: name, category, description, interpreter, default host, working directory, environment, platforms; below, recent runs. (The old `/configure/` URL opens this page.) |
 | **Script › Parameters** | The **parameter definitions** the run form is built from (click a row to edit; hover to see where the script uses it). |
 | **Script › Run** | On the right: where the values come from (defaults, a recent run or a preset), the host and the parameters (focusing one marks the lines that use it), and *+ Save current values as preset…* at the end of the values list. **Run** (Ctrl+Enter) in the bottom bar, with the mode **Normal · Trace · Debug** next to it, starts the script straight away (unsaved script edits are saved first) and opens the run as a tab next to the script; **Reset** loads the defaults. |
-| **New script** (`/scripts/new/`, *File → New script*, **+** in the explorer header) | Name, language, optional sub-folder and category; creates the file (with a short starter) and its metadata in the open folder, then opens it in the editor. |
+| **New script** (`/scripts/new/`, *File → New script*) | Name, language, optional sub-folder and category; creates the file (with a short starter) and its metadata in the open folder, then opens it in the editor. |
 | **Sequences** (`/sequences/`) | Scripts connected by arrows on a diagram, run in place; see [Sequences](#sequences-scripts-connected-by-arrows). |
 | **Console** (`/executions/RUN-…/`) | Live status, duration, exit code, stdout and stderr (side by side, stacked or stdout only), auto-scroll, copy, download, stop; the running line (trace) or the **debugger** (debug). |
 | **Runs** (`/history/`; `/executions/` redirects here) | What is running or queued on top (refreshes by itself while something runs), then the history: every script run and sequence run with search, filters, paging, open or download logs, delete and retention. |
-| **Settings** | Appearance, concurrency limits, timeouts, polling, retention, interpreters (local and SSH), SSH command, environment variables, SSH host test and stored-data management. |
+| **Settings** | Separate **General** and **Stored data** tabs. General contains appearance, concurrency limits, timeouts, polling, retention, interpreters, SSH and environment settings; Stored data lists and clears saved app data. The header and Save action stay fixed above the scrolling content. |
 
 ### Keyboard and command palette
 
@@ -306,7 +304,7 @@ It is not a setting: on first start Home asks you to open one (or the
   all of them become recent).
 
 The folder is scanned **recursively, up to 3 sub-folder levels deep** (deeper folders are skipped, with a warning in the Library), and new files appear without a restart
-(press **Rescan** in the explorer header or *Run → Rescan folder* to rescan immediately). Switching folders does not stop runs
+(choose *File → Rescan this folder* to rescan immediately). Switching folders does not stop runs
 that are in progress, and history keeps runs of scripts from other folders.
 
 Rules that keep this safe:
@@ -629,7 +627,7 @@ a small YAML subset (written by ScriptHub, fine to edit by hand).
 A **sequence** runs existing scripts in the order you draw. Open **Sequences** in the
 activity bar (or **g q**) and create one; its page is a diagram:
 
-* **The side panel** on the Sequences pages has two sections: **Sequences** on top (your favourites ★
+* **The shared left panel** has two sections: **Sequences** on top (your favourites ★
   first, then by name; **+** creates one, type a name and press Enter; on hover each has ★, rename and
   delete) and **Scripts** below (the open folder, to drag from). Drag the line between them to resize;
   click *Sequences* to fold that section. Favourites are kept per machine (`runtime/workspace.json`, like
@@ -759,7 +757,7 @@ sequences and presets stay, and the folder is in *Open recent*.
 
 ### New script
 
-**New script** (*File → New script*, the **+** in the explorer header, `g n`, or Ctrl+K)
+**New script** (*File → New script*, `g n`, or Ctrl+K)
 creates a file in the **open folder**: give a file name, language, and optionally a
 sub-folder (created if needed; existing ones are suggested) and a category. The file
 starts with its metadata block and a few lines of example code, then

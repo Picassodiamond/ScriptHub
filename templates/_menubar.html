@@ -7,7 +7,7 @@
     <summary role="menuitem">File</summary>
     <div class="menu" role="menu">
       <div class="menu-label">Create and open</div>
-      {% if f %}<a class="menu-item" href="{% url 'script_new' %}{% if script.id %}?from={{ script.id }}{% endif %}" role="menuitem"><svg class="i i-sm"><use href="#i-plus"/></svg><span>New script</span><kbd>g n</kbd></a>
+      {% if f %}<a class="menu-item" href="{% url 'script_new' %}{% if script.id %}?from={{ script.id }}{% endif %}" data-new-script role="menuitem"><svg class="i i-sm"><use href="#i-plus"/></svg><span>New script</span><kbd>g n</kbd></a>
       {% else %}<span class="menu-item is-disabled" title="Open a folder to create scripts in it"><svg class="i i-sm"><use href="#i-plus"/></svg><span>New script</span><kbd>g n</kbd></span>{% endif %}
       <a class="menu-item" href="{% url 'folder' %}" role="menuitem" data-open-file title="Open a single script without opening its whole folder"><svg class="i i-sm"><use href="#i-file"/></svg><span>Open a script file…</span></a>
       <a class="menu-item" href="{% url 'folder' %}" role="menuitem" data-open-folder data-hotkey="g f" data-hint="Open folder" title="Choose a folder and browse its scripts"><svg class="i i-sm"><use href="#i-folder-open"/></svg><span>Open a folder…</span><kbd>g f</kbd></a>
@@ -69,16 +69,8 @@
   <div class="mb-context" title="{% firstof f.path wb_folder.files.0.path 'No folder open' %}" aria-label="Current working folder or file: {% firstof f.path wb_folder.files.0.path 'No folder open' %}" tabindex="0">
     <svg class="i i-sm"><use href="#i-folder"/></svg>
     <span class="mb-title" title="{% firstof f.path wb_folder.files.0.path 'No folder open' %}">{% if f %}{{ f.name }}{% elif wb_folder.files %}{{ wb_folder.files.0.name }}{% else %}No folder open{% endif %}</span>
-    {% if f or wb_folder.files %}<form method="post" action="{% url 'library_refresh' %}">{% csrf_token %}
-      <button type="submit" class="mb-icon" title="Rescan the current folder and update its script list" aria-label="Rescan current folder"><svg class="i"><use href="#i-refresh"/></svg></button>
-    </form>{% endif %}
   </div>
   <div class="mb-tools">
-    {% if script.id and script.meta_valid %}
-    <a class="mb-icon" href="{% url 'script_run' script.id %}"{% if url_name == 'script_run' %} data-action="run" data-mode="normal"{% endif %} title="{% if url_name == 'script_run' %}Run with the selected mode (Ctrl+Enter){% else %}Open run options for {{ script.name }}{% endif %}" aria-label="{% if url_name == 'script_run' %}Run script{% else %}Run {{ script.name }}{% endif %}"><svg class="i"><use href="#i-play"/></svg></a>
-    {% else %}
-    <span class="mb-icon is-disabled" title="Open a valid script to run it" aria-label="Run unavailable"><svg class="i"><use href="#i-play"/></svg></span>
-    {% endif %}
     <a class="mb-icon{% if nav_active == 'settings' %} is-active{% endif %}" href="{% url 'settings' %}" data-hotkey="g s" data-hint="Settings" title="Settings (g s)" aria-label="Settings"{% if nav_active == 'settings' %} aria-current="page"{% endif %}><svg class="i"><use href="#i-gear"/></svg></a>
     <button type="button" class="mb-icon" data-action="help" title="Keyboard shortcuts (?)" aria-label="Keyboard shortcuts"><svg class="i"><use href="#i-keyboard"/></svg></button>
   </div>

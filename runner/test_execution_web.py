@@ -185,6 +185,9 @@ class ExecutionWebTests(SimpleTestCase):
         page = self.client.get("/history/")
         self.assertContains(page, run_id)
         self.assertContains(page, "Success")
+        html = page.content.decode()
+        self.assertLess(html.index('<aside class="left-side"'), html.index('<main class="main"'))
+        self.assertLess(html.index('<main class="main"'), html.index('<aside class="side"'))
         self.assertNotContains(page, '<section class="panel" data-active-count')   # nothing running: no Running panel
         self.assertNotContains(self.client.get("/executions/?partial=1"), run_id)
         lib = self.client.get("/scripts/")

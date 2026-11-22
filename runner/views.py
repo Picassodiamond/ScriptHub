@@ -150,7 +150,7 @@ def settings_data_clear(request):
             messages.success(request, runtime_data.clear(key))
         except ValueError as exc:
             messages.error(request, str(exc))
-    return redirect(reverse("settings") + "#data")
+    return redirect(reverse("settings") + "?tab=data#data")
 
 
 def settings_view(request):

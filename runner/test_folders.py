@@ -340,11 +340,11 @@ class NewScriptTests(FolderCase):
         r = self.client.get("/scripts/new/")
         self.assertEqual(r["Location"], "/folder/")
         self.assertEqual(self.client.post("/scripts/new/", self.form())["Location"], "/folder/")
-        self.assertNotContains(self.client.get("/"), "data-new-script")       # no "+" in the explorer
+        self.assertNotContains(self.client.get("/"), "data-new-script")       # unavailable without an open folder
 
     def test_creates_the_script_with_metadata_and_opens_it_in_the_editor(self):
         workspace.open_folder(str(self.a))
-        self.assertContains(self.client.get("/"), "data-new-script")
+        self.assertContains(self.client.get("/"), "data-new-script")          # File menu and command palette
         r = self.client.post("/scripts/new/", self.form(subfolder="maint/daily", category="Maintenance"))
         target = self.a / "maint" / "daily" / "cleanup_logs.py"
         self.assertTrue(target.is_file())

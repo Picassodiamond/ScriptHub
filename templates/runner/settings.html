@@ -1,87 +1,95 @@
 {% extends "base.html" %}
 {% block title %}Settings{% endblock %}
-{% block content %}
-<div class="page page-narrow">
-<section class="panel settings-summary">
-  <div class="panel-head"><h2>Settings</h2><span class="spacer"></span>
+{% block tabs %}
+<div class="settings-toolbar">
+  <h2>Settings</h2>
+  <div class="settings-toolbar-actions">
     <button class="btn btn-sm" type="button" data-action="theme" title="Switch between dark and light appearance">
       <svg class="i theme-ic-dark"><use href="#i-moon"/></svg><svg class="i theme-ic-light"><use href="#i-sun"/></svg>
-      Switch theme
+      Theme
     </button>
+    {% if request.GET.tab != "data" %}
+    <button class="btn btn-primary btn-sm" type="submit" form="settings-form"><svg class="i"><use href="#i-save"/></svg> Save settings</button>
+    {% endif %}
   </div>
-  <div class="panel-body"><p class="muted small">Run defaults and app behavior. Most changes apply to the next run; script files are not changed.</p></div>
-</section>
+</div>
+<nav class="wb-tabs settings-tabs" aria-label="Settings sections">
+  <a class="tab {% if request.GET.tab != 'data' %}is-active{% endif %}" href="{% url 'settings' %}"{% if request.GET.tab != "data" %} aria-current="page"{% endif %}>General</a>
+  <a class="tab {% if request.GET.tab == 'data' %}is-active{% endif %}" href="{% url 'settings' %}?tab=data"{% if request.GET.tab == "data" %} aria-current="page"{% endif %}>Stored data</a>
+</nav>
+{% endblock %}
+{% block content %}
+<div class="page page-narrow">
+{% if request.GET.tab != "data" %}
 {% if errors %}
 <div class="flash flash-error"><div><strong>Not saved.</strong><ul class="err-list">{% for e in errors %}<li>{{ e }}</li>{% endfor %}</ul></div></div>
 {% endif %}
 
-<form method="post" action="{% url 'settings_save' %}" id="settings-form" novalidate>{% csrf_token %}
-  <section class="panel" id="execution">
-    <div class="panel-head"><h2>Runs and history</h2></div>
-    <div class="panel-body">
-      <p class="muted small">Queued and running executions are never removed by retention cleanup.</p>
-      <table class="table table-dense settings-table"><tbody>
-        <tr>
-          <th class="th-row"><label for="s_max">Maximum concurrent runs</label><div class="help">Additional runs wait in the queue.</div></th>
-          <td><input class="input settings-control" id="s_max" name="max_concurrent_executions" type="number" min="1" max="64" value="{{ form.max_concurrent_executions }}"></td>
-        </tr>
-        <tr>
-          <th class="th-row"><label for="s_timeout">Default timeout (seconds)</label><div class="help">Used when a script does not set its own timeout.</div></th>
-          <td><input class="input settings-control" id="s_timeout" name="default_timeout" type="number" min="1" max="604800" value="{{ form.default_timeout }}"></td>
-        </tr>
-        <tr>
-          <th class="th-row"><label for="s_hist">Keep executions (days)</label><div class="help">Older runs and sequence runs are deleted.</div></th>
-          <td><input class="input settings-control" id="s_hist" name="history_retention_days" type="number" min="1" max="36500" value="{{ form.history_retention_days }}"></td>
-        </tr>
-        <tr>
-          <th class="th-row"><label for="s_log">Keep logs (days)</label><div class="help">Older records stay, but their output logs are removed.</div></th>
-          <td><input class="input settings-control" id="s_log" name="log_retention_days" type="number" min="1" max="36500" value="{{ form.log_retention_days }}"></td>
-        </tr>
-      </tbody></table>
-    </div>
-  </section>
-
-  <section class="panel settings-advanced" id="advanced">
-    <div class="panel-head"><h2>Advanced settings</h2><span class="spacer"></span><span class="muted small">Host limits, interpreters, SSH and environment</span></div>
-    <div class="panel-body">
-      <table class="table table-dense settings-table"><tbody>
-        <tr>
-          <th class="th-row"><label for="s_host">Maximum runs per host</label><div class="help">Separate limit for this computer and each SSH host.</div></th>
-          <td><input class="input settings-control" id="s_host" name="max_concurrent_per_host" type="number" min="1" max="64" value="{{ form.max_concurrent_per_host }}"></td>
-        </tr>
-        <tr>
-          <th class="th-row"><label for="s_poll">Console polling (ms)</label><div class="help">How often the live console checks for output.</div></th>
-          <td><input class="input settings-control" id="s_poll" name="polling_interval" type="number" min="500" max="60000" step="100" value="{{ form.polling_interval }}"></td>
-        </tr>
-        <tr>
-          <th class="th-row"><label for="s_ssh">SSH command</label><div class="help">Uses your existing <span class="mono">~/.ssh/config</span> and passwordless login.</div></th>
-          <td><input class="input mono" id="s_ssh" name="ssh_executable" value="{{ form.ssh_executable }}"></td>
-        </tr>
-        <tr>
-          <th class="th-row"><label for="s_sct">SSH connect timeout (seconds)</label></th>
-          <td><input class="input settings-control" id="s_sct" name="ssh_connect_timeout" type="number" min="1" max="300" value="{{ form.ssh_connect_timeout }}"></td>
-        </tr>
-        <tr>
-          <th class="th-row"><label for="s_env">Environment for every run</label><div class="help">One NAME=value per line. Script and parameter values take precedence.</div></th>
-          <td><textarea class="input mono" id="s_env" name="environment" rows="3" spellcheck="false" placeholder="NAME=value">{{ form.environment }}</textarea></td>
-        </tr>
-      </tbody></table>
-      <div class="settings-subsection">
-        <h3>Interpreter commands</h3>
-        <p class="muted small">One extension=command per line. These determine which file types ScriptHub can run.</p>
-        <div class="form-grid">
-          <div class="field"><label class="field-label" for="s_int">On this computer</label>
-            <textarea class="input mono" id="s_int" name="interpreters" rows="3" spellcheck="false">{{ form.interpreters }}</textarea></div>
-          <div class="field"><label class="field-label" for="s_rint">On SSH hosts (Linux)</label>
-            <textarea class="input mono" id="s_rint" name="remote_interpreters" rows="3" spellcheck="false">{{ form.remote_interpreters }}</textarea></div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <div class="form-actions sticky-actions">
-    <button class="btn btn-primary" type="submit"><svg class="i"><use href="#i-save"/></svg> Save settings</button>
-    <a class="btn btn-ghost" href="{% url 'settings' %}">Discard changes</a>
+<form method="post" action="{% url 'settings_save' %}" id="settings-form" class="settings-form" novalidate>{% csrf_token %}
+  <div class="table-wrap">
+  <table class="table table-dense settings-table">
+    <thead><tr><th scope="col">Setting</th><th scope="col">Description</th><th scope="col">Value</th></tr></thead>
+    <tbody>
+      <tr class="settings-section" id="execution"><th colspan="3">Runs and history <span>Queued and running executions are never removed.</span></th></tr>
+      <tr>
+        <th class="settings-label" scope="row"><label for="s_max">Maximum concurrent runs</label></th>
+        <td class="settings-description">Additional runs wait in the queue.</td>
+        <td class="settings-value"><input class="input settings-control" id="s_max" name="max_concurrent_executions" type="number" min="1" max="64" value="{{ form.max_concurrent_executions }}"></td>
+      </tr>
+      <tr>
+        <th class="settings-label" scope="row"><label for="s_timeout">Default timeout (seconds)</label></th>
+        <td class="settings-description">Used when a script does not set its own timeout.</td>
+        <td class="settings-value"><input class="input settings-control" id="s_timeout" name="default_timeout" type="number" min="1" max="604800" value="{{ form.default_timeout }}"></td>
+      </tr>
+      <tr>
+        <th class="settings-label" scope="row"><label for="s_hist">Keep executions (days)</label></th>
+        <td class="settings-description">Older runs and sequence runs are deleted.</td>
+        <td class="settings-value"><input class="input settings-control" id="s_hist" name="history_retention_days" type="number" min="1" max="36500" value="{{ form.history_retention_days }}"></td>
+      </tr>
+      <tr>
+        <th class="settings-label" scope="row"><label for="s_log">Keep logs (days)</label></th>
+        <td class="settings-description">Older records stay, but their output logs are removed.</td>
+        <td class="settings-value"><input class="input settings-control" id="s_log" name="log_retention_days" type="number" min="1" max="36500" value="{{ form.log_retention_days }}"></td>
+      </tr>
+      <tr class="settings-section" id="advanced"><th colspan="3">Advanced settings</th></tr>
+      <tr>
+        <th class="settings-label" scope="row"><label for="s_host">Maximum runs per host</label></th>
+        <td class="settings-description">Separate limit for this computer and each SSH host.</td>
+        <td class="settings-value"><input class="input settings-control" id="s_host" name="max_concurrent_per_host" type="number" min="1" max="64" value="{{ form.max_concurrent_per_host }}"></td>
+      </tr>
+      <tr>
+        <th class="settings-label" scope="row"><label for="s_poll">Console polling (ms)</label></th>
+        <td class="settings-description">How often the live console checks for output.</td>
+        <td class="settings-value"><input class="input settings-control" id="s_poll" name="polling_interval" type="number" min="500" max="60000" step="100" value="{{ form.polling_interval }}"></td>
+      </tr>
+      <tr>
+        <th class="settings-label" scope="row"><label for="s_ssh">SSH command</label></th>
+        <td class="settings-description">Uses your existing <span class="mono">~/.ssh/config</span> and passwordless login.</td>
+        <td class="settings-value"><input class="input mono" id="s_ssh" name="ssh_executable" value="{{ form.ssh_executable }}"></td>
+      </tr>
+      <tr>
+        <th class="settings-label" scope="row"><label for="s_sct">SSH connect timeout (seconds)</label></th>
+        <td class="settings-description">Applies when connecting to an SSH host.</td>
+        <td class="settings-value"><input class="input settings-control" id="s_sct" name="ssh_connect_timeout" type="number" min="1" max="300" value="{{ form.ssh_connect_timeout }}"></td>
+      </tr>
+      <tr>
+        <th class="settings-label" scope="row"><label for="s_env">Environment for every run</label></th>
+        <td class="settings-description">One NAME=value per line. Script and parameter values take precedence.</td>
+        <td class="settings-value"><textarea class="input mono" id="s_env" name="environment" rows="2" spellcheck="false" placeholder="NAME=value">{{ form.environment }}</textarea></td>
+      </tr>
+      <tr class="settings-section settings-subhead"><th colspan="3">Interpreter commands <span>One extension=command per line; these determine which file types ScriptHub can run.</span></th></tr>
+      <tr>
+        <th class="settings-label" scope="row"><label for="s_int">On this computer</label></th>
+        <td class="settings-description">Commands used to run local scripts.</td>
+        <td class="settings-value"><textarea class="input mono" id="s_int" name="interpreters" rows="2" spellcheck="false">{{ form.interpreters }}</textarea></td>
+      </tr>
+      <tr>
+        <th class="settings-label" scope="row"><label for="s_rint">On SSH hosts (Linux)</label></th>
+        <td class="settings-description">Commands used to run scripts on remote hosts.</td>
+        <td class="settings-value"><textarea class="input mono" id="s_rint" name="remote_interpreters" rows="2" spellcheck="false">{{ form.remote_interpreters }}</textarea></td>
+      </tr>
+    </tbody>
+  </table>
   </div>
 </form>
 
@@ -110,12 +118,12 @@
   <div class="panel-body muted" style="padding-top:0">No hosts found. Add a <span class="mono">Host</span> entry to <span class="mono">~/.ssh/config</span> and reload this page.</div>
   {% endif %}
 </section>
+{% endif %}
 
+{% if request.GET.tab == "data" %}
 <section class="panel settings-advanced" id="data">
-  <div class="panel-head"><h2>Stored data</h2><span class="spacer"></span>
-    <span class="muted small">Advanced</span>
-  </div>
   <div class="panel-head settings-data-actions">
+    <h2>Stored data</h2><span class="spacer"></span>
     <form method="post" action="{% url 'settings_data_clear' %}" data-confirm="Clear all of ScriptHub's data: run history, saved values, sequences, backups, recent folders and settings? Your script files are not touched.">{% csrf_token %}
       <input type="hidden" name="kind" value="all"><button class="btn btn-sm btn-danger" type="submit">Clear all</button>
     </form>
@@ -140,5 +148,6 @@
   </table>
   </div>
 </section>
+{% endif %}
 </div>
 {% endblock %}
