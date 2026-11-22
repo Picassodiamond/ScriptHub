@@ -13,8 +13,9 @@ secrets (.env, keys, keystores) and tool folders (.git, .venv, node_modules, __p
 
 Saving (``build``) walks the open folder as discovery does (``discovery.MAX_DEPTH`` levels). Opening is two
 steps: ``inspect`` checks the archive and returns a preview (nothing written), ``install`` unpacks it into an
-empty destination folder, adds the sequences (a taken name becomes "Name (2)") and the presets (an existing
-preset is kept), and points every step at its unpacked script. Nothing runs. The archive is untrusted: names
+empty destination folder, stores its sequences under ``sequences/`` (a taken name becomes "Name (2)") and
+the presets (an existing preset is kept), and points every step at its unpacked script. Nothing runs.
+The archive is untrusted: names
 that leave the archive (absolute, drive, ``..``, links), oversized or over-compressed members and a manifest
 that does not match the contents are refused.
 """
@@ -77,7 +78,7 @@ def _inside(path: Path, root: Path) -> bool:
 
 
 # ------------------------------------------------------------------- save ---
-def folder_files(root: Path) -> tuple:
+def folder_files(root: Path, max_file_bytes: int | None = MAX_FILE_BYTES, exclude_projects: bool = True) -> tuple:
     """(included, left_out) for the folder: included = [(relative posix path, size, is_script)],
     left_out = [(relative path, reason)]."""
     exts = {e.lower() for e in config.load_config()["interpreters"]}
@@ -89,6 +90,8 @@ def folder_files(root: Path) -> tuple:
         for d in sorted(dirnames):
             if d.startswith((".", "$")) or d in SKIP_DIRS:
                 left_out.append(((rel_dir / d).as_posix() + "/", "tool or hidden folder"))
+            elif not rel_dir.parts and d == sequences.LOCAL_DIR_NAME:
+                left_out.append(((rel_dir / d).as_posix() + "/", "stored as folder sequences"))
             elif len(rel_dir.parts) >= discovery.MAX_DEPTH:
                 left_out.append(((rel_dir / d).as_posix() + "/", f"more than {discovery.MAX_DEPTH} folder levels deep"))
             elif (Path(dirpath) / d).is_symlink():
@@ -99,7 +102,9 @@ def folder_files(root: Path) -> tuple:
         for f in sorted(filenames):
             p = Path(dirpath) / f
             rel = (rel_dir / f).as_posix()
-            if SECRET_RE.search(f):
+            if exclude_projects and p.suffix.lower() == EXT:
+                left_out.append((rel, "a ScriptHub project archive"))
+            elif SECRET_RE.search(f):
                 left_out.append((rel, "may hold secrets"))
             elif f.startswith(".") or SKIP_FILE_RE.search(f):
                 left_out.append((rel, "hidden or compiled file"))
@@ -111,7 +116,7 @@ def folder_files(root: Path) -> tuple:
                 except OSError:
                     left_out.append((rel, "cannot be read"))
                     continue
-                if size > MAX_FILE_BYTES:
+                if max_file_bytes is not None and size > max_file_bytes:
                     left_out.append((rel, f"larger than {MAX_FILE_BYTES // (1024 * 1024)} MB"))
                 else:
                     included.append((rel, size, p.suffix.lower() in exts))
@@ -119,13 +124,13 @@ def folder_files(root: Path) -> tuple:
 
 
 def sequences_for(root: Path) -> list:
-    """Every readable sequence, with ``uses_folder``: a step's script is in ``root`` (those are offered
-    ticked when saving)."""
+    """Readable local sequences and global sequences that use scripts from ``root``."""
     out = []
-    for entry in sequences.list_sequences():
+    local_slugs = {p.stem for p in sequences.folder(root).glob(f"*{sequences.EXT}")}
+    for entry in sequences.list_sequences(root=root):
         if entry["error"]:
             continue
-        data = sequences.get(entry["slug"])
+        data = sequences.get(entry["slug"], root=root)
         if data is None:
             continue
         uses = False
@@ -134,8 +139,24 @@ def sequences_for(root: Path) -> list:
             if script is not None and _inside(script.path, root):
                 uses = True
                 break
-        out.append({"slug": entry["slug"], "name": data["name"], "steps": len(data["steps"]), "uses_folder": uses})
+        out.append({"slug": entry["slug"], "name": data["name"], "steps": len(data["steps"]),
+                    "uses_folder": uses, "local": entry["slug"] in local_slugs})
     return out
+
+
+def list_projects(root: Path | None) -> list:
+    """Project archives in the selected folder, within the script scan's depth and exclusions."""
+    if root is None:
+        return []
+    root = Path(root)
+    if not root.is_dir():
+        return []
+    included, _left_out = folder_files(root, max_file_bytes=None, exclude_projects=False)
+    return [
+        {"name": Path(path).stem, "path": path}
+        for path, _size, _is_script in included
+        if Path(path).suffix.lower() == EXT
+    ]
 
 
 def _unique(name: str, taken: set) -> str:
@@ -162,7 +183,7 @@ def build(root: Path, name: str, files: list, seq_slugs: list, with_presets: boo
     taken = {f.lower() for f in chosen}
     by_real = {}
     for slug in seq_slugs:
-        data = sequences.get(slug)
+        data = sequences.get(slug, root=root)
         if data is None:
             continue
         for step in data["steps"]:
@@ -349,7 +370,7 @@ def inspect(path: Path) -> dict:
         files, seqs, pres = _entries(manifest)
         for f in files:
             _read_checked(z, infos, "files/" + f["path"], f.get("sha256"))
-        taken = {s["name"].lower() for s in sequences.list_sequences()}
+        taken = {s["name"].lower() for s in sequences.list_sequences(include_folder=False)}
         hosts = set(ssh_hosts.allowed_hosts())
         seq_rows, warnings = [], []
         for s in seqs:
@@ -435,7 +456,7 @@ def install(path: Path, destination: str) -> dict:
         def script_at(rel):
             return discovery.load_file(str(dest.joinpath(*PurePosixPath(rel).parts)))
 
-        taken = {s["name"].lower() for s in sequences.list_sequences()}
+        taken = {s["name"].lower() for s in sequences.list_sequences(root=dest)}
         for s in seqs:
             data = sequences.parse_text(_read_checked(z, infos, s["file"], s.get("sha256")).decode("utf-8"))
             for step in data["steps"]:
@@ -447,7 +468,7 @@ def install(path: Path, destination: str) -> dict:
                     else:
                         step["path"] = str(dest.joinpath(*PurePosixPath(p[len("files/"):]).parts))
             data["name"] = _free_name(data["name"], taken)
-            result["sequences"].append(sequences.add_imported(data))
+            result["sequences"].append(sequences.add_imported(data, root=dest))
 
         for p in pres:
             script = script_at(str(p.get("script", "")))

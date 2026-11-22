@@ -62,7 +62,7 @@ class ProjectCase(SimpleTestCase):
         return next(s for s in discovery.scan()[0] if s.path.name == name)
 
     def make_sequence(self, name="Release"):
-        slug = sequences.create(name)
+        slug = sequences.create(name, root=self.src)
         a, b = self.script("alpha.py"), self.script("beta.sh")
         sequences.add_step(slug, sequences.new_step(a, {"tag": "prod"}))
         sequences.add_step(slug, sequences.new_step(b, {}))
@@ -119,6 +119,7 @@ class SaveAndOpenTests(ProjectCase):
         dest = self.tmp / "elsewhere" / "Ops"
         result = project_files.install(pfile, str(dest))
         self.assertEqual((result["files"], len(result["sequences"]), result["presets"]), (5, 1, 1))
+        self.assertTrue((dest / "sequences" / f"{result['sequences'][0]}.yaml").is_file())
         self.assertEqual((dest / "data" / "hosts.csv").read_bytes(), b"name,ip\nweb,10.0.0.1\n")
         self.assertFalse((dest / ".env").exists())
 
@@ -134,12 +135,29 @@ class SaveAndOpenTests(ProjectCase):
         self.assertEqual(data["links"], [{"from": "s1", "to": "s2", "when": "success"}])
         self.assertEqual([p["name"] for p in presets.list_presets(found[0])], ["Nightly"])
 
-        # opened twice: the name is taken, the destination must be new or empty
+        # A local sequence name is available again in a separate folder.
         with self.assertRaises(ProjectError):
             project_files.install(pfile, str(dest))
         again = project_files.install(pfile, str(self.tmp / "second"))
-        self.assertEqual(sequences.load(again["sequences"][0])["name"], "Release (2)")
+        self.assertEqual(sequences.load(again["sequences"][0], root=self.tmp / "second")["name"], "Release")
         self.assertIn("exists already", " ".join(again["kept"]))             # the preset there is kept
+
+    def test_project_save_keeps_a_copy_in_the_folder_and_does_not_nest_archives(self):
+        slug = self.make_sequence()
+        empty_slug = sequences.create("Empty workflow", root=self.src)
+        target = self.src / "Ops backup.scripthub"
+        target.write_bytes(b"old project")
+
+        response = self.client.get("/project/save/?name=Ops%20backup.scripthub")
+        self.assertEqual(response.status_code, 200)
+        download = b"".join(response.streaming_content)
+        self.assertEqual(target.read_bytes(), download)
+        with zipfile.ZipFile(io.BytesIO(download)) as archive:
+            names = set(archive.namelist())
+        self.assertIn(f"sequences/{slug}.yaml", names)
+        self.assertIn(f"sequences/{empty_slug}.yaml", names)
+        self.assertNotIn("files/Ops backup.scripthub", names)
+        self.assertFalse(any(name.startswith("files/sequences/") for name in names))
 
     def test_scripts_a_sequence_needs_are_always_included(self):
         slug = self.make_sequence()
@@ -242,7 +260,7 @@ class WebTests(ProjectCase):
         upload.name = "Ops project.scripthub"
         preview = self.client.post("/project/open/", {"project": upload})
         self.assertContains(preview, "Ops project")
-        self.assertContains(preview, "added as “Release (2)”")
+        self.assertEqual(preview.context["preview"]["sequences"][0]["as"], "Release")
         token = preview.context["token"]
         dest = self.tmp / "unpacked"
         r = self.client.post("/project/open/install/", {"token": token, "destination": str(dest)})

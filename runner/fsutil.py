@@ -1,6 +1,7 @@
 """Small filesystem helpers: atomic JSON writes and tolerant reads."""
 import json
 import os
+import shutil
 import tempfile
 import time
 from pathlib import Path
@@ -29,6 +30,25 @@ def atomic_write_text(path: Path, text: str) -> None:
             fh.write(text)
             fh.flush()
             os.fsync(fh.fileno())
+        _replace_with_retry(tmp, path)
+    except BaseException:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
+
+
+def atomic_write_stream(path: Path, source, chunk_size: int = 1024 * 1024) -> None:
+    """Copy a binary stream to ``path`` atomically without buffering it all in memory."""
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=str(path.parent), prefix=path.name + ".", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "wb") as target:
+            shutil.copyfileobj(source, target, length=chunk_size)
+            target.flush()
+            os.fsync(target.fileno())
         _replace_with_retry(tmp, path)
     except BaseException:
         try:

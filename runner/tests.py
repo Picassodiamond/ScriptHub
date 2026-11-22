@@ -211,6 +211,8 @@ class PageTests(SimpleTestCase):
             mock.patch.object(config, "PRESETS_DIR", self.tmp / "presets"),       # saved values live in runtime/
             mock.patch.object(config, "BACKUPS_DIR", self.tmp / "backups"),       # previous versions too
             mock.patch.object(config, "EXECUTIONS_DIR", self.tmp / "executions"),
+            mock.patch.object(config, "SEQUENCES_DIR", self.tmp / "sequences"),
+            mock.patch.object(config, "SEQUENCE_RUNS_DIR", self.tmp / "sequence_runs"),
         ]
         for p in patches:
             p.start()
@@ -235,6 +237,7 @@ class PageTests(SimpleTestCase):
         response = self.client.get("/")
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Quick run")
+        self.assertNotContains(response, "Recent executions")
         self.assertNotContains(response, "Most used")
         self.assertNotContains(response, "All runs")
         self.assertNotContains(response, '<a class="stat')
@@ -242,9 +245,12 @@ class PageTests(SimpleTestCase):
     def test_primary_navigation_explains_sections_and_keeps_workspace_actions(self):
         response = self.client.get("/")
         html = response.content.decode()
-        for label in ("File", "Scripts", "Sequences", "History", "Settings"):
+        for label in ("File", "History", "Settings"):
             self.assertIn(label, html)
-        self.assertNotIn(">Workspace<", html)
+        main_nav = html.split('<nav class="mb-nav" aria-label="Main navigation">', 1)[1].split("</nav>", 1)[0]
+        self.assertNotIn(">Sequences<", main_nav)
+        self.assertNotIn(">Scripts</a>", main_nav)
+        self.assertNotIn(">Workspace</a>", main_nav)
         if "Recently opened</div>" in html:
             self.assertLess(html.index("Projects</div>"), html.index("Recently opened</div>"))
         self.assertIn("Rescan this folder", html)
@@ -257,6 +263,7 @@ class PageTests(SimpleTestCase):
         self.assertLess(html.index('<aside class="left-side"'), html.index('<main class="main"'))
         self.assertLess(html.index('<main class="main"'), html.index('<aside class="side"'))
         self.assertIn('id="seq-side"', html)
+        self.assertIn('aria-label="Sequences"', html)
         self.assertIn('id="tree"', html)
         self.assertIn('aria-current="page"', html)
         self.assertIn('aria-label="Main navigation"', html)
@@ -438,6 +445,60 @@ class PageTests(SimpleTestCase):
         self.assertEqual(r.status_code, 302)
         self.assertEqual(discovery.get_script(self.sid, force=True).name, "Edited in code")
 
+    def test_metadata_preview_syncs_parameters_without_saving(self):
+        source = self.original.decode("utf-8")
+        params = [{"name": "dest", "label": "Destination", "type": "directory", "required": True}]
+        response = self.client.post(self.url("metadata-preview"), {
+            "direction": "parameters", "content": source.replace("\n", "\r\n"),
+            "parameters_json": json.dumps(params),
+        })
+        self.assertEqual(response.status_code, 200)
+        updated = response.json()["content"]
+        self.assertNotIn("\r", updated)
+        data, error = metadata.parse_block(updated)
+        self.assertIsNone(error)
+        self.assertEqual(data["parameters"][0]["name"], "dest")
+        self.assertEqual((self.scripts / "tool.py").read_bytes(), self.original)
+
+        code = metadata.with_block(source, {"name": "Tool", "category": "Test",
+                                            "parameters": [{"name": "count", "type": "number"}]},
+                                   self.scripts / "tool.py", "\n")
+        response = self.client.post(self.url("metadata-preview"), {
+            "direction": "source", "content": code,
+        })
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["parameters"][0]["name"], "count")
+        self.assertEqual((self.scripts / "tool.py").read_bytes(), self.original)
+
+    def test_metadata_preview_rejects_invalid_definitions(self):
+        response = self.client.post(self.url("metadata-preview"), {
+            "direction": "parameters", "content": self.original.decode("utf-8"),
+            "parameters_json": json.dumps([{"name": "!", "type": "text"}]),
+        })
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("name", response.json()["error"])
+        self.assertEqual((self.scripts / "tool.py").read_bytes(), self.original)
+
+    def test_synced_parameters_use_the_standard_save_for_stable_id_migration(self):
+        params = [{"name": "only", "type": "text"}]
+        preview = self.client.post(self.url("metadata-preview"), {
+            "direction": "parameters", "content": self.original.decode("utf-8"),
+            "parameters_json": json.dumps(params),
+        })
+        self.assertEqual(preview.status_code, 200)
+        edit_page = self.client.get(self.url("edit"))
+        base_hash = edit_page.content.decode().split('name="base_hash" value="', 1)[1].split('"', 1)[0]
+        self.client.post(self.url("edit"), {
+            "content": preview.json()["content"], "base_hash": base_hash, "action": "save",
+        })
+        response = self.client.post(self.url("parameters"), {"parameters_json": json.dumps(params)})
+        data = meta_of(self.scripts / "tool.py")
+        from runner import ids
+        self.assertTrue(ids.valid(data["id"]))
+        self.assertEqual(data["parameters"][0]["name"], "only")
+        self.assertEqual(data["parameters"][0]["type"], "text")
+        self.assertEqual(response["Location"], f"/scripts/{data['id']}/parameters/")
+
     def test_script_pages_share_the_centre_and_put_tabs_on_the_right(self):
         self.assertRedirects(self.client.get(self.url("configure")), f"/scripts/{self.sid}/")   # merged into Overview
         for page in ("", "run"):
@@ -493,6 +554,63 @@ class PageTests(SimpleTestCase):
         self.assertContains(r, 'id="view-table"')
         self.assertNotContains(r, 'role="switch"')                  # scripts can no longer be disabled
         self.assertContains(r, "lang-py")
+
+    def test_home_lists_sequences_alongside_scripts(self):
+        from runner import sequences, workspace
+        slug = sequences.create("Folder workflow", root=workspace.current())
+        script = discovery.get_script(self.sid)
+        sequences.add_step(slug, sequences.new_step(script, {}))
+        response = self.client.get("/")
+        self.assertContains(response, "Tool")
+        self.assertContains(response, "Folder workflow")
+        self.assertContains(response, f'href="/sequences/{slug}/"')
+        self.assertContains(response, 'id="home-sequences"')
+
+    def test_home_lists_only_selected_folder_scripts_sequences_and_projects(self):
+        from runner import sequences, workspace
+
+        older_folder = self.tmp / "older"
+        older_folder.mkdir()
+        older_script_path = older_folder / "old.py"
+        older_script_path.write_bytes(b"print('old')\n")
+        (older_folder / "Old project.scripthub").write_bytes(b"project")
+        (self.scripts / "Current project.scripthub").write_bytes(b"project")
+        nested_folder = self.scripts / "nested"
+        nested_folder.mkdir()
+        (nested_folder / "Nested project.scripthub").write_bytes(b"project")
+        workspace.open_folder(str(older_script_path))
+
+        scripts, _ = discovery.scan(force=True)
+        current_script = next(s for s in scripts if s.path == self.scripts / "tool.py")
+        older_script = discovery.load_file(older_script_path)
+        current_sequence = sequences.create("Current workflow", root=self.scripts)
+        sequences.add_step(current_sequence, sequences.new_step(current_script, {}))
+        older_sequence = sequences.create("Older workflow")
+        sequences.add_step(older_sequence, sequences.new_step(older_script, {}))
+
+        response = self.client.get("/")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual([s.path.name for s in response.context["scripts"]], ["tool.py"])
+        self.assertEqual([s.path.name for s in response.context["quick"]], ["tool.py"])
+        self.assertEqual([s["name"] for s in response.context["folder_sequences"]], ["Current workflow"])
+        self.assertEqual(
+            [p["name"] for p in response.context["projects"]],
+            ["Current project", "Nested project"],
+        )
+        self.assertNotContains(response, "Old project")
+
+    def test_home_samples_remain_available_without_an_open_folder(self):
+        from runner import project_files, workspace
+        workspace.close_folder()
+        workspace.close_all_files()
+
+        response = self.client.get("/")
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, 'id="home-sequences"')
+        self.assertContains(response, "Samples")
+        self.assertContains(response, "Sample scripts")
+        for project in project_files.sample_projects():
+            self.assertContains(response, project["name"])
 
     def test_source_page_loads_highlighter_with_language(self):
         r = self.client.get(self.url("source"))

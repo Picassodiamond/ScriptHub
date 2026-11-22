@@ -95,6 +95,16 @@
     ta.addEventListener('input', render);
     ta.addEventListener('scroll', sync);
     ['keyup', 'click', 'select', 'focus'].forEach(function (ev) { ta.addEventListener(ev, updateStatus); });
+    if (status) {
+      [['[data-editor-undo]', 'undo'], ['[data-editor-redo]', 'redo']].forEach(function (entry) {
+        var button = status.querySelector(entry[0]);
+        if (button) button.addEventListener('click', function () {
+          ta.focus();
+          try { document.execCommand(entry[1], false, null); } catch (e) {}
+          render();
+        });
+      });
+    }
 
     if (form) form.addEventListener('submit', function () { state.submitting = true; });
     if (root.dataset.warnUnsaved === '1') {
@@ -104,6 +114,7 @@
     }
 
     state.render = render;
+    state.sync = sync;
     render();
   }
 
@@ -115,6 +126,42 @@
     setValue: function (root, text) {
       var ed = editors.get(root); if (!ed) return;
       ed.ta.value = text; ed.ta.scrollTop = 0; ed.state.render();
+    },
+    replace: function (root, text) {
+      var ed = editors.get(root); if (!ed) return;
+      var ta = ed.ta, old = ta.value;
+      text = String(text);
+      if (old === text) return;
+      var start = 0, oldEnd = old.length, newEnd = text.length;
+      while (start < oldEnd && start < newEnd && old.charAt(start) === text.charAt(start)) start++;
+      while (oldEnd > start && newEnd > start && old.charAt(oldEnd - 1) === text.charAt(newEnd - 1)) {
+        oldEnd--; newEnd--;
+      }
+      var selectionStart = ta.selectionStart, selectionEnd = ta.selectionEnd;
+      var direction = ta.selectionDirection, scrollTop = ta.scrollTop, scrollLeft = ta.scrollLeft;
+      var replacement = text.slice(start, newEnd), inserted = false;
+      ta.focus();
+      ta.setSelectionRange(start, oldEnd);
+      try { inserted = document.execCommand('insertText', false, replacement); } catch (e) {}
+      if (!inserted && ta.value === old) {
+        ta.setRangeText(replacement, start, oldEnd, 'preserve');
+        ta.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+      if (ta.value !== text) {
+        ta.value = text;
+        ta.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+      var delta = replacement.length - (oldEnd - start);
+      function map(pos) {
+        if (pos <= start) return pos;
+        if (pos >= oldEnd) return pos + delta;
+        return start + replacement.length;
+      }
+      ta.setSelectionRange(map(selectionStart), map(selectionEnd), direction);
+      ta.scrollTop = scrollTop;
+      ta.scrollLeft = scrollLeft;
+      ed.state.sync();
+      ed.state.render();
     },
     isDirty: function (root) {
       var ed = editors.get(root); return !!ed && ed.ta.value !== ed.state.original;

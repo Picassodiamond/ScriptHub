@@ -8,7 +8,7 @@ import urllib.request
 from pathlib import Path
 from unittest import mock
 
-from runner import desktop, desktop_app, discovery, history
+from runner import desktop, desktop_app, discovery, history, workspace
 from runner.test_editor import WebCase
 
 TOKEN = "test-token-123"
@@ -33,8 +33,9 @@ class TokenGateTests(DesktopCase):
     def test_server_mode_is_unchanged(self):
         self.assertEqual(self.client.get("/").status_code, 200)
         self.assertNotContains(self.client.get("/"), 'data-desktop="1"')
-        for url in ("/desktop/reveal/", "/desktop/ping/", "/desktop/bye/"):
+        for url in ("/desktop/ping/", "/desktop/bye/"):
             self.assertEqual(self.client.post(url).status_code, 404, url)       # desktop-only endpoints do not exist
+        self.assertEqual(self.client.post("/desktop/reveal/", {"script": self.sid}).status_code, 404)
 
     def test_folder_dialog_only_for_a_browser_on_this_machine(self):
         remote = {"REMOTE_ADDR": "10.1.2.3"}
@@ -42,10 +43,12 @@ class TokenGateTests(DesktopCase):
             self.assertEqual(self.client.post("/desktop/pick-folder/", **remote).status_code, 404)
             page = self.client.get("/", **remote)
             self.assertNotContains(page, "data-folder-picker")
+            self.assertNotContains(page, "data-reveal-folder")
             self.assertNotContains(self.client.get("/folder/", **remote), "data-pick-folder")
             ask.assert_not_called()
             ask.return_value = "C:/picked"
             self.assertContains(self.client.get("/"), 'data-folder-picker="1"')      # test client = 127.0.0.1
+            self.assertContains(self.client.get("/"), "data-reveal-folder")
             self.assertContains(self.client.get("/"), "data-open-folder")
             self.assertEqual(self.client.post("/desktop/pick-folder/").json()["path"], os.path.normpath("C:/picked"))
 
@@ -104,6 +107,16 @@ class DesktopEndpointTests(DesktopCase):
                 history.run_dir("RUN-20260101-001").mkdir(parents=True)
                 self.assertEqual(self.client.post("/desktop/reveal/", {"run": "RUN-20260101-001"}).status_code, 200)
                 self.assertEqual(Path(reveal.call_args[0][0]).parent.name, "RUN-20260101-001")
+
+    def test_open_folder_uses_only_the_current_local_folder(self):
+        with mock.patch.object(desktop, "_open_directory") as open_directory:
+            response = self.client.post("/desktop/reveal/", {"folder": "1"})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(Path(open_directory.call_args[0][0]), self.root)
+        self.assertEqual(self.client.post("/desktop/reveal/", {"folder": "C:/Windows"},
+                                          REMOTE_ADDR="10.1.2.3").status_code, 404)
+        self.assertEqual(self.client.post("/desktop/reveal/", {"folder": "1"},
+                                          REMOTE_ADDR="10.1.2.3").status_code, 404)
 
     def test_ping_and_bye_record_the_window(self):
         with desktop_on():

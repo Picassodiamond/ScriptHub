@@ -3,7 +3,7 @@ editor), raw metadata JSON, and the source view."""
 import json
 
 from django.contrib import messages
-from django.http import Http404
+from django.http import Http404, JsonResponse
 from django.shortcuts import redirect, render
 from django.views.decorators.http import require_POST
 
@@ -219,6 +219,49 @@ def script_parameters(request, script_id):
             messages.success(request, "Parameters saved.")
             return redirect("script_parameters", script_id=_current_id(script))
     return _configure_response(request, script, params=params, errors=errors, status=400, **page)
+
+
+@require_POST
+def script_metadata_preview(request, script_id):
+    """Keep the live Parameters editor and the embedded script metadata in sync without saving."""
+    script = _get_script_or_404(script_id)
+    # Browser textareas submit CRLF, but the live editor buffer always uses LF.
+    content = request.POST.get("content", "").replace("\r\n", "\n").replace("\r", "\n")
+    if len(content.encode("utf-8")) > MAX_SOURCE_BYTES:
+        return JsonResponse({"error": "The script is too large to synchronize."}, status=413)
+
+    data, parse_error = metadata.parse_block(content)
+    if parse_error:
+        return JsonResponse({"error": parse_error}, status=400)
+    if data is None:
+        data, _source, load_error = metadata.load_raw(script.path, script.id)
+        if load_error:
+            return JsonResponse({"error": load_error}, status=400)
+
+    direction = request.POST.get("direction")
+    if direction == "parameters":
+        try:
+            params = json.loads(request.POST.get("parameters_json", "[]"))
+        except ValueError as exc:
+            return JsonResponse({"error": f"Parameter data is not valid JSON: {exc}"}, status=400)
+        if not isinstance(params, list):
+            return JsonResponse({"error": "Parameter data must be a list."}, status=400)
+        data = dict(data or {})
+        data["parameters"] = params
+    elif direction != "source":
+        return JsonResponse({"error": "Unknown synchronization direction."}, status=400)
+
+    try:
+        clean = ps.validate_metadata(data or {})
+    except ValidationError as exc:
+        return JsonResponse({"error": "; ".join(exc.errors)}, status=400)
+    if direction == "source":
+        return JsonResponse({"parameters": clean["parameters"]})
+
+    return JsonResponse({
+        "content": metadata.with_block(content, clean, script.path, "\n"),
+        "parameters": clean["parameters"],
+    })
 
 
 # ----------------------------------------------------------------- source ---

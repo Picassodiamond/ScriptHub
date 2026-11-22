@@ -268,9 +268,31 @@ def _reveal(path: Path) -> None:
         subprocess.Popen(["xdg-open", str(path.parent)])
 
 
+def _open_directory(path: Path) -> None:
+    if os.name == "nt":
+        subprocess.Popen(["explorer.exe", str(path)])
+    elif sys.platform == "darwin":
+        subprocess.Popen(["open", str(path)])
+    else:
+        subprocess.Popen(["xdg-open", str(path)])
+
+
 @require_POST
 def reveal(request):
-    """Show a script (by id) or a run folder (by run id) in the file manager."""
+    """Show a script/run by id, or open the current folder on the local machine."""
+    if request.POST.get("folder") == "1":
+        if not can_pick_folder(request):
+            raise Http404("Only available on the machine running ScriptHub")
+        from . import workspace
+        target = workspace.current()
+        if target is None or not target.is_dir():
+            raise Http404("No folder is open")
+        try:
+            _open_directory(target)
+        except OSError as exc:
+            return JsonResponse({"ok": False, "error": str(exc)}, status=500)
+        return JsonResponse({"ok": True})
+
     _require_desktop()
     from . import discovery, history
     script_id, run_id = request.POST.get("script", ""), request.POST.get("run", "")

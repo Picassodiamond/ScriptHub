@@ -1,4 +1,4 @@
-"""Sequences: storage (runtime/sequences/<slug>.yaml, steps + arrows), running steps in the
+"""Sequences: storage (folder sequences and legacy runtime/sequences/<slug>.yaml), steps + arrows, running steps in the
 order the arrows give (side by side where they allow), and the web pages.
 
 python manage.py test runner.test_sequences
@@ -127,6 +127,21 @@ class SequenceCase(SimpleTestCase):
 
 # ------------------------------------------------------------------ storage ---
 class StorageTests(SequenceCase):
+    def test_folder_sequences_are_stored_locally_without_hiding_legacy_sequences(self):
+        legacy = sequences.create("Legacy workflow")
+        local = sequences.create("Folder workflow", root=self.root)
+
+        self.assertTrue((config.SEQUENCES_DIR / f"{legacy}.yaml").is_file())
+        self.assertTrue((self.root / "sequences" / f"{local}.yaml").is_file())
+        self.assertEqual(
+            {s["slug"] for s in sequences.list_sequences(root=self.root)},
+            {legacy, local},
+        )
+        self.assertEqual(
+            [s["slug"] for s in sequences.list_sequences(root=self.root, include_global=False)],
+            [local],
+        )
+
     def test_steps_arrows_and_file_format(self):
         slug = self.sequence((self.first, self.values(tag="a")), (self.second, self.values(tag="b")),
                              links=[("s1", "s2", "success")], name="Nightly maintenance")
@@ -419,6 +434,8 @@ class WebTests(SequenceCase):
         self.assertEqual(self.client.get("/sequences/").status_code, 200)
         r = self.client.post("/sequences/", {"name": "Web flow"})
         self.assertRedirects(r, "/sequences/web-flow/", fetch_redirect_response=False)
+        self.assertTrue((self.root / "sequences" / "web-flow.yaml").is_file())
+        self.assertFalse((config.SEQUENCES_DIR / "web-flow.yaml").exists())
         a, b = self.script(self.first), self.script(self.second)
         page = self.client.get("/sequences/web-flow/")
         self.assertContains(page, f'data-id="{a.id}"')                 # the explorer offers scripts to drag
@@ -457,7 +474,7 @@ class WebTests(SequenceCase):
         self.assertContains(self.client.get(r["Location"]), "seq-step-saved")
         self.assertEqual(self.post_step("web-flow", "s2", p_tag="b").status_code, 302)
         self.assertEqual(self.post_step("web-flow", "s2", p_out="").status_code, 400)    # required value missing
-        text = (config.SEQUENCES_DIR / "web-flow.yaml").read_text(encoding="utf-8")
+        text = (self.root / "sequences" / "web-flow.yaml").read_text(encoding="utf-8")
         self.assertNotIn("never-saved", text)
         self.assertNotIn("password", text)
 
@@ -629,8 +646,8 @@ class WebTests(SequenceCase):
 
     def test_side_panel_lists_favourites_first(self):
         from runner import workspace
-        a = self.sequence((self.first, self.values()), name="Alpha")
-        z = self.sequence((self.first, self.values()), name="Zulu")
+        a = sequences.create("Alpha", root=self.root)
+        z = sequences.create("Zulu", root=self.root)
         page = self.client.get(f"/sequences/{a}/")
         self.assertContains(page, 'id="seq-side"')
         self.assertContains(page, 'id="tree"')                            # the scripts to drag, below
@@ -643,7 +660,7 @@ class WebTests(SequenceCase):
         html = self.client.get(f"/sequences/{a}/").content.decode()
         self.assertLess(html.index(">Zulu<"), html.index(">Alpha<"))      # favourites first
         self.assertContains(self.client.get("/sequences/"), "seq-card")    # and on the start page
-        self.assertNotIn("favorite", (config.SEQUENCES_DIR / f"{z}.yaml").read_text(encoding="utf-8"))
+        self.assertNotIn("favorite", (self.root / "sequences" / f"{z}.yaml").read_text(encoding="utf-8"))
         self.client.post(f"/sequences/{z}/favorite/", {"on": "0", "next": "https://evil.example/"})
         self.assertEqual(workspace.sequence_favorites(), [])
         self.assertEqual(self.client.post("/sequences/nope/favorite/", {"on": "1"}).status_code, 404)

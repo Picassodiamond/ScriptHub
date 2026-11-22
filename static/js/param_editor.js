@@ -1,6 +1,6 @@
 /* Parameter editor: a table with one summary row per parameter. "Edit" opens
-   that parameter's form inline. Everything is serialised to JSON in a hidden
-   field on submit. Vanilla JS, no dependencies. */
+   that parameter's form inline. Definitions can be serialized or replaced for
+   live metadata synchronization. Vanilla JS, no dependencies. */
 (function () {
   var data = JSON.parse(document.getElementById('params-data').textContent);
   var info = JSON.parse(document.getElementById('type-info').textContent);
@@ -14,6 +14,9 @@
 
   function items() {
     return [].filter.call(list.children, function (c) { return c.classList.contains('pe-item'); });
+  }
+  function changed() {
+    form.dispatchEvent(new CustomEvent('sr:param-change', { bubbles: true }));
   }
   function h(tag, attrs, kids) {
     var e = document.createElement(tag);
@@ -225,14 +228,14 @@
     card.addEventListener('change', refresh);
     up.addEventListener('click', function () {
       var prev = item.previousElementSibling;
-      if (prev && prev.classList.contains('pe-item')) { list.insertBefore(item, prev); renumber(); }
+      if (prev && prev.classList.contains('pe-item')) { list.insertBefore(item, prev); renumber(); changed(); }
     });
     down.addEventListener('click', function () {
       var next = item.nextElementSibling;
-      if (next) { list.insertBefore(next, item); renumber(); }
+      if (next) { list.insertBefore(next, item); renumber(); changed(); }
     });
     del.addEventListener('click', function () {
-      if (window.confirm('Delete this parameter? It is removed when you save.')) { item.remove(); sync(); renumber(); }
+      if (window.confirm('Delete this parameter? It is removed when you save.')) { item.remove(); sync(); renumber(); changed(); }
     });
 
     item.get = get;
@@ -262,9 +265,20 @@
     item.open();
     item.scrollIntoView({ behavior: 'smooth', block: 'center' });
     item.focusName();
+    changed();
   });
 
   // The page's one Save (designer.js) calls this to compare and to post the definitions.
-  form.srSerialize = function () { hidden.value = JSON.stringify(items().map(function (c) { return c.get(); })); };
+  form.srGetData = function () { return items().map(function (c) { return c.get(); }); };
+  form.srSetData = function (rows) {
+    while (list.firstChild) list.removeChild(list.firstChild);
+    (Array.isArray(rows) ? rows : []).forEach(function (p) {
+      if (p && typeof p === 'object' && !Array.isArray(p)) list.appendChild(makeItem(p));
+    });
+    items().forEach(function (i) { i.updateSummary(); });
+    sync();
+    form.srSerialize();
+  };
+  form.srSerialize = function () { hidden.value = JSON.stringify(form.srGetData()); };
   form.addEventListener('submit', form.srSerialize);
 })();

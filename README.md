@@ -82,8 +82,8 @@ Then either:
 * To use another port: `python manage.py runserver 8080 --noreload`.
 
 Try it: on **Home**, under *Samples*, click **Sample scripts**, open *Hello (Python)* and press **Run**.
-The run opens as a tab next to the script. Or click one of the sample projects below it: you see what it
-adds, click **Open**, and it comes with a sequence and presets
+The run opens as a tab next to the script. Or click a sample project there: preview it before opening its
+scripts, sequence, and presets.
 (see [Sample scripts and projects](#sample-scripts-and-projects)).
 
 ### Desktop app
@@ -154,9 +154,10 @@ switch in Settings is remembered per browser):
   * **File**: New script (`g n`), **Open file…**, **Open folder…** (`g f`), *Open
     recent* (favourites and recent folders/files), add to / remove from favourites,
     Close folder, **Open project…**, **Save project as…**, Close project, Settings.
-  * Home / Scripts / Sequences / History navigation and the command palette (Ctrl+K).
+    Click the current folder name in the menu bar to open it in File Explorer on this machine.
+  * Home / History navigation and the command palette (Ctrl+K).
   * Settings and keyboard shortcuts (`?`).
-* **Left panel**: **Sequences** (favourites first) and the **Scripts** Explorer
+* **Left panel**: **Sequences** saved in the open folder (favourites first; create and open sequences here) and the **Scripts** Explorer
   (the open folder, scripts grouped by category, last-result dots and a filter box)
   are together and stay visible throughout the app. **History** filters and the
   console's recent executions appear in a right panel on their respective pages.
@@ -172,8 +173,8 @@ switch in Settings is remembered per browser):
 
 | Page | What it does |
 |---|---|
-| **Home** (`/`, the app icon) | Counts of scripts, running, successful and failed executions; recent executions; **Quick run** and most-used scripts; **Samples** (the sample scripts folder and the sample projects). |
-| **Script Library** (`/scripts/`) | Every script as a dense table (or cards). Search (`/` focuses it), filter by **category, platform and language**. |
+| **Home** (`/`, the app icon) | Counts of scripts and executions; lists scripts, sequences saved in the selected folder, and project archives there; **Quick run**; **Samples** are always available. Sequence lists are hidden when no folder is open. |
+| **Script Library** (`/scripts/`, Home → **Browse all**) | Every script as a dense table (or cards). Search (`/` focuses it), filter by **category, platform and language**. |
 | **Open folder** (`/folder/`) | Fallback when the system folder dialog is not available (browser on another machine): type a path or click through the folder list; favourites (star) and recent folders. The explorer's folder name is a quick switcher with the same lists. |
 | **Script tabs** | Every script you open gets a tab in the centre bar, like an editor's open files (remembered per folder; × closes the tab, not the script). The selected tab is the script the right column (Overview / Parameters / Run) and the Saved values panel show; clicking another tab, or another script in the explorer, opens it on the same right-hand tab. Its run tabs follow it. |
 | **Script pages** | The centre is the same on Overview, Parameters and Run: the script (an editor with syntax colours, line numbers and auto-indent; its metadata block is at the top) with copy, download, **Restore previous** and a full-screen editor, a tab for each run started there, and the always-visible **Saved values** panel underneath. The **Overview / Parameters / Run** tabs head the right column, so switching only changes that column. A script page has **one Save** (centre tab bar, **Ctrl+S** anywhere): it saves whatever changed — the script, the Overview settings, the parameter definitions (editing the metadata block in the script and a form together is refused, as they are the same settings); a dot marks unsaved changes. |
@@ -196,7 +197,7 @@ Ctrl+Enter runs it), type `run ` to list run actions only, paste a run id such a
 |---|---|
 | `Ctrl+K` | Command palette |
 | `/` | Focus the page search (or the explorer filter) |
-| `g o` `g l` `g q` `g h` `g s` | Go to Home, Library, Sequences, Runs, Settings |
+| `g o` `g h` / `g j` `g s` | Go to Home, History, Settings |
 | `g n` `g f` | New script (in the open folder), Open folder |
 | `i` (or `c`) `p` `r` (or `s`) | On a script: Overview, Parameters, Run |
 | `Ctrl+S` | Save (script pages, editor) |
@@ -624,10 +625,10 @@ a small YAML subset (written by ScriptHub, fine to edit by hand).
 
 ### Sequences: scripts connected by arrows
 
-A **sequence** runs existing scripts in the order you draw. Open **Sequences** in the
-activity bar (or **g q**) and create one; its page is a diagram:
+A **sequence** runs existing scripts in the order you draw. Create or open one from
+**Your sequences** in the left panel; its page is a diagram:
 
-* **The shared left panel** has two sections: **Sequences** on top (your favourites ★
+* **The shared left panel** has two sections: **Sequences** on top (only sequences saved in the open folder; your favourites ★
   first, then by name; **+** creates one, type a name and press Enter; on hover each has ★, rename and
   delete) and **Scripts** below (the open folder, to drag from). Drag the line between them to resize;
   click *Sequences* to fold that section. Favourites are kept per machine (`runtime/workspace.json`, like
@@ -687,8 +688,10 @@ statuses stay after it until your next change or run.
 
 Every step is a normal run in **Runs**, and its console links back to the sequence run.
 
-Sequences are kept in `runtime/sequences/`, one YAML file each, and their runs in
-`runtime/sequence_runs/SEQ-YYYYMMDD-NNN/metadata.json` (with the diagram as it was):
+New sequences are kept in `<open folder>/sequences/`, one YAML file each. Existing sequences
+in `runtime/sequences/` remain available on the Sequences page, but do not appear in the folder's
+left panel or Home list. Runs stay in `runtime/sequence_runs/SEQ-YYYYMMDD-NNN/metadata.json`
+(with the diagram as it was):
 
 ```yaml
 # Sequence for ScriptHub. Passwords are never stored.
@@ -727,9 +730,11 @@ form on the next change.
 
 ### Project files (.scripthub): take a folder and its sequences anywhere
 
-**File → Save project as…** opens the system Save As dialog and writes one `.scripthub` file (a zip) there: the
-open folder's scripts and other files (helpers, data, documents), the sequences that use its scripts (with any
-script they need from elsewhere, under `_outside/`) and the scripts' presets. It never holds passwords, run
+**File → Save project as…** opens the system Save As dialog and writes a `.scripthub` file (a zip) there,
+and also saves a copy with the chosen name in the open folder (replacing a same-named archive): the folder's
+scripts and other files (helpers, data, documents), its sequences (plus legacy sequences that use its scripts,
+with any needed script from elsewhere under `_outside/`) and the scripts' presets. Existing project archives
+and the folder's `sequences/` directory are not duplicated as ordinary files. It never holds passwords, run
 history, Settings, files that look like secrets (`.env`, keys, keystores) or tool folders (`.git`, `.venv`,
 `node_modules`, `__pycache__`). (Browsers without the Save As API download the file instead.)
 
@@ -748,8 +753,8 @@ Ops.scripthub
 └─ presets/<n>/<slug>.yaml  presets, with the script each belongs to in the manifest
 ```
 
-**File → Close project** closes the open folder and every opened file in one go. Nothing is deleted: the
-sequences and presets stay, and the folder is in *Open recent*.
+**File → Close project** closes the open folder and every opened file in one go. Nothing is deleted: its
+folder-local sequences and presets stay with it, and the folder is in *Open recent*.
 
 ---
 
@@ -757,12 +762,16 @@ sequences and presets stay, and the folder is in *Open recent*.
 
 ### New script
 
-**New script** (*File → New script*, `g n`, or Ctrl+K)
-creates a file in the **open folder**: give a file name, language, and optionally a
-sub-folder (created if needed; existing ones are suggested) and a category. The file
-starts with its metadata block and a few lines of example code, then
-opens on its **Run** tab with the editor in the centre. Opened from a script page,
-the form starts in that script's folder, language and category.
+**New script** (*File → New script*, `g n`, or Ctrl+K) immediately creates
+`new_script.py` in the **open folder** and opens it on its **Run** tab with the
+editor in the centre. It starts with example code and editable metadata defaults:
+name “New Script”, empty description and parameters, and category “General”.
+If that file already exists, a numbered name is chosen. Opened from a script page,
+the new file uses that script's language, folder and category.
+
+**Save script as…** in the File menu copies the current script to a chosen name
+and optional sub-folder. The copy gets a new script ID; the original, its saved
+parameters and its run history are unchanged.
 
 * Existing files are never overwritten (the file is created with exclusive mode).
 * Only simple file and folder names are accepted; absolute paths, drives and `..`
@@ -775,6 +784,12 @@ the form starts in that script's folder, language and category.
 script in a code editor with syntax colours, line numbers, auto-indent, **Tab** /
 **Shift+Tab** to indent and dedent, and **Ctrl+S** to save. On a script page the
 editor is in the centre; the full-screen editor is one click away.
+
+On the **Parameters** tab, editing definitions updates the metadata block in the
+script editor, and editing that block updates the parameter list. Both are saved
+together; synchronization pauses while the metadata is incomplete or invalid.
+The definition and Run forms use compact label/value rows. The editor also has
+**Undo** and **Redo** buttons (or **Ctrl+Z** / **Ctrl+Y**).
 
 Saving is designed not to lose work or break scripts:
 
@@ -906,9 +921,9 @@ unless you tick it, and nothing needs a server.
 | `network/` | **Check a TCP port** · **Check a web page** · **Ping a host** (batch) | pass/fail checks for sequences |
 | `data/` | **Summarise a CSV file** · **Search a log file**, with `sales.csv` and `app.log` next to them | relative paths start in the script's folder |
 
-`sample_projects/` holds three project files built from those scripts. Open one from **Home → Samples**
-(no file to choose) or with **File → Open project…**: it unpacks into a new folder of your choice and adds a
-sequence and some presets. **Home → Samples → Sample scripts** opens `sample_scripts/` itself.
+`sample_projects/` holds three project files built from those scripts. Open one from **Home → Samples** or with
+**File → Open project…**: it unpacks into a new folder of your choice and adds a sequence and some presets.
+**Home → Samples → Sample scripts** opens `sample_scripts/` itself.
 
 | Project | Sequence |
 |---|---|

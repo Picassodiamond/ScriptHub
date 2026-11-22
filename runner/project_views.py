@@ -6,12 +6,13 @@ from django.shortcuts import redirect, render
 from django.views.decorators.http import require_POST
 
 from . import discovery, project_files, workspace
+from .fsutil import atomic_write_stream
 from .project_files import EXT, ProjectError
 
 
 def project_save(request):
     """The project file of the open folder, with the default contents: every file of the folder (secrets and
-    tool folders left out), the sequences that use its scripts (and the scripts they need), the presets.
+    tool folders left out), its sequences (plus global sequences that use its scripts), and the presets.
     ``?name=`` = the project name (the menu's Save As dialog passes the chosen file name)."""
     root = workspace.current()
     if root is None:
@@ -21,17 +22,25 @@ def project_save(request):
     if name.lower().endswith(EXT):
         name = name[: -len(EXT)]
     name = name or root.name
-    included, _left_out = project_files.folder_files(root)
-    slugs = [s["slug"] for s in project_files.sequences_for(root) if s["uses_folder"]]
+    target = root / (project_files.slug_name(name) + EXT)
+    fh = None
     try:
+        included, _left_out = project_files.folder_files(root)
+        slugs = [s["slug"] for s in project_files.sequences_for(root) if s["local"] or s["uses_folder"]]
         fh, report = project_files.build(root, name, [f[0] for f in included], slugs, with_presets=True)
+        fh.seek(0)
+        atomic_write_stream(target, fh)
+        fh.seek(0)
     except (ProjectError, OSError) as exc:
+        if fh is not None:
+            fh.close()
         messages.error(request, f"The project file was not made: {exc}")
         return redirect("library")
-    resp = FileResponse(fh, as_attachment=True, filename=project_files.slug_name(name) + EXT,
+    resp = FileResponse(fh, as_attachment=True, filename=target.name,
                         content_type="application/zip")
     resp["X-ScriptHub-Report"] = (f"{report['files']} files ({report['scripts']} scripts), "
                                   f"{report['sequences']} sequences, {report['presets']} presets")
+    resp["X-ScriptHub-Saved-In"] = target.name
     return resp
 
 

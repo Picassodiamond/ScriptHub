@@ -207,11 +207,9 @@
   });
 
   // ----------------------------------------------------------- one Save --
-  // A script page has ONE Save (centre tab bar, Ctrl+S anywhere). It saves everything
-  // changed on the page: the script (in place), then the Overview / Parameters forms.
-  // The metadata is the comment block at the top of the script, so editing that block
-  // AND a form at once is refused (the same settings). After a metadata change the page
-  // reloads so every panel shows it. Errors open the server's explanation.
+  // A script page has ONE Save (centre tab bar, Ctrl+S anywhere). It saves the script
+  // and any independent metadata forms. On Parameters, definitions are mirrored into
+  // the editor buffer, so saving the script also saves the parameter changes.
   var editForm = $('edit-form'), runForm = $('run-form'), saveBtn = document.querySelector('[data-save-all]');
   var metaForms = ['configure-form', 'params-form'].map($).filter(Boolean);
   var saving = null;
@@ -236,7 +234,93 @@
   }
   var savedBlock = edTa ? blockOf(edTa.value) : '';
   function blockChanged() { return !!edTa && blockOf(edTa.value) !== savedBlock; }
+  var docEl = document.querySelector('[data-metadata-preview]');
+  var previewUrl = docEl && docEl.getAttribute('data-metadata-preview');
+  var syncStatus = $('metadata-sync-status');
+  var paramsForm = $('params-form');
+  var syncEnabled = !!(previewUrl && paramsForm && paramsForm.srGetData && paramsForm.srSetData &&
+    editForm && edRoot && window.srEditor);
+  var lastBlock = edTa ? blockOf(edTa.value) : '';
+  var syncedParams = syncEnabled ? JSON.stringify(paramsForm.srGetData()) : null;
+  var syncTimer = null, syncPromise = null, syncDirection = null, syncVersion = 0, applyingSource = false;
+  function setSyncStatus(text) {
+    if (!syncStatus) return;
+    syncStatus.textContent = text || '';
+    syncStatus.hidden = !text;
+    syncStatus.classList.toggle('error-text', !!text);
+  }
+  function syncNow(direction, version) {
+    if (!syncEnabled || version !== syncVersion) return Promise.resolve(true);
+    var content = edTa.value, fd = new FormData(editForm);
+    fd.set('direction', direction);
+    fd.set('content', content);
+    if (direction === 'parameters') fd.set('parameters_json', JSON.stringify(paramsForm.srGetData()));
+    var request = fetch(previewUrl, { method: 'POST', body: fd, credentials: 'same-origin' })
+      .then(function (r) {
+        return r.json().then(function (data) { return { ok: r.ok, data: data }; });
+      })
+      .then(function (result) {
+        if (version !== syncVersion) return false;
+        if (!result.ok) {
+          setSyncStatus('Sync paused: ' + (result.data.error || 'metadata is invalid.'));
+          return direction === 'source';
+        }
+        if (direction === 'parameters') {
+          applyingSource = true;
+          try { window.srEditor.replace(edRoot, result.data.content); }
+          finally { applyingSource = false; }
+        }
+        paramsForm.srSetData(result.data.parameters);
+        lastBlock = blockOf(edTa.value);
+        syncedParams = JSON.stringify(paramsForm.srGetData());
+        setSyncStatus('');
+        updateDirty();
+        return true;
+      })
+      .catch(function (error) {
+        if (version !== syncVersion) return false;
+        setSyncStatus('Sync failed: ' + (error && error.message ? error.message : 'network error.'));
+        return direction === 'source';
+      });
+    syncPromise = request.then(function (ok) {
+      if (version === syncVersion) syncPromise = null;
+      return ok;
+    });
+    return syncPromise;
+  }
+  function queueSync(direction) {
+    if (!syncEnabled) return;
+    syncDirection = direction;
+    syncVersion++;
+    if (syncTimer) clearTimeout(syncTimer);
+    var version = syncVersion;
+    syncTimer = setTimeout(function () {
+      syncTimer = null;
+      syncNow(direction, version);
+    }, 250);
+  }
+  function flushSync() {
+    if (!syncEnabled) return Promise.resolve(true);
+    if (syncTimer) {
+      clearTimeout(syncTimer);
+      syncTimer = null;
+      return syncNow(syncDirection, syncVersion);
+    }
+    return syncPromise || Promise.resolve(true);
+  }
+  function paramsMirrored(f) {
+    return f.id === 'params-form' && syncEnabled &&
+      JSON.stringify(paramsForm.srGetData()) === syncedParams;
+  }
   function dirtyForms() { return metaForms.filter(function (f, i) { return snap(f) !== snaps[i]; }); }
+  if (syncEnabled) {
+    paramsForm.addEventListener('input', function () { queueSync('parameters'); });
+    paramsForm.addEventListener('change', function () { queueSync('parameters'); });
+    paramsForm.addEventListener('sr:param-change', function () { queueSync('parameters'); });
+    edTa.addEventListener('input', function () {
+      if (!applyingSource && blockOf(edTa.value) !== lastBlock) queueSync('source');
+    });
+  }
   function changes() {
     var what = [];
     if (scriptDirty()) what.push(blockChanged() ? 'script (with its metadata)' : 'script');
@@ -310,11 +394,15 @@
   }
   function saveAll() {
     if (saving) return saving;
+    if (syncTimer || syncPromise) {
+      return flushSync().then(function (ok) { return ok ? saveAll() : false; });
+    }
     var meta = dirtyForms(), script = scriptDirty(), block = blockChanged();
-    if (block && meta.length) {
+    var conflicts = meta.filter(function (f) { return !paramsMirrored(f); });
+    if (block && conflicts.length) {
       window.alert('The metadata block at the top of the script and the ' +
-        meta.map(function (f) { return f.id === 'params-form' ? 'Parameters' : 'Overview'; }).join(' / ') +
-        ' form were both changed. They are the same settings: undo one of them, then save.');
+        conflicts.map(function (f) { return f.id === 'params-form' ? 'Parameters' : 'Overview'; }).join(' / ') +
+        ' form were both changed. Save one, reload, then edit the other.');
       return Promise.resolve(false);
     }
     if (!script && !meta.length) { flash('Nothing to save.', 'info'); return Promise.resolve(true); }
@@ -347,10 +435,13 @@
   });
   // Run with unsaved script edits: save the script first.
   if (runForm && editForm && edRoot) runForm.addEventListener('submit', function (e) {
-    if (!window.srEditor.isDirty(edRoot)) return;
+    if (!window.srEditor.isDirty(edRoot) && !syncTimer && !syncPromise) return;
     e.preventDefault();
     var submitter = e.submitter;
-    saveScript().then(function (ok) {
+    flushSync().then(function (synced) {
+      if (!synced) return false;
+      return window.srEditor.isDirty(edRoot) ? saveScript() : true;
+    }).then(function (ok) {
       if (!ok) return;
       if (runForm.requestSubmit) runForm.requestSubmit(submitter && submitter.form === runForm ? submitter : undefined);
       else runForm.submit();

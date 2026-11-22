@@ -133,9 +133,10 @@
   // ----------------------------------------------- sequences side panel --
   // Sequences pages: the sequences (new / rename inline, filter, ★) above the scripts.
   // The Sequences section folds; the divider resizes the two (sr.seqFold, sr.seqPaneH).
-  var seqSide = document.getElementById('seq-side');
-  if (seqSide) {
-    var seqPane = seqSide.querySelector('.side-pane-seq'), newForm = document.getElementById('seq-new-form');
+  var seqSide = document.getElementById('seq-side'),
+      seqPane = seqSide && seqSide.querySelector('.side-pane-seq');
+  if (seqSide && seqPane) {
+    var newForm = document.getElementById('seq-new-form');
     var paneH = parseInt(store('sr.seqPaneH'), 10);
     if (paneH > 0) seqSide.style.setProperty('--seq-pane-h', paneH + 'px');
     function fold(on) {
@@ -373,7 +374,8 @@
       if (s.run) items.push({ group: 'Run', text: 'Run ' + s.name, hint: s.path, icon: ICON('play'), href: url('run', s.id), runOnly: true, key: 'run ' + s.name + ' ' + s.path });
     });
     [].forEach.call(document.querySelectorAll('.menubar a[data-hotkey][data-hint]'), function (a) {
-      items.push({ group: 'Go to', text: a.getAttribute('data-hint').replace(/^Go to /, ''), hint: a.getAttribute('data-hotkey'), icon: a.querySelector('svg').outerHTML, href: a.href, key: a.getAttribute('data-hint') });
+      var icon = a.querySelector('svg');
+      items.push({ group: 'Go to', text: a.getAttribute('data-hint').replace(/^Go to /, ''), hint: a.getAttribute('data-hotkey'), icon: icon ? icon.outerHTML : '', href: a.href, key: a.getAttribute('data-hint') });
     });
     var seen = {};
     [].forEach.call(document.querySelectorAll('main [data-hotkey][data-hint]'), function (el) {
@@ -388,8 +390,8 @@
     var folders = [];
     try { folders = JSON.parse(document.getElementById('wb-folders').textContent) || []; } catch (e) {}
     var newScript = document.querySelector('[data-new-script]');
-    // New script: from the explorer's "+" (keeps its folder), else on any page while editing is on.
-    if (newScript || urls.edit) items.push({ group: 'Commands', text: 'New script', hint: newScript ? 'g n' : '', icon: ICON('plus'), href: newScript ? newScript.href : '/scripts/new/', key: 'new script create file' });
+    // New script: submit the File menu's quick-create form, or open the route as a fallback.
+    if (newScript || urls.edit) items.push({ group: 'Commands', text: 'New script', hint: newScript ? (newScript.getAttribute('data-hotkey') || 'g n') : '', icon: ICON('plus'), href: newScript ? newScript.href : '/scripts/new/', el: newScript && !newScript.href ? newScript : null, key: 'new script create file' });
     items.push({ group: 'Folders', text: 'Open folder…', icon: ICON('folder'), run: function () { sr.openFolder(); }, key: 'open folder browse directory workspace' });
     folders.forEach(function (f) {
       items.push({ group: 'Folders', text: f.name, hint: f.path, icon: ICON(f.favorite ? 'star' : 'folder'),
@@ -469,7 +471,8 @@
     open: function () {
       var rows = [
         ['Global', [['Command palette', 'Ctrl K'], ['Focus search / explorer filter', '/'], ['This sheet', '?']]],
-        ['Go to', [['Home', 'g o'], ['Script Library', 'g l'], ['Sequences', 'g q'], ['Runs (running + history)', 'g h'], ['Settings', 'g s']]],
+        ['Go to', [['Home', 'g o'], ['History', 'g h  or  g j'], ['Settings', 'g s']]],
+        ['File', [['New script (folder open)', 'g n'], ['Open folder', 'g f']]],
         ['Script', [['Overview: settings', 'i  or  c'], ['Parameters and saved values', 'p'], ['Run: run, view, edit', 'r  or  s'], ['Save the script / settings / parameters', 'Ctrl S']]],
         ['Run & debug', [['Review / launch', 'Ctrl ↵'], ['Back from review', 'Esc'], ['Continue', 'F5'], ['Step to next line', 'F10  or  n'], ['Pause', 'F6'], ['Stop the run', 'Shift F5']]]
       ];
@@ -630,6 +633,16 @@
   });
 
   // ------------------------------------------------------- desktop mode --
+  if (document.body.dataset.folderPicker === '1') {
+    document.addEventListener('click', function (e) {
+      var revealFolder = e.target.closest('[data-reveal-folder]');
+      if (!revealFolder) return;
+      e.preventDefault();
+      post('/desktop/reveal/', { folder: '1' })
+        .catch(function (j) { window.alert((j && j.error) || 'Could not open the folder.'); });
+    });
+  }
+
   // Only when started by the desktop launcher (body[data-desktop]).
   if (document.body.dataset.desktop === '1') {
     var ping = function () { fetch('/desktop/ping/', { method: 'POST', keepalive: true }).catch(function () {}); };
@@ -739,11 +752,15 @@
         var type = r.headers.get('Content-Type') || '';
         if (!r.ok || type.indexOf('application/zip') !== 0) throw new Error('The project file was not made (see the page after a reload).');
         var report = r.headers.get('X-ScriptHub-Report') || '';
+        var savedIn = r.headers.get('X-ScriptHub-Saved-In') || '';
         return r.blob().then(function (blob) {
           return handle.createWritable().then(function (w) {
             return w.write(blob).then(function () { return w.close(); });
           });
-        }).then(function () { sr.flash('Saved ' + handle.name + (report ? ': ' + report + '.' : '.')); });
+        }).then(function () {
+          sr.flash('Saved ' + handle.name + (report ? ': ' + report + '.' : '.') +
+            (savedIn ? ' Also saved ' + savedIn + ' in the open folder.' : ''));
+        });
       });
     }).catch(function (err) {
       if (err && err.name === 'AbortError') return;                       // the dialog was cancelled

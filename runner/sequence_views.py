@@ -64,14 +64,16 @@ def _source_label(step, script):
 def sequence_list(request):
     if request.method == "POST":
         try:
-            slug = sequences.create(request.POST.get("name", ""))
+            slug = sequences.create(request.POST.get("name", ""), root=workspace.current())
         except sequences.SequenceError as exc:
             messages.error(request, str(exc))
             return redirect("sequences")
         except OSError as exc:
             messages.error(request, f"Could not save the sequence: {exc}")
             return redirect("sequences")
-        messages.success(request, "Sequence created. Drag scripts from the Scripts section on the left onto the page.")
+        messages.success(request, "Sequence created in the open folder. Drag scripts from the Scripts section on the left onto the page."
+                         if workspace.current() else
+                         "Sequence created. Drag scripts from the Scripts section on the left onto the page.")
         return redirect("sequence_detail", slug=slug)
     favs = workspace.sequence_favorites()
     all_seqs = sequences.list_sequences()

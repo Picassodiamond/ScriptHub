@@ -19,33 +19,45 @@
 </div>
 
 <div class="cols-main">
-  <section class="panel">
-    <div class="panel-head"><h2>Recent executions</h2></div>
-    {% if recent %}
-    <div class="table-wrap">
-    <table class="table">
-      <thead><tr><th>Script</th><th>Status</th><th class="hide-sm">Host</th><th class="num">Duration</th><th class="num">When</th></tr></thead>
-      <tbody>
-        {% for r in recent %}
-        <tr>
-          <td><a class="plain strong" href="{% url 'execution_console' r.id %}">{{ r.script_name }}</a> <span class="faint mono small">{{ r.id|slice:"4:" }}</span></td>
-          <td><span class="st st-{{ r.status }}">{{ r.status_label }}</span></td>
-          <td class="small muted hide-sm">{{ r.host }}</td>
-          <td class="num mono small">{{ r.duration }}</td>
-          <td class="num muted small nowrap">{{ r.ago }}</td>
-        </tr>
+  <div class="stack">
+    <section class="panel">
+      <div class="panel-head"><h2>Scripts</h2><span class="spacer"></span><a class="small" href="{% url 'library' %}">Browse all</a></div>
+      {% if scripts %}
+      <ul class="quick">
+        {% for s in scripts %}
+        <li>
+          <span class="lang lang-{{ s.extension|slice:'1:' }}">{{ s.extension|slice:'1:' }}</span>
+          <a class="q-name plain" href="{% url 'script_detail' s.id %}" title="{{ s.path }}">{{ s.name }}</a>
+          {% if not s.meta_valid %}<span class="badge">Fix</span>{% endif %}
+        </li>
         {% endfor %}
-      </tbody>
-    </table>
-    </div>
-    {% else %}
-    <div class="empty">
-      <svg class="i"><use href="#i-pulse"/></svg>
-      <h2>Nothing has run yet</h2>
-      <p>Pick a script from the explorer and press <kbd>R</kbd> to run it.</p>
-    </div>
+      </ul>
+      {% else %}
+      <div class="panel-body muted">No scripts in the open folder. <a href="{% url 'folder' %}" data-open-folder>Open a folder</a>.</div>
+      {% endif %}
+    </section>
+
+    {% if wb_folder.folder %}
+    <section class="panel" id="home-sequences">
+      <div class="panel-head"><h2>Sequences</h2><span class="spacer"></span><span class="muted small">{{ folder_sequences|length }}</span></div>
+      {% if folder_sequences %}
+      <ul class="quick">
+        {% for s in folder_sequences %}
+        <li>
+          <svg class="i faint"><use href="#i-sequence"/></svg>
+          <a class="q-name plain" href="{% url 'sequence_detail' s.slug %}">{{ s.name }}</a>
+          <span class="small muted">{{ s.steps }} step{{ s.steps|pluralize }}</span>
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <div class="panel-body muted">
+        {% if wb_folder.folder %}No sequences are saved in the selected folder.{% else %}Open a folder to see its sequences.{% endif %}
+      </div>
+      {% endif %}
+    </section>
     {% endif %}
-  </section>
+  </div>
 
   <div class="stack">
     <section class="panel" id="samples">
@@ -63,6 +75,24 @@
     </section>
 
     <section class="panel">
+      <div class="panel-head"><h2>Projects</h2><span class="spacer"></span><span class="muted small">{{ projects|length }}</span></div>
+      {% if projects %}
+      <ul class="quick">
+        {% for p in projects %}
+        <li><svg class="i faint"><use href="#i-folder-open"/></svg>
+          <span class="q-name" title="{{ p.path }}">{{ p.name }}</span>
+          <span class="small muted">{{ p.path }}</span>
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <div class="panel-body muted">
+        {% if wb_folder.folder %}No project files in the selected folder.{% else %}Open a folder to see its project files.{% endif %}
+      </div>
+      {% endif %}
+    </section>
+
+    <section class="panel">
       <div class="panel-head"><h2><svg class="i"><use href="#i-zap"/></svg> Quick run</h2></div>
       {% if quick %}
       <ul class="quick">
@@ -75,7 +105,7 @@
         {% endfor %}
       </ul>
       {% else %}
-      <div class="panel-body muted">No runnable scripts. <a href="{% url 'settings' %}">Add a script directory</a>.</div>
+      <div class="panel-body muted">No runnable scripts in the selected folder.</div>
       {% endif %}
     </section>
 

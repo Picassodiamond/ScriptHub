@@ -56,10 +56,14 @@ def _sequences():
 
 
 def _sequence_list():
-    """The Sequences section of the side panel: favourites first, then by name; broken files too."""
+    """The open folder's sequences for the side panel: favourites first, then by name."""
     from . import sequences, workspace
+    root = workspace.current()
+    if root is None:
+        return []
     favs = workspace.sequence_favorites()
-    out = [dict(s, favorite=s["slug"] in favs) for s in sequences.list_sequences()]
+    out = [dict(s, favorite=s["slug"] in favs)
+           for s in sequences.list_sequences(root=root, include_global=False)]
     return sorted(out, key=lambda s: (not s["favorite"], s["name"].lower()))
 
 

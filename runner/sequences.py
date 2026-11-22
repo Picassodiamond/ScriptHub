@@ -1,8 +1,9 @@
 """Sequences: existing scripts connected by arrows, run in the order the arrows give.
 
-One YAML file per sequence, under runtime/ (like saved values, not in the script folder):
+New sequences are saved with their project; older app-wide sequences remain under runtime:
 
-    runtime/sequences/<slug>.yaml
+    <open folder>/sequences/<slug>.yaml
+    runtime/sequences/<slug>.yaml  # existing app-wide sequences
 
     # Sequence for ScriptHub. Passwords are never stored.
     name: Nightly maintenance
@@ -50,6 +51,7 @@ from . import discovery, history, ids, yamlish
 from .fsutil import atomic_write_text
 
 EXT = ".yaml"
+LOCAL_DIR_NAME = "sequences"
 NAME_MAX = 60
 STEPS_MAX = 50
 SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,63}$")
@@ -87,13 +89,24 @@ def valid_slug(slug) -> bool:
     return isinstance(slug, str) and bool(SLUG_RE.match(slug))
 
 
-def folder() -> Path:
-    return config.SEQUENCES_DIR
+def folder(root: Path | None = None) -> Path:
+    """The selected folder's sequence directory, or the legacy app-wide directory."""
+    return Path(root) / LOCAL_DIR_NAME if root is not None else config.SEQUENCES_DIR
 
 
-def _file(slug: str) -> Path:
+def _current_root():
+    from . import workspace
+    return workspace.current()
+
+
+def _file(slug: str, root: Path | None = None) -> Path:
     if not valid_slug(slug):
         raise SequenceError("Invalid sequence.")
+    root = Path(root) if root is not None else _current_root()
+    if root is not None:
+        local = folder(root) / f"{slug}{EXT}"
+        if local.exists():
+            return local
     return folder() / f"{slug}{EXT}"
 
 
@@ -229,9 +242,8 @@ def _dump_step(step: dict) -> dict:
     return out
 
 
-def _read(slug: str, strict: bool = False):
+def _read_path(slug: str, path: Path, strict: bool = False):
     """The sequence, None when missing (or unreadable unless ``strict``, then SequenceError)."""
-    path = _file(slug)
     try:
         data = _clean(yamlish.load(path.read_text(encoding="utf-8-sig")))
     except FileNotFoundError:
@@ -244,6 +256,10 @@ def _read(slug: str, strict: bool = False):
         return None
     data["slug"] = slug
     return data
+
+
+def _read(slug: str, strict: bool = False, root: Path | None = None):
+    return _read_path(slug, _file(slug, root), strict)
 
 
 def dump_text(data: dict) -> str:
@@ -265,8 +281,8 @@ def parse_text(text: str) -> dict:
         raise SequenceError(str(exc)) from None
 
 
-def _write(slug: str, data: dict) -> None:
-    path = _file(slug)
+def _write(slug: str, data: dict, root: Path | None = None) -> None:
+    path = folder(root) / f"{slug}{EXT}" if root is not None else _file(slug)
     path.parent.mkdir(parents=True, exist_ok=True)
     atomic_write_text(path, dump_text(data))
 
@@ -332,19 +348,26 @@ def _new_id(data: dict) -> str:
 
 
 # ---------------------------------------------------------------- public ---
-def list_sequences() -> list:
-    """[{'slug', 'name', 'steps', 'saved_at', 'error'}] by name; a broken file has 'error'."""
+def list_sequences(root: Path | None = None, include_global: bool = True, include_folder: bool = True) -> list:
+    """Sequences in the selected folder and, optionally, legacy global storage."""
+    root = Path(root) if root is not None else (_current_root() if include_folder else None)
+    files = {}
+    directories = [folder()] if include_global else []
+    if root is not None and include_folder:
+        directories.append(folder(root))
+    for directory in directories:
+        try:
+            for path in directory.glob(f"*{EXT}"):
+                files[path.stem] = path
+        except OSError:
+            continue
+
     out = []
-    try:
-        files = sorted(folder().glob(f"*{EXT}"))
-    except OSError:
-        return []
-    for f in files:
-        slug = f.stem
+    for slug, path in files.items():
         if not valid_slug(slug):
             continue
         try:
-            data = _read(slug, strict=True)
+            data = _read_path(slug, path, strict=True)
             out.append({"slug": slug, "name": data["name"], "steps": len(data["steps"]),
                         "saved_at": data["saved_at"], "saved_display": data["saved_at"].replace("T", " ")[:16],
                         "error": ""})
@@ -354,45 +377,50 @@ def list_sequences() -> list:
     return sorted(out, key=lambda s: s["name"].lower())
 
 
-def get(slug: str):
+def get(slug: str, root: Path | None = None):
     """The sequence (with 'slug'), or None when missing or unreadable."""
     if not valid_slug(slug):
         return None
-    return _read(slug)
+    return _read(slug, root=root)
 
 
-def load(slug: str) -> dict:
+def load(slug: str, root: Path | None = None) -> dict:
     """Like get() but raises SequenceError with the reason."""
-    return _read(slug, strict=True)
+    return _read(slug, strict=True, root=root)
 
 
-def create(name: str) -> str:
+def create(name: str, root: Path | None = None) -> str:
     name = clean_name(name)
     with _lock:
-        taken = {s["name"].lower() for s in list_sequences()}
-        if name.lower() in taken:
+        existing = list_sequences(root=root)
+        if any(s["name"].lower() == name.lower() for s in existing):
             raise SequenceError(f"A sequence named '{name}' already exists.")
+        taken_slugs = {s["slug"] for s in existing}
+        target = folder(root) if root is not None else folder()
         base = slug = slugify(name)
         n = 2
-        while _file(slug).exists():
+        while slug in taken_slugs or (target / f"{slug}{EXT}").exists():
             slug = f"{base[:60]}-{n}"
             n += 1
-        _write(slug, {"name": name, "steps": [], "links": []})
+        _write(slug, {"name": name, "steps": [], "links": []}, root=root)
         return slug
 
 
-def add_imported(data: dict) -> str:
+def add_imported(data: dict, root: Path | None = None) -> str:
     """Store a sequence read with parse_text() under a new slug (its name must be free); returns the slug."""
     name = clean_name(data["name"])
     with _lock:
-        if any(s["name"].lower() == name.lower() for s in list_sequences()):
+        existing = list_sequences(root=root)
+        if any(s["name"].lower() == name.lower() for s in existing):
             raise SequenceError(f"A sequence named '{name}' already exists.")
+        taken_slugs = {s["slug"] for s in existing}
+        target = folder(root) if root is not None else folder()
         base = slug = slugify(name)
         n = 2
-        while _file(slug).exists():
+        while slug in taken_slugs or (target / f"{slug}{EXT}").exists():
             slug = f"{base[:60]}-{n}"
             n += 1
-        _write(slug, {**data, "name": name})
+        _write(slug, {**data, "name": name}, root=root)
         return slug
 
 

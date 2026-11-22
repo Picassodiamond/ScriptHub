@@ -72,6 +72,19 @@ class WorkspaceTests(FolderCase):
         self.assertEqual(self.names(), [])
         self.assertFalse(workspace.state_file().exists())
 
+    def test_sequences_side_panel_is_hidden_without_an_open_folder(self):
+        from . import sequences
+        sequences.create("Old workflow")
+        response = self.client.get("/")
+        self.assertNotContains(response, 'aria-label="Sequences"')
+
+        workspace.open_folder(str(self.a))
+        response = self.client.get("/")
+        self.assertContains(response, 'aria-label="Sequences"')
+        self.assertNotContains(response, 'data-search="old workflow"')
+        sequences.create("Folder workflow", root=self.a)
+        self.assertContains(self.client.get("/"), "Folder workflow")
+
     def test_old_script_directories_setting_seeds_the_state(self):
         missing = str(self.tmp / "gone")
         self.cfg_file.write_text(json.dumps({"script_directories": [missing, str(self.a), str(self.b)]}))
@@ -393,16 +406,66 @@ class NewScriptTests(FolderCase):
         if (self.a / "win.bat").exists():                                                # .bat is configured on Windows
             self.assertIn(b"\r\n", (self.a / "win.bat").read_bytes())
 
+    def test_direct_new_script_uses_defaults_and_avoids_name_collisions(self):
+        workspace.open_folder(str(self.a))
+        first = self.client.get("/scripts/new/")
+        self.assertEqual(first.status_code, 302)
+        first_path = self.a / "new_script.py"
+        data, _source, error = metadata.load_raw(first_path)
+        self.assertIsNone(error)
+        self.assertEqual((data["name"], data["description"], data["category"], data["parameters"]),
+                         ("New Script", "", "General", []))
+        second = self.client.post("/scripts/new/", {"quick": "1"})
+        self.assertEqual(second.status_code, 302)
+        self.assertTrue((self.a / "new_script_2.py").is_file())
+
     def test_plus_next_to_a_script_prefills_its_place(self):
         workspace.open_folder(str(self.tmp))
         sid = next(s.id for s in discovery.scan(force=True)[0] if s.path.name == "two.py")
         page = self.client.get(f"/scripts/new/?from={sid}")
-        self.assertContains(page, 'name="subfolder" value="beta"')
-        self.assertContains(page, '<option value="beta">')                              # existing sub-folders offered
+        self.assertEqual(page.status_code, 302)
+        created = self.tmp / "beta" / "new_script.py"
+        data, _source, error = metadata.load_raw(created)
+        self.assertIsNone(error)
+        self.assertEqual(data["category"], "Beta")
 
     def test_legacy_editing_setting_does_not_block_new_script(self):
         workspace.open_folder(str(self.a))
         self.cfg_file.write_text(json.dumps({"enable_script_editing": False}))
-        self.assertEqual(self.client.get("/scripts/new/").status_code, 200)
+        self.assertEqual(self.client.get("/scripts/new/").status_code, 302)
+        self.assertTrue((self.a / "new_script.py").exists())
         self.assertEqual(self.client.post("/scripts/new/", self.form()).status_code, 302)
         self.assertTrue((self.a / "cleanup_logs.py").exists())
+
+
+class SaveAsTests(FolderCase):
+    def test_save_as_copies_script_with_new_id_and_preserves_original(self):
+        workspace.open_folder(str(self.a))
+        params = [{"name": "target", "type": "text", "default": "source"}]
+        original = metadata.with_block("print('x')\n", {
+            "id": "123456789abc", "name": "Original", "description": "Copy test",
+            "category": "Tools", "parameters": params,
+        }, self.a / "one.py", "\n").encode("utf-8")
+        (self.a / "one.py").write_bytes(original)
+        discovery.scan(force=True)
+        source = next(s for s in discovery.scan(force=True)[0] if s.path.name == "one.py")
+        route = f"/scripts/{source.id}/save-as/"
+        self.assertContains(self.client.get(route), 'value="one_copy"')
+        response = self.client.post(route, {"filename": "one_copy", "subfolder": "copies"})
+        target = self.a / "copies" / "one_copy.py"
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual((self.a / "one.py").read_bytes(), original)
+        self.assertIn(b"print('x')", target.read_bytes())
+        data, _meta_source, error = metadata.load_raw(target)
+        self.assertIsNone(error)
+        self.assertNotEqual(data["id"], source.id)
+        self.assertEqual((data["name"], data["description"], data["category"], data["parameters"]),
+                         ("Original", "Copy test", "Tools", params))
+        self.assertEqual(response["Location"], f"/scripts/{data['id']}/run/")
+
+    def test_save_as_never_overwrites_the_source(self):
+        workspace.open_folder(str(self.a))
+        source = next(s for s in discovery.scan(force=True)[0] if s.path.name == "one.py")
+        response = self.client.post(f"/scripts/{source.id}/save-as/", {"filename": "one", "subfolder": ""})
+        self.assertContains(response, "already exists", status_code=400)
+        self.assertEqual((self.a / "one.py").read_bytes(), b"print('x')\n")

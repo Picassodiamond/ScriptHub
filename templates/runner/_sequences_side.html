@@ -2,6 +2,7 @@
 {% firstof seq.slug run.sequence "" as cur_seq %}
 {% with list=wb_sequence_list here=request.get_full_path %}
 <div class="side-split" id="seq-side">
+  {% if wb_folder.folder %}
   <section class="side-pane side-pane-seq" data-pane="seq" aria-label="Sequences">
     <div class="side-head">
       <button type="button" class="side-fold" data-seq-fold aria-expanded="true" title="Show or hide the sequences">
@@ -57,8 +58,9 @@
       </div>
     </div>
   </section>
-  {% if wb_folder.folder or wb_folder.files %}
   <div class="side-divider" id="seq-divider" role="separator" aria-orientation="horizontal" aria-label="Resize the sequences and scripts sections" title="Drag to resize"></div>
+  {% endif %}
+  {% if wb_folder.folder or wb_folder.files %}
   <section class="side-pane side-pane-scripts" data-pane="scripts" aria-label="Scripts">
     <p class="side-note">Drag a script onto the canvas to add a step.</p>
     {% include "runner/_explorer.html" %}

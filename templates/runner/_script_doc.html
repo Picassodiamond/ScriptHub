@@ -2,11 +2,12 @@
    the comment block at the top) plus a tab per run started here (designer.js), and under it the
    always-visible saved values panel. Only the right column changes between pages.
    Needs doc_context() in the view.{% endcomment %}
-<section class="doc" aria-label="Script, saved values and runs" data-script="{{ script.id }}" data-ws="{% firstof wb_folder.folder.path 'files' %}" data-doc-default="">
+<section class="doc" aria-label="Script, saved values and runs" data-script="{{ script.id }}" data-ws="{% firstof wb_folder.folder.path 'files' %}" data-doc-default=""{% if ed %} data-metadata-preview="{% url 'script_metadata_preview' script.id %}"{% endif %}>
   <div class="doc-bar" role="tablist">
     <button type="button" class="doc-tab is-active" data-doc-tab="doc-code-panel" role="tab" title="{{ script.path.name }}"><span class="lang lang-{{ script.extension|slice:'1:' }}">{{ script.extension|slice:'1:' }}</span><span class="tab-name">{{ script.path.name }}</span></button>
     <span class="spacer"></span>
     <span class="faint small mono hide-sm" id="doc-refs"></span>
+    <span class="faint small" id="metadata-sync-status" role="status" aria-live="polite" hidden></span>
     {% if ed %}
     <span class="faint small hide-sm" title="Line endings are kept when saving">{{ ed.newline }}{% if not ed.writable %} · <span class="error-text">read-only file</span>{% endif %}</span>
     {% include "runner/_restore.html" %}

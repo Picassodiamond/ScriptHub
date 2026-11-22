@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Save script as{% endblock %}
+{% block content %}
+<div class="page page-narrow">
+  {% if errors %}<div class="flash flash-error"><div><strong>Copy not created.</strong><ul class="err-list">{% for e in errors %}<li>{{ e }}</li>{% endfor %}</ul></div></div>{% endif %}
+  <form method="post" class="panel" id="save-as-form" novalidate>{% csrf_token %}
+    <div class="panel-head"><h2>Save a copy of <span class="mono">{{ script.path.name }}</span></h2></div>
+    <div class="panel-body">
+      <div class="form-grid">
+        <div class="field"><label class="field-label" for="sa_file">File name</label>
+          <div class="row"><input class="input mono" id="sa_file" name="filename" value="{{ form.filename }}" maxlength="80" required autofocus><code>{{ script.extension }}</code></div></div>
+        <div class="field"><label class="field-label" for="sa_sub">Sub-folder <span class="faint small">optional</span></label>
+          <input class="input mono" id="sa_sub" name="subfolder" value="{{ form.subfolder }}" list="sa_sub_list" placeholder="e.g. maintenance">
+          <datalist id="sa_sub_list">{% for f in sub_folders %}<option value="{{ f }}">{% endfor %}</datalist>
+          <div class="help">Relative to the script folder; at most {{ max_depth }} levels deep. Missing folders are created.</div></div>
+      </div>
+      <p class="help" style="margin:0">The copy includes the script and its metadata with a new script ID. The original, saved parameters, and run history are unchanged.</p>
+    </div>
+    <div class="panel-foot">
+      <button class="btn btn-primary btn-sm" type="submit" data-hotkey="Ctrl+Enter" data-hint="Save the copy"><svg class="i"><use href="#i-save"/></svg> Save copy <kbd>Ctrl</kbd><kbd>↵</kbd></button>
+      <a class="btn btn-sm" href="{% url 'script_run' script.id %}">Cancel</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

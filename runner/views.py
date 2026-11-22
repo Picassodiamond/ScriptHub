@@ -5,16 +5,26 @@ from django.urls import reverse
 from django.views.decorators.http import require_POST
 
 import config
-from . import discovery, history, project_files, runtime_data, ssh_hosts
+from . import discovery, history, project_files, runtime_data, ssh_hosts, workspace
 from .validators import ValidationError, validate_config
 
 
 def dashboard(request):
     from collections import Counter
-    from .execution_views import _decorate
     from .process_manager import manager
 
     scripts, _problems = discovery.scan()
+    folder = workspace.current()
+    if folder is None:
+        scripts = []
+        folder_sequences = []
+    else:
+        from . import sequences
+        scripts = [s for s in scripts if workspace.same(str(s.root), str(folder))]
+        folder_sequences = [
+            s for s in sequences.list_sequences(root=folder, include_global=False) if not s["error"]
+        ]
+    projects = project_files.list_projects(folder)
     runs = history.list_runs(limit=500)
     counts = Counter(r.get("status") for r in runs)
     live = manager.counts()
@@ -28,12 +38,14 @@ def dashboard(request):
 
     return render(request, "runner/dashboard.html", {
         "total": len(scripts),
+        "scripts": scripts,
+        "folder_sequences": folder_sequences,
+        "projects": projects,
         "invalid": sum(1 for s in scripts if not s.meta_valid),
         "running": live["running"],
         "queued": live["queued"],
         "success": counts.get(history.SUCCESS, 0),
         "failed": counts.get(history.FAILED, 0) + counts.get(history.TIMED_OUT, 0),
-        "recent": [_decorate(m) for m in runs[:8]],
         "quick": runnable[:6],
         "samples_dir": str(config.BASE_DIR / "sample_scripts"),
         "sample_projects": project_files.sample_projects(),
