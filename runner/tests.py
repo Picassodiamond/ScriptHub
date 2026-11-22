@@ -241,11 +241,17 @@ class PageTests(SimpleTestCase):
     def test_primary_navigation_explains_sections_and_keeps_workspace_actions(self):
         response = self.client.get("/")
         html = response.content.decode()
-        for label in ("Workspace", "Scripts", "Sequences", "Runs", "Settings", "Panels and appearance"):
+        for label in ("File", "Scripts", "Sequences", "History", "Settings"):
             self.assertIn(label, html)
-        for action in ('data-open-folder', 'data-open-file', 'data-action="side"',
+        self.assertNotIn(">Workspace<", html)
+        if "Recently opened</div>" in html:
+            self.assertLess(html.index("Projects</div>"), html.index("Recently opened</div>"))
+        for action in ('data-open-folder', 'data-open-file',
                        'data-tree-collapse', 'data-command-search', '/scripts/refresh/', '/project/open/'):
             self.assertIn(action, html)
+        self.assertNotIn('data-action="side"', html)
+        self.assertNotIn('data-action="theme"', html)
+        self.assertLess(html.index('<aside class="side"'), html.index('<main class="main"'))
         self.assertIn('aria-current="page"', html)
         self.assertIn('aria-label="Main navigation"', html)
         self.assertNotIn('class="activity"', html)
@@ -259,6 +265,9 @@ class PageTests(SimpleTestCase):
         self.assertNotContains(response, 'class="settings-tabs"')
         self.assertContains(response, "settings-table")
         self.assertContains(response, "Advanced settings")
+        self.assertContains(response, 'id="hosts"')
+        self.assertContains(response, 'id="data"')
+        self.assertNotContains(response, '<details class="panel settings-advanced"')
         self.assertContains(response, 'data-action="theme"')
         self.assertContains(response, "Save settings")
         self.assertNotContains(response, 'class="side-nav"')

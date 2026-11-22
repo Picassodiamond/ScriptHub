@@ -396,7 +396,11 @@ class PresetWebTests(Phase4Case):
         self.assertContains(r, "not found")
         submit.assert_not_called()
         grid = self.client.get(self.url("run") + "?tab=params")
-        self.assertContains(grid, 'id="saved-panel" aria-label="Saved values" data-force-open')   # opens the bottom panel
+        self.assertContains(grid, 'id="saved-panel" aria-label="Saved values"')
+        self.assertContains(grid, 'class="bp-body" id="saved-body"')
+        self.assertNotContains(grid, "data-force-open")
+        self.assertNotContains(grid, 'data-action="bottom"')
+        self.assertNotContains(grid, 'data-action="side2"')
         self.assertContains(grid, 'name="from_preset" value="prod"')
         self.assertContains(self.client.get(f"/scripts/{self.sid}/parameters/"), 'name="from_preset" value="prod"')
 

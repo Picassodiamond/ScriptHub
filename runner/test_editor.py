@@ -337,10 +337,8 @@ class WebEditTests(WebCase):
         self.assertEqual(r.redirect_chain[-1][0], f"/scripts/{self.sid}/run/")   # saving lands back on the Script tab
         new_hash = r.content.decode().split('name="base_hash" value="')[1].split('"')[0]
         self.assertNotEqual(new_hash, old_hash)                           # the page carries the new hash for the next save
-        self.write_config(enable_script_editing=False)
         page = self.client.get(f"/scripts/{self.sid}/run/")
-        self.assertNotContains(page, 'id="edit-form"')                   # read-only when editing is off
-        self.assertContains(page, 'id="doc-src"')
+        self.assertContains(page, 'id="edit-form"')
 
     def test_restore_view(self):
         self.client.post(self.url(), {"content": "print('v2')\n", "base_hash": self.hash_on_page()})
@@ -381,23 +379,23 @@ class WebEditTests(WebCase):
         for page in ("/scripts/", f"/scripts/{self.sid}/", f"/scripts/{self.sid}/source/"):
             self.assertContains(self.client.get(page), f"/scripts/{self.sid}/edit/")
 
-    def test_editing_can_be_switched_off(self):
+    def test_legacy_editing_setting_is_ignored(self):
         self.write_config(enable_script_editing=False)
-        self.assertEqual(self.client.get(self.url()).status_code, 403)
-        r = self.client.post(self.url(), {"content": "print('hacked')\n", "base_hash": "x", "force": "1"})
-        self.assertEqual(r.status_code, 403)
-        self.assertEqual(self.client.post(self.url("restore/")).status_code, 403)
-        self.assertEqual(self.script.read_text(), "print('v1')\n")
-        self.assertNotContains(self.client.get("/scripts/"), f"/scripts/{self.sid}/edit/")
+        self.assertEqual(self.client.get(self.url()).status_code, 200)
+        r = self.client.post(self.url(), {"content": "print('hacked')\n", "base_hash": self.hash_on_page()})
+        self.assertEqual(r.status_code, 302)
+        self.assertEqual(self.script.read_text(), "print('hacked')\n")
+        self.assertNotIn("enable_script_editing", config.load_config())
 
-    def test_settings_page_controls_the_switches(self):
+    def test_settings_page_has_no_script_access_switch(self):
         form = {"max_concurrent_executions": "3", "max_concurrent_per_host": "3", "default_timeout": "60",
                 "polling_interval": "2000", "history_retention_days": "90", "log_retention_days": "30",
                 "ssh_connect_timeout": "10", "ssh_executable": "ssh", "environment": "",
                 "interpreters": ".py=python", "remote_interpreters": ".py=python3"}
-        self.client.post("/settings/save/", form)                                   # box unticked
-        self.assertFalse(config.load_config()["enable_script_editing"])
-        self.client.post("/settings/save/", {**form, "enable_script_editing": "on"})
+        page = self.client.get("/settings/")
+        self.assertNotContains(page, "Script access")
+        self.assertNotContains(page, "enable_script_editing")
+        self.client.post("/settings/save/", {**form, "enable_script_editing": "off"})
         cfg = config.load_config()
-        self.assertTrue(cfg["enable_script_editing"])
+        self.assertNotIn("enable_script_editing", cfg)
         self.assertNotIn("enable_adhoc", cfg)                                       # removed feature

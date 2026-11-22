@@ -4,7 +4,6 @@ from django.http import Http404
 from django.shortcuts import redirect, render
 from django.views.decorators.http import require_POST
 
-import config
 from . import backups, discovery, metadata, script_editor
 from .script_editor import ConflictError, EditError
 from .script_views import LANGUAGES

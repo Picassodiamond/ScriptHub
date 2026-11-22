@@ -6,17 +6,13 @@
   <title>{% block title %}ScriptHub{% endblock %} · ScriptHub</title>
   <link rel="icon" href="{% static 'img/scripthub.ico' %}">
   <script>
-    /* Theme and side panel state before first paint (no flash). */
+    /* Theme and saved-values panel sizing before first paint (no flash). */
     (function () {
-      var d = document.documentElement, t = null, s = null, r = null, b = null, bh = null;
-      try { t = localStorage.getItem('sr.theme'); s = localStorage.getItem('sr.side'); r = localStorage.getItem('sr.side2');
-            b = localStorage.getItem('sr.bottom'); bh = parseInt(localStorage.getItem('sr.bottomH'), 10); } catch (e) {}
-      if (b === '1') d.classList.add('bottom-on');         /* saved-values panel under the script */
+      var d = document.documentElement, t = null, bh = null;
+      try { t = localStorage.getItem('sr.theme'); bh = parseInt(localStorage.getItem('sr.bottomH'), 10); } catch (e) {}
       if (bh > 0) d.style.setProperty('--bp-h', bh + 'px');
       if (t !== 'light' && t !== 'dark') t = (window.matchMedia && matchMedia('(prefers-color-scheme: light)').matches) ? 'light' : 'dark';
       d.setAttribute('data-theme', t);
-      if (s === '0') d.classList.add('side-off');
-      if (r === '0') d.classList.add('side2-off');      /* right column of the script pages */
     })();
   </script>
   <link rel="stylesheet" href="{% static 'css/workbench.css' %}">
@@ -30,7 +26,6 @@
   <aside class="side" id="side" aria-label="Side panel">
     {% block side %}{% include "runner/_explorer.html" %}{% endblock %}
   </aside>
-  <div class="side-scrim" data-action="side"></div>
 
   <main class="main" id="main">
     {% block tabs %}{% endblock %}

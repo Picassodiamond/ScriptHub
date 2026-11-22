@@ -4,5 +4,4 @@
   <a class="tab {% if url_name == 'script_parameters' %}is-active{% endif %}" href="{% url 'script_parameters' script.id %}" data-hotkey="p" data-hint="Parameters and saved values"><svg class="i"><use href="#i-sliders"/></svg>Parameters <kbd>P</kbd></a>
   {% if script.meta_valid %}{% url 'script_run' script.id as script_tab %}{% else %}{% url 'script_edit' script.id as script_tab %}{% endif %}
   <a class="tab {% if url_name == 'script_run' or url_name == 'script_start' or url_name == 'script_source' or url_name == 'script_edit' %}is-active{% endif %}" href="{{ script_tab }}" data-hotkey="r|s" data-hint="Run the script"><svg class="i"><use href="#i-play"/></svg>Run <kbd>R</kbd></a>
-  {% if side %}<button type="button" class="tab-collapse btn btn-ghost btn-icon btn-sm" data-action="side2" title="Hide this panel  (Ctrl+Alt+B)" aria-label="Hide the right panel"><svg class="i i-flip"><use href="#i-panel"/></svg></button>{% endif %}
 </nav>

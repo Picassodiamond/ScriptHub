@@ -41,8 +41,8 @@
     </div>
   </section>
 
-  <details class="panel settings-advanced" id="advanced">
-    <summary class="panel-head"><h2>Advanced settings</h2><span class="spacer"></span><span class="muted small">Host limits, interpreters, SSH and environment</span></summary>
+  <section class="panel settings-advanced" id="advanced">
+    <div class="panel-head"><h2>Advanced settings</h2><span class="spacer"></span><span class="muted small">Host limits, interpreters, SSH and environment</span></div>
     <div class="panel-body">
       <table class="table table-dense settings-table"><tbody>
         <tr>
@@ -77,7 +77,7 @@
         </div>
       </div>
     </div>
-  </details>
+  </section>
 
   <div class="form-actions sticky-actions">
     <button class="btn btn-primary" type="submit"><svg class="i"><use href="#i-save"/></svg> Save settings</button>
@@ -85,8 +85,8 @@
   </div>
 </form>
 
-<details class="panel settings-advanced" id="hosts">
-  <summary class="panel-head"><h2>SSH hosts</h2><span class="spacer"></span><span class="count-pill">{{ ssh_hosts|length }}</span></summary>
+<section class="panel settings-advanced" id="hosts">
+  <div class="panel-head"><h2>SSH hosts</h2><span class="spacer"></span><span class="count-pill">{{ ssh_hosts|length }}</span></div>
   <div class="panel-body"><p class="muted small">Remote Linux hosts come from <span class="mono">Host</span> entries (without wildcards) in your <span class="mono">~/.ssh/config</span>. Scripts are streamed to the remote interpreter, so nothing is installed on the host.</p></div>
   {% if ssh_hosts %}
   <div class="table-wrap">
@@ -109,12 +109,12 @@
   {% else %}
   <div class="panel-body muted" style="padding-top:0">No hosts found. Add a <span class="mono">Host</span> entry to <span class="mono">~/.ssh/config</span> and reload this page.</div>
   {% endif %}
-</details>
+</section>
 
-<details class="panel settings-advanced" id="data">
-  <summary class="panel-head"><h2>Stored data</h2><span class="spacer"></span>
+<section class="panel settings-advanced" id="data">
+  <div class="panel-head"><h2>Stored data</h2><span class="spacer"></span>
     <span class="muted small">Advanced</span>
-  </summary>
+  </div>
   <div class="panel-head settings-data-actions">
     <form method="post" action="{% url 'settings_data_clear' %}" data-confirm="Clear all of ScriptHub's data: run history, saved values, sequences, backups, recent folders and settings? Your script files are not touched.">{% csrf_token %}
       <input type="hidden" name="kind" value="all"><button class="btn btn-sm btn-danger" type="submit">Clear all</button>
@@ -139,6 +139,6 @@
     </tbody>
   </table>
   </div>
-</details>
+</section>
 </div>
 {% endblock %}

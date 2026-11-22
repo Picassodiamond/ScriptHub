@@ -400,9 +400,9 @@ class NewScriptTests(FolderCase):
         self.assertContains(page, 'name="subfolder" value="beta"')
         self.assertContains(page, '<option value="beta">')                              # existing sub-folders offered
 
-    def test_switched_off_with_editing(self):
+    def test_legacy_editing_setting_does_not_block_new_script(self):
         workspace.open_folder(str(self.a))
         self.cfg_file.write_text(json.dumps({"enable_script_editing": False}))
-        self.assertEqual(self.client.get("/scripts/new/").status_code, 403)
-        self.assertEqual(self.client.post("/scripts/new/", self.form()).status_code, 403)
-        self.assertFalse((self.a / "cleanup_logs.py").exists())
+        self.assertEqual(self.client.get("/scripts/new/").status_code, 200)
+        self.assertEqual(self.client.post("/scripts/new/", self.form()).status_code, 302)
+        self.assertTrue((self.a / "cleanup_logs.py").exists())

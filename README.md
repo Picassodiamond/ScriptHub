@@ -146,29 +146,25 @@ ScriptHub/
 
 ## A tour of the pages
 
-Version 2 is laid out like an IDE workbench (dark theme by default; *View → Light /
-dark theme* switches, remembered per browser):
+Version 2 is laid out like an IDE workbench (dark theme by default; the appearance
+switch in Settings is remembered per browser):
 
 * **Menu bar** (top), as in VS Code; the open folder or file and the script are shown
   in the middle. Click a menu (then hover to move between menus, Esc closes):
   * **File**: New script (`g n`), **Open file…**, **Open folder…** (`g f`), *Open
     recent* (favourites and recent folders/files), add to / remove from favourites,
     Close folder, **Open project…**, **Save project as…**, Close project, Settings.
-  * **View**: Command palette (Ctrl+K), Home / Library / Sequences / Runs, Side panel (Ctrl+B),
-    Right panel (Ctrl+Alt+B) and Saved values panel (Ctrl+J) on script pages,
-    Collapse explorer, Light / dark theme.
+  * Home / Scripts / Sequences / History navigation and the command palette (Ctrl+K).
   * **Run**: Run the script (Ctrl+Enter), Run with Trace, Run with Debug, Rescan
     folder, Runs.
   * **Help**: Keyboard shortcuts (`?`), version.
-* **Activity bar** (far left): Home, Library, **Sequences**, **Runs** (what is running
-  now, with a live count, and the history); Settings at the bottom.
-* **Side panel**: the **Explorer** (the open folder's name with New script, Rescan
+* **Side panel** (left): the **Explorer** (the open folder's name with New script, Rescan
   and Collapse all; every script grouped by category, with a dot for its last
   result and a filter box) on most pages; the list of executions in the
-  console; the filters on History; the section list on Settings. **Ctrl+B** hides it.
-* **Main area**: no page header (the activity bar shows the section, the explorer the
-  script); script pages have the tabs **Overview · Parameters · Run** on top of a right
-  column that **Ctrl+Alt+B** (or its ◧ button) hides and shows.
+  console; the filters on History. It stays visible on views that use it.
+* **Main area**: no page header (the menu bar shows the section, the explorer the
+  script); script pages have the tabs **Overview · Parameters · Run** on top of a
+  right column that stays visible.
 * **Status bar**: version, running/queued count and the progress of a folder scan.
 
 <picture>
@@ -182,7 +178,7 @@ dark theme* switches, remembered per browser):
 | **Script Library** (`/scripts/`) | Every script as a dense table (or cards). Search (`/` focuses it), filter by **category, platform and language**. |
 | **Open folder** (`/folder/`) | Fallback when the system folder dialog is not available (browser on another machine): type a path or click through the folder list; favourites (star) and recent folders. The explorer's folder name is a quick switcher with the same lists. |
 | **Script tabs** | Every script you open gets a tab in the centre bar, like an editor's open files (remembered per folder; × closes the tab, not the script). The selected tab is the script the right column (Overview / Parameters / Run) and the Saved values panel show; clicking another tab, or another script in the explorer, opens it on the same right-hand tab. Its run tabs follow it. |
-| **Script pages** | The centre is the same on Overview, Parameters and Run: the script (an editor with syntax colours, line numbers, auto-indent, or read-only when editing is off; its metadata block is at the top) with copy, download, **Restore previous** and a full-screen editor, a tab for each run started there, and under it the collapsible **Saved values** panel (**Ctrl+J**). The **Overview / Parameters / Run** tabs head the right column, so switching only changes that column. A script page has **one Save** (centre tab bar, **Ctrl+S** anywhere): it saves whatever changed — the script, the Overview settings, the parameter definitions (editing the metadata block in the script and a form together is refused, as they are the same settings); a dot marks unsaved changes. |
+| **Script pages** | The centre is the same on Overview, Parameters and Run: the script (an editor with syntax colours, line numbers and auto-indent; its metadata block is at the top) with copy, download, **Restore previous** and a full-screen editor, a tab for each run started there, and the always-visible **Saved values** panel underneath. The **Overview / Parameters / Run** tabs head the right column, so switching only changes that column. A script page has **one Save** (centre tab bar, **Ctrl+S** anywhere): it saves whatever changed — the script, the Overview settings, the parameter definitions (editing the metadata block in the script and a form together is refused, as they are the same settings); a dot marks unsaved changes. |
 | **Script › Overview** | The script's settings on the right: name, category, description, interpreter, default host, working directory, environment, platforms; below, recent runs. (The old `/configure/` URL opens this page.) |
 | **Script › Parameters** | The **parameter definitions** the run form is built from (click a row to edit; hover to see where the script uses it). |
 | **Script › Run** | On the right: where the values come from (defaults, a recent run or a preset), the host and the parameters (focusing one marks the lines that use it), and *+ Save current values as preset…* at the end of the values list. **Run** (Ctrl+Enter) in the bottom bar, with the mode **Normal · Trace · Debug** next to it, starts the script straight away (unsaved script edits are saved first) and opens the run as a tab next to the script; **Reset** loads the defaults. |
@@ -190,7 +186,7 @@ dark theme* switches, remembered per browser):
 | **Sequences** (`/sequences/`) | Scripts connected by arrows on a diagram, run in place; see [Sequences](#sequences-scripts-connected-by-arrows). |
 | **Console** (`/executions/RUN-…/`) | Live status, duration, exit code, stdout and stderr (side by side, stacked or stdout only), auto-scroll, copy, download, stop; the running line (trace) or the **debugger** (debug). |
 | **Runs** (`/history/`; `/executions/` redirects here) | What is running or queued on top (refreshes by itself while something runs), then the history: every script run and sequence run with search, filters, paging, open or download logs, delete and retention. |
-| **Settings** | Features, concurrency limits, timeouts, polling, retention, interpreters (local and SSH), SSH command, environment variables, SSH host test. |
+| **Settings** | Appearance, concurrency limits, timeouts, polling, retention, interpreters (local and SSH), SSH command, environment variables, SSH host test and stored-data management. |
 
 ### Keyboard and command palette
 
@@ -201,14 +197,12 @@ Ctrl+Enter runs it), type `run ` to list run actions only, paste a run id such a
 | Keys | Action |
 |---|---|
 | `Ctrl+K` | Command palette |
-| `Ctrl+B` | Toggle the side panel |
 | `/` | Focus the page search (or the explorer filter) |
 | `g o` `g l` `g q` `g h` `g s` | Go to Home, Library, Sequences, Runs, Settings |
 | `g n` `g f` | New script (in the open folder), Open folder |
 | `i` (or `c`) `p` `r` (or `s`) | On a script: Overview, Parameters, Run |
 | `Ctrl+S` | Save (script pages, editor) |
 | `Ctrl+Enter` | Run (Run tab, sequence), Create (New script) |
-| `Ctrl+Alt+B` `Ctrl+J` | Hide/show the right panel, the saved-values panel (script pages) |
 | `r` | On a console: run this script again |
 | `[` `]` | Runs: previous / next page |
 | `F5` `F10`/`n` `F6` `Shift+F5` | Debugger: continue, step, pause, stop |
@@ -618,7 +612,7 @@ a small YAML subset (written by ScriptHub, fine to edit by hand).
 * **Run with saved values:** every preset and recent run has a **▶ Run** button (on the
   Parameters tab and in the comparison grid) that starts the script with those values
   already filled in and validated; **Ctrl+Enter** launches.
-* **Compare:** the **Saved values** panel under the script (click its bar or **Ctrl+J**; drag its top edge to resize) shows a grid,
+* **Compare:** the always-visible **Saved values** panel under the script (drag its top edge to resize) shows a grid,
   rows = parameters, columns = presets and recent runs; values that differ from the
   script's default are highlighted.
 * Values are **re-validated against the current metadata** each time they load: removed

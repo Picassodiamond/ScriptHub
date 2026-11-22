@@ -1,4 +1,4 @@
-/* ScriptHub — workbench shell: flashes, confirms, theme, side panel,
+/* ScriptHub — workbench shell: flashes, confirms, theme,
    explorer tree, keyboard shortcuts (data-hotkey), command palette (Ctrl+K)
    and the shortcut sheet (?). Vanilla JS, no dependencies. */
 (function () {
@@ -46,39 +46,16 @@
     });
   });
 
-  // -------------------------------------------------- theme & side panel --
+  // -------------------------------------------------------------- theme --
   function toggleTheme() {
     var t = root.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
     root.setAttribute('data-theme', t);
     store('sr.theme', t);
   }
-  var narrow = window.matchMedia('(max-width: 860px)');
-  function toggleSide(force) {
-    if (narrow.matches) { root.classList.toggle('side-open', force); return; }
-    var off = !root.classList.contains('side-off');
-    if (typeof force === 'boolean') off = !force;
-    root.classList.toggle('side-off', off);
-    store('sr.side', off ? '0' : '1');
-  }
-  // Right column of the script pages (Overview / Parameters / Run).
-  function toggleSide2() {
-    var off = !root.classList.contains('side2-off');
-    root.classList.toggle('side2-off', off);
-    store('sr.side2', off ? '0' : '1');
-  }
-  // Bottom panel of the script pages (saved values): Ctrl+J, its header, drag its top edge.
-  function toggleBottom(force) {
-    var on = typeof force === 'boolean' ? force : !root.classList.contains('bottom-on');
-    root.classList.toggle('bottom-on', on);
-    store('sr.bottom', on ? '1' : '0');
-    var head = document.querySelector('.bp-head');
-    if (head) head.setAttribute('aria-expanded', on ? 'true' : 'false');
-  }
+  // Saved values panel height is adjustable from its top edge.
   (function () {
     var panel = document.getElementById('saved-panel');
     if (!panel) return;
-    if (panel.hasAttribute('data-force-open')) toggleBottom(true);      // ?tab=params
-    else toggleBottom(root.classList.contains('bottom-on'));
     var grip = panel.querySelector('[data-bp-resize]');
     if (!grip) return;
     grip.addEventListener('pointerdown', function (e) {
@@ -103,9 +80,6 @@
     if (!a) return;
     var act = a.getAttribute('data-action');
     if (act === 'theme') toggleTheme();
-    else if (act === 'side') toggleSide();
-    else if (act === 'side2') toggleSide2();
-    else if (act === 'bottom') toggleBottom();
     else if (act === 'palette') palette.open();
     else if (act === 'help') help.open();
   });
@@ -277,9 +251,6 @@
     if ((name === 'Ctrl+k') || (name === 'Ctrl+Shift+P') || (e.ctrlKey && e.shiftKey && (e.key === 'P' || e.key === 'p'))) {
       e.preventDefault(); palette.open(); return;
     }
-    if (name === 'Ctrl+b') { e.preventDefault(); toggleSide(); return; }
-    if (name === 'Ctrl+Alt+b') { if (document.querySelector('.split-side')) { e.preventDefault(); toggleSide2(); } return; }
-    if (name === 'Ctrl+j') { if (document.getElementById('saved-panel')) { e.preventDefault(); toggleBottom(); } return; }
     var fKey = /^(Shift\+)?F\d+$/.test(name), modded = /^(Ctrl|Alt)\+/.test(name);
     if (inField && !fKey && !modded && name !== 'Escape') return;
     if (inField && name === 'Escape') return;
@@ -288,8 +259,7 @@
       if (e.key === '/') {
         var s = document.querySelector('[data-page-search]');
         if (!s || !visible(s)) s = document.getElementById('tree-filter');
-        if (s && narrow.matches && !visible(s)) toggleSide(true);
-        if (s) { e.preventDefault(); s.focus(); s.select && s.select(); }
+        if (s && visible(s)) { e.preventDefault(); s.focus(); s.select && s.select(); }
         return;
       }
     }
@@ -413,9 +383,6 @@
       items.push({ group: 'This page', text: hint, hint: el.getAttribute('data-hotkey').split('|')[0], icon: ICON('zap'), el: el, key: hint });
     });
     items.push({ group: 'Commands', text: 'Toggle light / dark theme', icon: ICON('sun'), run: toggleTheme, key: 'theme dark light toggle' });
-    items.push({ group: 'Commands', text: 'Toggle side panel', hint: 'Ctrl+B', icon: ICON('panel'), run: function () { toggleSide(); }, key: 'side panel sidebar explorer toggle' });
-    if (document.querySelector('.split-side')) items.push({ group: 'Commands', text: 'Toggle right panel', hint: 'Ctrl+Alt+B', icon: ICON('panel'), run: toggleSide2, key: 'right panel column collapse toggle' });
-    if (document.getElementById('saved-panel')) items.push({ group: 'Commands', text: 'Toggle saved values panel', hint: 'Ctrl+J', icon: ICON('sliders'), run: function () { toggleBottom(); }, key: 'saved values presets bottom panel compare toggle' });
     items.push({ group: 'Commands', text: 'Keyboard shortcuts', hint: '?', icon: ICON('keyboard'), run: function () { setTimeout(help.open, 0); }, key: 'keyboard shortcuts help keys' });
     // Script folders: the system folder dialog, favourites and recent.
     var folders = [];
@@ -501,7 +468,7 @@
   var help = {
     open: function () {
       var rows = [
-        ['Global', [['Command palette', 'Ctrl K'], ['Toggle side panel', 'Ctrl B'], ['Toggle right panel (script pages)', 'Ctrl Alt B'], ['Toggle saved values panel', 'Ctrl J'], ['Focus search / explorer filter', '/'], ['This sheet', '?']]],
+        ['Global', [['Command palette', 'Ctrl K'], ['Focus search / explorer filter', '/'], ['This sheet', '?']]],
         ['Go to', [['Home', 'g o'], ['Script Library', 'g l'], ['Sequences', 'g q'], ['Runs (running + history)', 'g h'], ['Settings', 'g s']]],
         ['Script', [['Overview: settings', 'i  or  c'], ['Parameters and saved values', 'p'], ['Run: run, view, edit', 'r  or  s'], ['Save the script / settings / parameters', 'Ctrl S']]],
         ['Run & debug', [['Review / launch', 'Ctrl ↵'], ['Back from review', 'Esc'], ['Continue', 'F5'], ['Step to next line', 'F10  or  n'], ['Pause', 'F6'], ['Stop the run', 'Shift F5']]]
